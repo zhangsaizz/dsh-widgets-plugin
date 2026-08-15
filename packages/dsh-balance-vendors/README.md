@@ -16,6 +16,33 @@ Bound-but-unsupported vendors (OpenAI, Anthropic, Google, xAI, Mistral) resolve 
 
 Besides the shipped defaults, the plugin applies **user-managed bindings** from the `balance` settings section: each entry (`provider`, `vendor`, `credentialRef`, optional `baseURL`) registers a provider live into `ctx.balance`, and a settings change reconciles the set (new routes appear, removed routes drop). This is how a self-hosted or custom route gets a balance query without a code change — the Web Settings page (ui-balance) edits the section, and the same vendor types (`new-api`, `deepseek`, `moonshot`, `openrouter`, `siliconflow`) are available with overridable route, credential reference, and base URL.
 
+## Usage
+
+The shipped defaults need no setup: put the matching API key into the
+corresponding credential reference and the dashboard picks it up.
+
+- DeepSeek → `DEEPSEEK_API_KEY` · Moonshot → `MOONSHOT_API_KEY`
+- OpenRouter → `OPENROUTER_API_KEY` · SiliconFlow → `SILICONFLOW_API_KEY`
+- New API → `NEW_API_KEY` (self-hosted; point `newApiBaseURL` at your instance, default `http://localhost:3000`)
+
+For a custom or self-hosted route, add a binding in the `balance` settings
+section (or via the Web Settings → Balance providers page):
+
+```yaml
+bindings:
+  - provider: new-api
+    vendor: new-api
+    credential: sk-xxxxxxxx          # inline key, or...
+    baseURL: http://localhost:3000
+  - provider: deepseek-official
+    vendor: deepseek
+    credentialRef: DEEPSEEK_API_KEY  # ...a reference into the credential store
+```
+
+Each entry answers one provider route; `credentialRef` and `credential` are
+mutually exclusive, and either one is enough. The binding takes effect on the
+next dashboard refresh — no restart required.
+
 ## Model Experience
 
 None, as each provider only calls a vendor HTTP endpoint and normalizes the response; no account data reaches the session log, the model context, or telemetry.

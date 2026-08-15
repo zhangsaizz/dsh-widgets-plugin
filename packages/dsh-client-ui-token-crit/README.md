@@ -1,43 +1,67 @@
 # @dsh-plugins/client-ui-token-crit
 
-浮动的 token 用量「暴击伤害」计量挂件（web 端插件）。纯 UI 插件：在
-`shell.overlay` 里注册一个可拖动、可缩放、可折叠的透明挂件，实时显示当前
-会话累计 token 用量，并在用量增长时触发网游风格的暴击动效。
+English | [中文](README.zh.md)
 
-## 特性
+A floating token-usage "crit damage" meter widget (web plugin). Pure UI: it
+registers a draggable, resizable, collapsible transparent widget in
+`shell.overlay` that shows the current session's cumulative token usage in
+real time and triggers game-style crit animations as usage grows.
 
-- **实时累计用量**：通过标准 `useSessions` prop 读取 `tokenUsage` 会话投影
-  （输入 + 缓存读 + 缓存写 + 输出），无需 Host RPC、无需轮询（投影推送帧
-  是响应式的）。
-- **暴击动效**：增长时震屏 + 爆闪 + 飘出「输入 / 输出」分流的 `+N` 伤害数字、
-  粒子迸溅、连击计数，大额触发红色 `暴击!` / `CRIT!`、屏幕边缘泛光、可选音效。
-- **常驻粒子**：透明背景下缓缓上浮的火烬粒子（数量、颜色可调）。
-- **可配置**：⚙ 设置面板实时调节语言（中/英）、数字格式/字号、标签、连击、
-  粒子、暴击阈值/比例、音效、边缘泛光；位置与缩放写入 `localStorage`。
+## Features
 
-## 结构
+- **Real-time cumulative usage**: reads the `tokenUsage` session projection
+  (input + cached read + cached write + output) through the standard
+  `useSessions` prop — no Host RPC, no polling (the projection push frames are
+  reactive).
+- **Crit animations**: on growth — screen shake + flash + floating `+N` damage
+  numbers split by input/output, particle bursts, combo counter; large deltas
+  trigger a red `暴击!` / `CRIT!`, edge glow, optional sound effects.
+- **Ambient particles**: ember particles slowly rising over a transparent
+  background (count and color adjustable).
+- **Configurable**: the ⚙ settings panel adjusts language (zh/en), number
+  format / font size, label, combo, particles, crit threshold / ratio, sound,
+  edge glow in real time; position and zoom persist to `localStorage`.
+
+## Structure
 
 ```
-src/index.ts                  # Host 空 apply（纯 UI 插件）
-src/client/index.ts           # 浏览器 apply + inject
+src/index.ts                  # Host empty apply (pure UI plugin)
+src/client/index.ts           # Browser apply + inject
 src/client/TokenCritWidget.tsx
 src/client/TokenCritWidget.module.css
-lib/index.js                  # Host 构建产物（静态）
-lib/client.js                 # 浏览器构建产物（ModuleLoader CJS bundle）
+lib/index.js                  # Host build artifact (static)
+lib/client.js                 # Browser build artifact (ModuleLoader CJS bundle)
 ```
 
-## 构建
+## Build
 
-根目录 `scripts/build.mjs` 用 esbuild 构建；本包在其中的
-「Token-crit client bundle」段产出 `lib/client.js`：
+The root `scripts/build.mjs` builds with esbuild; this package's
+"Token-crit client bundle" section produces `lib/client.js`:
 
 ```bash
 pnpm install
 pnpm build   # equivalent to `node scripts/build.mjs` from the repo root
 ```
 
-## 挂载
+## Mounting
 
-这是一个纯客户端 surface 插件：把它（连同其 `dsh.client` 声明的依赖）加入
-部署的 web 插件表 / host `cordis.yml` 后，浏览器端通过
-`exports["./client"]` 加载 `lib/client.js` 并在 `shell.overlay` 中渲染挂件。
+This is a pure client-side surface plugin: once it (together with the
+dependencies declared in its `dsh.client`) is added to the deployed web plugin
+table / host `cordis.yml`, the browser loads `lib/client.js` through
+`exports["./client"]` and renders the widget in `shell.overlay`.
+
+## Usage
+
+No configuration is needed after mounting — open any session to see the widget:
+
+1. **Watch usage** — open a session; the transparent widget shows the session's
+   cumulative token usage (input / cached read / cached write / output) in real
+   time, with crit animations and `+N` damage numbers as usage grows.
+2. **Reshape it** — drag the header to move, drag a corner to resize, click the
+   collapse button to shrink it to a compact pill.
+3. **Open settings** — click the ⚙ on the widget to adjust language (zh/en),
+   number format / font size, label, combo, particle count and color, crit
+   threshold / ratio, sound, edge glow in real time; position and zoom are
+   persisted to `localStorage` automatically and survive a page reload.
+4. **Hide it** — the settings panel can hide the widget; re-enable it later via
+   the host's web plugin table.

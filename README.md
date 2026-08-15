@@ -79,13 +79,19 @@ bundle 的 `cordis.patch.yml` 会插入 `balance`、`balance-vendors`、`ui-bala
 
 ## 使用
 
-### 余额看板
+各小组件的详细使用方式（含配置示例）见对应子包 README：
+
+- **余额看板**（[`client-ui-balance/README.zh.md`](packages/dsh-client-ui-balance/README.zh.md)）——绑定供应商、存令牌、看板操作
+- **Token 暴击挂件**（[`client-ui-token-crit/README.zh.md`](packages/dsh-client-ui-token-crit/README.zh.md)）——查看用量、调整形态、设置面板
+- **厂商配置**（[`balance-vendors/README.zh.md`](packages/dsh-balance-vendors/README.zh.md)）——默认凭据清单 + 自定义绑定示例
+
+### 余额看板（速览）
 
 1. Web 设置 → 「余额供应商」→ 添加绑定：提供商路由（如 `new-api`）、厂商类型（`new-api` / `deepseek` / `moonshot` / `openrouter` / `siliconflow`）、凭据引用（如 `NEW_API_KEY`）、可选 Base URL（自托管网关）。
 2. 把对应令牌存入该凭据引用（`$DSH_HOME/.credentials.yaml` 或 Web 设置里的凭据管理）。
 3. 看板默认显示当前会话所用提供商的余额；点 `▦` 切换到多账户视图；收起胶囊默认显示当前账户，其他供应商余额变化时短暂显示 3 秒。
 
-### Token 暴击挂件
+### Token 暴击挂件（速览）
 
 纯 UI 挂件，无需凭据。打开会话后 `shell.overlay` 中即出现可拖动 / 可缩放 / 可折叠的透明挂件，实时显示当前会话累计 token 用量；点 ⚙ 打开设置面板，可调节语言、数字格式 / 字号、标签、连击、粒子、暴击阈值 / 比例、音效、边缘泛光，位置与缩放写入 `localStorage`。
 
