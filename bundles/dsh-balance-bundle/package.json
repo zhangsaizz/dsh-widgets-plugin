@@ -1,0 +1,28 @@
+{
+  "name": "@dsh-plugins/balance-bundle",
+  "description": "Installable dsh bundle: mounts the balance seam, its vendors, the web balance dashboard, and the token-crit widget in one layer",
+  "version": "0.1.0",
+  "license": "MIT",
+  "publishConfig": {
+    "access": "public"
+  },
+  "type": "module",
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    }
+  },
+  "exports": {
+    "./cordis.patch.yml": "./cordis.patch.yml",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "cordis.patch.yml"
+  ],
+  "dependencies": {
+    "@dsh-plugins/balance": "workspace:*",
+    "@dsh-plugins/balance-vendors": "workspace:*",
+    "@dsh-plugins/client-ui-balance": "workspace:*",
+    "@dsh-plugins/client-ui-token-crit": "workspace:*"
+  }
+}

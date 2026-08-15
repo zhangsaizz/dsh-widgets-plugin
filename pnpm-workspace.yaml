@@ -1,0 +1,8 @@
+packages:
+  - 'packages/*'
+  - 'bundles/*'
+
+# pnpm 10: allow esbuild's postinstall (binary verify) to run.
+# (pnpm 11 renamed this to allowBuilds.)
+onlyBuiltDependencies:
+  - esbuild

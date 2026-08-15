@@ -1,0 +1,321 @@
+.widget {
+  position: fixed;
+  z-index: 60;
+  pointer-events: auto;
+  user-select: none;
+}
+
+.scaleBox {
+  transition: transform 120ms ease-out;
+}
+
+.panel {
+  position: relative;
+  min-width: 250px;
+  background: var(--dsw-alias-bg-overlay);
+  backdrop-filter: blur(12px) saturate(1.15);
+  -webkit-backdrop-filter: blur(12px) saturate(1.15);
+  border: 1px solid var(--dsw-alias-border-inverted);
+  border-radius: 14px;
+  box-shadow:
+    0 1px 2px rgba(0, 0, 0, 0.12),
+    0 12px 32px rgba(0, 0, 0, 0.28);
+  overflow: hidden;
+}
+
+.panel::before {
+  content: '';
+  position: absolute;
+  inset: 0 0 auto 0;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.16), transparent);
+  pointer-events: none;
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  cursor: grab;
+  border-bottom: 1px solid var(--dsw-alias-border-inverted);
+}
+
+.header:active {
+  cursor: grabbing;
+}
+
+.title {
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: var(--dsw-alias-label-primary);
+}
+
+.provider {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12px;
+  color: var(--dsw-alias-label-tertiary);
+}
+
+.controls {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  margin-left: 4px;
+}
+
+.iconButton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--dsw-alias-label-secondary);
+  font-size: 13px;
+  line-height: 1;
+  padding: 0;
+  cursor: pointer;
+}
+
+.iconButton:hover {
+  background: var(--dsw-alias-interactive-bg-hover);
+}
+
+.iconButton:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
+.iconButton[data-active] {
+  color: var(--dsw-alias-brand-primary-invert);
+  background: var(--dsw-alias-interactive-bg-active);
+}
+
+.zoomLevel {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 22px;
+  min-width: 34px;
+  padding: 0 4px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--dsw-alias-label-tertiary);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+}
+
+.zoomLevel:hover {
+  background: var(--dsw-alias-interactive-bg-hover);
+  color: var(--dsw-alias-label-secondary);
+}
+
+.divider {
+  width: 1px;
+  height: 14px;
+  margin: 0 3px;
+  background: var(--dsw-alias-border-inverted);
+}
+
+.body {
+  display: flex;
+  align-items: center;
+  min-height: 44px;
+  padding: 12px 14px;
+}
+
+.amountRow {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+}
+
+.amount {
+  font-size: 28px;
+  font-weight: 700;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.01em;
+  color: var(--dsw-alias-label-primary);
+}
+
+.currency {
+  font-size: 13px;
+  color: var(--dsw-alias-label-tertiary);
+}
+
+.trend {
+  font-size: 12px;
+  line-height: 1;
+}
+
+.trend[data-trend='up'], .amount[data-trend='up'] {
+  color: var(--dsw-alias-state-success-primary);
+}
+
+.trend[data-trend='down'], .amount[data-trend='down'] {
+  color: var(--dsw-alias-state-error-primary);
+}
+
+.trend[data-trend='flat'] {
+  color: var(--dsw-alias-label-tertiary);
+}
+
+.note {
+  font-size: 13px;
+  color: var(--dsw-alias-label-tertiary);
+}
+
+.footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 7px 14px;
+  border-top: 1px solid var(--dsw-alias-border-inverted);
+  font-size: 11px;
+  color: var(--dsw-alias-label-caption);
+}
+
+.delta {
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+}
+
+.delta[data-trend='up'] {
+  color: var(--dsw-alias-state-success-primary);
+}
+
+.delta[data-trend='down'] {
+  color: var(--dsw-alias-state-error-primary);
+}
+
+.delta[data-trend='flat'] {
+  color: var(--dsw-alias-label-caption);
+}
+
+.updatedAt {
+  white-space: nowrap;
+}
+
+.pill {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 14px;
+  border: 1px solid var(--dsw-alias-border-inverted);
+  border-radius: 999px;
+  background: var(--dsw-alias-bg-overlay);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  color: var(--dsw-alias-label-primary);
+  cursor: pointer;
+  font-size: 13px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1), 0 8px 20px rgba(0, 0, 0, 0.22);
+}
+
+.pill:hover {
+  background: var(--dsw-alias-bg-multi-select);
+}
+
+.pill[data-highlight] {
+  border-color: var(--dsw-alias-state-business-primary);
+  box-shadow: 0 0 0 1px var(--dsw-alias-state-business-primary), 0 8px 20px rgba(0, 0, 0, 0.22);
+}
+
+.pillAmount {
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.pillLabel {
+  color: var(--dsw-alias-label-secondary);
+}
+
+.accountList {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  width: 100%;
+  max-height: 180px;
+  overflow-y: auto;
+}
+
+.accountRow {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  padding: 2px 0;
+}
+
+.accountName {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12px;
+  color: var(--dsw-alias-label-secondary);
+}
+
+.accountVendor {
+  font-weight: 600;
+  color: var(--dsw-alias-label-primary);
+}
+
+.accountLabel {
+  margin-left: 6px;
+  color: var(--dsw-alias-label-tertiary);
+}
+
+.accountValue {
+  font-size: 15px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: var(--dsw-alias-label-primary);
+}
+
+.accountValue[data-trend='up'] {
+  color: var(--dsw-alias-state-success-primary);
+}
+
+.accountValue[data-trend='down'] {
+  color: var(--dsw-alias-state-error-primary);
+}
+
+.accountCurrency {
+  font-size: 11px;
+  color: var(--dsw-alias-label-tertiary);
+}
+
+.accountStatus {
+  font-size: 11px;
+  color: var(--dsw-alias-label-caption);
+}
+
+.accountStatus[data-status='error'] {
+  color: var(--dsw-alias-state-error-primary);
+}
+
+.accountCurrent {
+  margin-left: 6px;
+  padding: 1px 6px;
+  border-radius: 999px;
+  font-size: 10px;
+  color: var(--dsw-alias-brand-primary-invert);
+  background: var(--dsw-alias-interactive-bg-active);
+}
+
+.accountRow[data-current] .accountName {
+  color: var(--dsw-alias-label-primary);
+}

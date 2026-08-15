@@ -1,0 +1,23 @@
+# --- dependencies ---
+node_modules/
+.pnpm-store/
+
+# --- build artifacts (regenerate with `pnpm build`) ---
+lib/
+*.tsbuildinfo
+
+# --- local dsh tooling ---
+.dsh-vision-toolkit/
+
+# --- IDE / OS ---
+.idea/
+.vscode/
+*.swp
+.DS_Store
+Thumbs.db
+
+# --- logs ---
+*.log
+
+# --- pack / publish artifacts ---
+*.tgz

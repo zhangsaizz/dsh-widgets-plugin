@@ -1,0 +1,34 @@
+# The widgets bundle layer: inserts the host balance seam, the shipped
+# vendors (with user-managed bindings from the `balance` settings section),
+# the web balance dashboard + Balance providers settings page, and the
+# floating token-crit meter.
+- insert:
+    - id: balance
+      name: '@dsh-plugins/balance'
+      config:
+        requestTimeoutMs: 10000
+
+    - id: balance-vendors
+      name: '@dsh-plugins/balance-vendors'
+      config:
+        # New API is self-hosted; point the /api/user/self balance query at the instance.
+        newApiBaseURL: http://localhost:3000
+        # Fill credentials directly here. Each entry answers one provider route;
+        # use `credentialRef` (env-var / credential-store name) OR `credential`
+        # (inline API key) — one of the two is enough.
+        bindings: []
+        # Example:
+        # bindings:
+        #   - provider: new-api
+        #     vendor: new-api
+        #     credential: sk-xxxxxxxx
+        #     baseURL: http://localhost:3000
+        #   - provider: deepseek-official
+        #     vendor: deepseek
+        #     credentialRef: DEEPSEEK_API_KEY
+
+    - id: ui-balance
+      name: '@dsh-plugins/client-ui-balance'
+
+    - id: ui-token-crit
+      name: '@dsh-plugins/client-ui-token-crit'
