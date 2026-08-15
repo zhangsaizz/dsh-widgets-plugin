@@ -1,7 +1,8 @@
 # The widgets bundle layer: inserts the host balance seam, the shipped
 # vendors (with user-managed bindings from the `balance` settings section),
-# the web balance dashboard + Balance providers settings page, and the
-# floating token-crit meter.
+# the web balance dashboard (its provider bindings configured from the
+# Widgets manager's Configure dialog), the floating token-crit meter, and
+# the Widgets manager settings page.
 - insert:
     - id: balance
       name: '@dsh-plugins/balance'
@@ -32,3 +33,6 @@
 
     - id: ui-token-crit
       name: '@dsh-plugins/client-ui-token-crit'
+
+    - id: ui-widget-manager
+      name: '@dsh-plugins/client-ui-widget-manager'

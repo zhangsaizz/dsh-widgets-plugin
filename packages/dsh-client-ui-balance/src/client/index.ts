@@ -17,8 +17,10 @@ import type {} from '@deepseek-ai/dsh-api-remotes/client'
 import type {} from '@deepseek-ai/dsh-client-ui-layout/client'
 // Type-only: pulls the locale plugin's Context merge (ctx.locale).
 import type {} from '@deepseek-ai/dsh-client-locale/client'
-// Type-only: pulls the settings.section SlotMap merge.
-import type {} from '@deepseek-ai/dsh-client-ui-settings/client'
+// Type-only: pulls the `widgets.config` SlotMap merge declared by the widget
+// manager (the config panel lives in its "Configure" dialog, not in the
+// settings menu).
+import type {} from '@dsh-plugins/client-ui-widget-manager/client'
 import { BalanceController } from './controller.ts'
 import type { ModelDirectoriesLike } from './controller.ts'
 import { BalanceWidget } from './BalanceWidget.tsx'
@@ -87,11 +89,18 @@ export function apply(ctx: ClientContext): void {
     }
   }, 'ui-balance: widget registration')
 
-  ctx.slots.inject('settings.section', () => ctx.slots.register({
-    name: 'settings.section',
+  // The Balance providers config panel. It lives in the widget manager's
+  // "Configure" dialog (`widgets.config` slot, declared by
+  // @dsh-plugins/client-ui-widget-manager) rather than as a settings-menu
+  // page: registered only while the manager declares the slot, so installs
+  // without the manager simply skip it (config then requires the manager —
+  // the recommended install is the bundle).
+  // LOCAL MODIFICATION — `pnpm sync` overwrites src from deepseek-harness;
+  // re-apply this integration after every sync.
+  ctx.slots.inject('widgets.config', () => ctx.slots.register({
+    name: 'widgets.config',
     id: 'balance',
-    order: 20,
-    label: () => t('settingsNav'),
+    order: 0,
     inject: (): BalanceSettingsInjected => ({ t }),
   }, BalanceSettings))
 }

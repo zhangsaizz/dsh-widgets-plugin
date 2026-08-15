@@ -53,6 +53,8 @@ pnpm run publish:all         # pnpm -r publish --no-git-checks
 ### 1. 语言与文档
 
 - 仓库面向中文用户，根 README 用中文。
+- 仓库级「组件管理列表」见根目录 `COMPONENTS.md`：新增/修改组件时必须同步更新其中
+  的总览、插槽注册与构建产物表，发布前按该文档第 7 节过一遍维护清单。
 - 每个包的 README 是**双语对**：`README.md`（英文）+ `README.zh.md`（中文），
   头部互相链接（`English | [中文](README.zh.md)`）。
 - 双语对必须**内容同步**：改一侧必须同步另一侧。
@@ -81,7 +83,8 @@ pnpm run publish:all         # pnpm -r publish --no-git-checks
 
 ### 4. 新增小组件
 
-按 token-crit 的模板复制最小结构：
+按 token-crit 的模板复制最小结构（完整开发指南与面板管理接入见
+`WIDGET-DEVELOPMENT.md`）：
 
 - `src/index.ts`：Host 空 apply（纯 UI 插件）或 seam 逻辑。
 - `src/client/index.ts`：浏览器端 `apply` + `inject`，用 `ctx.slots.inject('shell.overlay', ...)`
@@ -98,6 +101,10 @@ pnpm run publish:all         # pnpm -r publish --no-git-checks
 - 只同步 **3 个 balance 包**（`dsh-balance`、`dsh-balance-vendors`、
   `dsh-client-ui-balance`）；token-crit 是独立维护的，不在同步列表。
 - 同步会复制 `src` + `lib` 并把 `@deepseek-ai/dsh-balance*` 改写为 `@dsh-plugins/*`。
+- **`dsh-client-ui-balance` 有一处本地改动**：余额供应商配置面板注册进
+  `widgets.config` 槽（小组件管理 `client-ui-widget-manager` 声明的子槽，在管理页
+  「配置」弹窗中渲染），不再占用 Web 设置的菜单页。同步会覆盖该改动（代码与 README
+  均有标注），同步后必须重新应用。
 - 同步后重跑 `pnpm build` 与 `pnpm -r publish`。
 
 ## 发布流程

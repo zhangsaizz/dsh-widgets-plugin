@@ -10,15 +10,20 @@
 
 看板默认显示**当前账户**（会话所用提供商），可通过头部切换按钮（`▦`）切到**多账户视图**，经 `balance/list` Remote 列出每个已配置提供商的余额——每行含厂商名、金额、币种与趋势。视图模式与其他设置一同持久化。
 
-插件还在 Web 设置中注册了**余额供应商**页（`settings.section`，id `balance`）：列出 `balance` 设置分区中的用户自管绑定，可添加（提供商路由 + 厂商类型 + 凭据引用 + 可选 base URL）或删除。Host 实时应用该分区，因此在此添加的绑定无需重启即可在下一次刷新生效。
+余额供应商配置面板由插件注册进小组件管理（`@dsh-plugins/client-ui-widget-manager`）的
+「配置」弹窗（`widgets.config` 槽），不再占用 Web 设置的菜单页：打开 Web 设置 →
+「小组件管理」→ 余额看板行上的「配置」按钮即可管理绑定。
 
 ## 使用方式
 
 挂件挂载后（安装方式见仓库根 README）即以浮层形式出现；查询额外提供商时才需要配置。
 
-1. **添加供应商绑定** — Web 设置 → 「余额供应商」→ 添加绑定：提供商路由（如 `new-api`）、厂商类型（`new-api` / `deepseek` / `moonshot` / `openrouter` / `siliconflow`）、凭据引用（如 `NEW_API_KEY`），自托管网关可选填 Base URL。
+1. **添加供应商绑定** — Web 设置 → 「小组件管理」→ 余额看板 → **配置**（弹窗）→ 添加绑定：提供商路由（如 `new-api`）、厂商类型（`new-api` / `deepseek` / `moonshot` / `openrouter` / `siliconflow`）、凭据引用（如 `NEW_API_KEY`），自托管网关可选填 Base URL。余额看板的配置面板依赖小组件管理（推荐安装 `@dsh-plugins/balance-bundle`）。
 2. **存入令牌** — 把对应 API Key 放入该凭据引用（`$DSH_HOME/.credentials.yaml` 或 Web 设置里的凭据管理）。看板每 30 秒自动刷新，无需重启。
 3. **查看看板** — 默认显示当前会话所用提供商的余额；点 `▦` 切多账户视图；拖动移动、拖到角落吸附，头部控件可缩放（75%–150%）或收起为胶囊。
+
+> **本地改动警示**：本包源码同步自 deepseek-harness（`pnpm sync`）。配置面板注册进
+> `widgets.config` 槽的这段代码（`src/client/index.ts`）是本地改动，**同步后会覆盖**，需重新应用。
 
 ## Model Experience
 

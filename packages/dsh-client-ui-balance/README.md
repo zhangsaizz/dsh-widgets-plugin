@@ -10,13 +10,25 @@ A single `BalanceController` (the object layer) follows the current session via 
 
 The widget defaults to the **current account** (the session's provider) and can switch to a **multi-account view** via the header toggle (`▦`), listing every configured provider's balance from the `balance/list` Remote — each row with its vendor label, amount, currency, and trend. The view mode persists with the other settings.
 
-The plugin also registers a **Balance providers** page in Web Settings (`settings.section` id `balance`): it lists the user-managed bindings from the `balance` settings section and lets you add (provider route + vendor type + credential reference + optional base URL) or remove them. The Host applies the section live, so a binding added here takes effect on the next refresh without a restart.
+The Balance providers config panel is registered into the widget manager's
+"Configure" dialog (`widgets.config` slot, declared by
+`@dsh-plugins/client-ui-widget-manager`) instead of a settings-menu page:
+open Web Settings → **Widgets** → the balance row's **Configure** button to
+manage the user-managed bindings from the `balance` settings section (add or
+remove: provider route + vendor type + credential reference + optional base
+URL). The Host applies the section live, so a binding saved there takes effect
+on the next refresh without a restart. The config panel requires the widget
+manager (recommended install: `@dsh-plugins/balance-bundle`).
+
+> **LOCAL MODIFICATION**: this package's source is synced from
+> deepseek-harness (`pnpm sync`), which OVERWRITES the `widgets.config`
+> registration in `src/client/index.ts` — re-apply it after every sync.
 
 ## Usage
 
 The dashboard appears as a floating overlay once the plugin is mounted (see the repo-root README for installation); no extra setup is needed unless you want to query additional providers.
 
-1. **Add a provider binding** — Web Settings → **Balance providers** → add a binding: provider route (e.g. `new-api`), vendor type (`new-api` / `deepseek` / `moonshot` / `openrouter` / `siliconflow`), credential reference (e.g. `NEW_API_KEY`), and optionally a Base URL for a self-hosted gateway.
+1. **Add a provider binding** — Web Settings → **Widgets** → the balance row's **Configure** → add a binding: provider route (e.g. `new-api`), vendor type (`new-api` / `deepseek` / `moonshot` / `openrouter` / `siliconflow`), credential reference (e.g. `NEW_API_KEY`), and optionally a Base URL for a self-hosted gateway. The config panel lives in the widget manager and requires it (recommended install: the bundle).
 2. **Store the token** — put the corresponding API key into that credential reference (`$DSH_HOME/.credentials.yaml` or the credentials manager in Web Settings). The dashboard auto-refreshes every 30 s, so no restart is needed.
 3. **Read the dashboard** — it defaults to the current session's provider balance; click `▦` for the multi-account view; drag to move, drag to a corner to snap-dock, use the header controls to zoom (75%–150%) or collapse to a pill.
 

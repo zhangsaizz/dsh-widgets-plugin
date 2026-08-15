@@ -18,7 +18,13 @@
 | `@dsh-plugins/balance-vendors` | 具体厂商 Provider（含设置驱动的用户绑定） |
 | `@dsh-plugins/client-ui-balance` | 余额看板挂件 + 「余额供应商」设置页（浏览器端） |
 | `@dsh-plugins/client-ui-token-crit` | Token 暴击挂件（浏览器端，纯 UI） |
+| `@dsh-plugins/client-ui-widget-manager` | 小组件管理设置页（浏览器端）：列出小组件并支持「添加 / 关闭」 |
 | `@dsh-plugins/balance-bundle` | 可安装 bundle：一层挂载以上全部插件 |
+
+> 完整的组件管理列表（组件明细、插槽注册、构建产物、依赖关系、维护清单）见
+> [COMPONENTS.md](COMPONENTS.md)。
+> 开发新小组件并接入「小组件管理」面板（含配置弹窗）的完整指南见
+> [WIDGET-DEVELOPMENT.md](WIDGET-DEVELOPMENT.md)。
 
 ## 前置条件
 
@@ -55,7 +61,7 @@ pnpm -r publish --no-git-checks   # 等价于 npm run publish:all
    ```
 3. 重启 `dsh web`。
 
-bundle 的 `cordis.patch.yml` 会插入 `balance`、`balance-vendors`、`ui-balance`、`ui-token-crit` 四行，一次挂载全部组件。
+bundle 的 `cordis.patch.yml` 会插入 `balance`、`balance-vendors`、`ui-balance`、`ui-token-crit`、`ui-widget-manager` 五行，一次挂载全部组件。
 
 ## 安装（手动）
 
@@ -75,6 +81,8 @@ bundle 的 `cordis.patch.yml` 会插入 `balance`、`balance-vendors`、`ui-bala
       name: '@dsh-plugins/client-ui-balance'
     - id: ui-token-crit
       name: '@dsh-plugins/client-ui-token-crit'
+    - id: ui-widget-manager
+      name: '@dsh-plugins/client-ui-widget-manager'
 ```
 
 ## 使用
@@ -83,6 +91,7 @@ bundle 的 `cordis.patch.yml` 会插入 `balance`、`balance-vendors`、`ui-bala
 
 - **余额看板**（[`client-ui-balance/README.zh.md`](packages/dsh-client-ui-balance/README.zh.md)）——绑定供应商、存令牌、看板操作
 - **Token 暴击挂件**（[`client-ui-token-crit/README.zh.md`](packages/dsh-client-ui-token-crit/README.zh.md)）——查看用量、调整形态、设置面板
+- **小组件管理**（[`client-ui-widget-manager/README.zh.md`](packages/dsh-client-ui-widget-manager/README.zh.md)）——在 Web 设置里列出小组件，可「添加（启用）/ 关闭（禁用）」；带配置的挂件（如余额看板）通过行上的「配置」按钮在独立弹窗中设置，不再占用设置菜单页
 - **厂商配置**（[`balance-vendors/README.zh.md`](packages/dsh-balance-vendors/README.zh.md)）——默认凭据清单 + 自定义绑定示例
 
 ### 余额看板（速览）

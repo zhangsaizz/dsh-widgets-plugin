@@ -23,6 +23,7 @@
     "@dsh-plugins/balance": "workspace:*",
     "@dsh-plugins/balance-vendors": "workspace:*",
     "@dsh-plugins/client-ui-balance": "workspace:*",
-    "@dsh-plugins/client-ui-token-crit": "workspace:*"
+    "@dsh-plugins/client-ui-token-crit": "workspace:*",
+    "@dsh-plugins/client-ui-widget-manager": "workspace:*"
   }
 }
