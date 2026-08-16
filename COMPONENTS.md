@@ -120,8 +120,10 @@
   `dsh-client-ui-slots`、`@dsh-plugins/client-ui-widget-manager`（type-only，peer）、
   `react`（peer）。
 - 构建：Host → `lib/index.js`（ESM，外部化）；Client → `lib/client.js`
-  （ModuleLoader CJS + 内联 CSS，`--loader:.css=local-css`）。`lib/typert.*` 为
-  typert codegen 产物，`pnpm build` 不重建。
+  （ModuleLoader CJS + 内联 CSS，`--loader:.css=local-css`）。`lib/types/**`
+  由 `pnpm build` 的 tsc 步骤重新生成（`tsconfig.build.json`，改写 `.ts` 相对
+  引用为 `.js`）；`lib/typert.*` 为 typert codegen 产物，**已提交进 git**
+  （仓库无 codegen 工具，无法重建），`pnpm build` 不重建但会校验其存在。
 
 ### 3.2 Token 暴击挂件（`client-ui-token-crit`）
 
@@ -276,13 +278,16 @@ graph LR
 
 | 包 | Host 产物 | 浏览器产物 | 包装方式 |
 |---|---|---|---|
-| `@dsh-plugins/balance` | `lib/index.js`（ESM，外部化） | `lib/client.js` | ModuleLoader CJS + 内联 CSS（`--loader:.css=local-css`）；`lib/typert.*` 为 typert codegen 产物（不重建） |
+| `@dsh-plugins/balance` | `lib/index.js`（ESM，外部化） | `lib/client.js` | ModuleLoader CJS + 内联 CSS（`--loader:.css=local-css`）；`lib/types/**` 由 `pnpm build` 内嵌的 tsc 步骤从 src 重新生成（js + d.ts + map）；`lib/typert.*` 为 typert codegen 产物，**已提交进 git**（仓库内无法重新生成，见 AGENTS.md），`pnpm build` 不重建 |
 | `@dsh-plugins/client-ui-token-crit` | `lib/index.js`（空 apply 壳） | `lib/client.js` | ModuleLoader CJS + 内联 CSS |
-| `@dsh-plugins/client-ui-session-monitor` | `lib/index.js`（空 apply 壳） | `lib/client.js` | ModuleLoader CJS + 内联 CSS |
+| `@dsh-plugins/client-ui-session-monitor` | `lib/index.js`（Host 半：`turn/end` 原因跟踪 + 状态路由） | `lib/client.js` | ModuleLoader CJS + 内联 CSS |
 | `@dsh-plugins/client-ui-widget-manager` | `lib/index.js`（ESM，空 apply 壳） | `lib/client.js` | ModuleLoader CJS + 内联 CSS |
 | `@dsh-plugins/dsh-widgets-plugin` | —（仅 `cordis.patch.yml`） | — | — |
 
 外部化清单：`@deepseek-ai/*`、`@dsh-plugins/*`、`zod`、`react`、`react/*`。
+
+> `pnpm build` 末尾会做 **exports 完整性校验**：每个 `exports` 目标文件（default + types 条件）
+> 必须存在，缺失即构建失败（CI 亦如此）——防止「tarball 缺文件但 CI 绿」的静默损坏。
 
 ---
 
@@ -315,7 +320,8 @@ graph LR
   （`ctx.slots.inject('widgets.config', …)`，条目 id = 挂件 id），管理页即自动显示
   「配置」按钮并在弹窗中渲染
 - [ ] 若改动 `@dsh-plugins/balance` 的 Remote 线协议：同步重新生成 `lib/typert.*`
-  （typert codegen，build.mjs 不重建）
+  （typert codegen，build.mjs 不重建；仓库内无生成工具，需从上游生成后提交，
+  见 AGENTS.md 第 3 节）
 - [ ] 若重命名/新增余额相关包：同步更新 `dsh-client-ui-widget-manager/src/client/widgets.ts`
   目录里的 `packageName`
 - [ ] 补双语 README + `README.i18n.yaml`（hash 用 `git hash-object` 重算）

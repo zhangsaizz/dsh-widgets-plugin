@@ -43,6 +43,3 @@ export const WIDGET_CATALOG: readonly WidgetDescriptor[] = [
     descriptionKey: 'sessionMonitorDescription',
   },
 ]
-
-/** The overlay ids the catalog knows about (used to tag manager shadows). */
-export const CATALOG_IDS: ReadonlySet<string> = new Set(WIDGET_CATALOG.map((entry) => entry.id))

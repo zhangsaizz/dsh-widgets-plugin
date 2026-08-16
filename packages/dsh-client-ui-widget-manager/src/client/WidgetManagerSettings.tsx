@@ -12,7 +12,7 @@
  * component (`renderSlot('widgets.config', {}, { only: widgetId })`).
  */
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type { HostObservable, InjectFace, PropsLocale, PropsRenderSlots, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
 import type { WidgetRow } from './controller.ts'
 import type { WidgetManagerLocaleKey } from './locales.ts'
@@ -40,6 +40,13 @@ export function WidgetManagerSettings({ t, useWidgets, toggle, renderSlot }: Wid
   const rows = useWidgets(snapshot => snapshot)
   const [openConfig, setOpenConfig] = useState<string | null>(null)
   const configRow = openConfig === null ? undefined : rows.find(row => row.id === openConfig)
+  const modalRef = useRef<HTMLDivElement | null>(null)
+
+  // Move focus into the dialog on open so keyboard users land inside it
+  // (it is aria-modal; focus should not stay on the page behind it).
+  useEffect(() => {
+    if (openConfig !== null) modalRef.current?.focus()
+  }, [openConfig])
 
   // Close the dialog when its widget loses the config contribution or gets
   // disabled/unregistered while open (otherwise the body would go empty).
@@ -73,7 +80,7 @@ export function WidgetManagerSettings({ t, useWidgets, toggle, renderSlot }: Wid
               {row.hasConfig && <span className={css.configNote}>{t('configNote')}</span>}
             </div>
             <div className={css.actions}>
-              <span className={css[statusClass(row)]}>{t(statusLabel(row))}</span>
+              <span className={css[statusView(row).cls]}>{t(statusView(row).key)}</span>
               {row.enabled && row.hasConfig && (
                 <button type="button" className={css.configure} onClick={() => { setOpenConfig(row.id) }}>
                   {t('configure')}
@@ -105,6 +112,8 @@ export function WidgetManagerSettings({ t, useWidgets, toggle, renderSlot }: Wid
             className={css.modal}
             role="dialog"
             aria-modal="true"
+            tabIndex={-1}
+            ref={modalRef}
             aria-label={configRow?.nameKey === undefined ? openConfig : t(configRow.nameKey)}
             onClick={(event) => { event.stopPropagation() }}
           >
@@ -126,14 +135,10 @@ export function WidgetManagerSettings({ t, useWidgets, toggle, renderSlot }: Wid
   )
 }
 
-/** Badge style key for one row's status. */
-function statusClass(row: WidgetRow): 'enabled' | 'disabled' | 'notInstalled' {
-  if (!row.registered) return 'notInstalled'
-  return row.enabled ? 'enabled' : 'disabled'
-}
-
-/** Badge copy key for one row's status. */
-function statusLabel(row: WidgetRow): WidgetManagerLocaleKey {
-  if (!row.registered) return 'notInstalled'
-  return row.enabled ? 'enabled' : 'disabled'
+/** One row's status badge: its style key and its localized copy key. A single
+ *  projection avoids two parallel functions drifting apart when the status
+ *  vocabulary grows. */
+function statusView(row: WidgetRow): { cls: 'enabled' | 'disabled' | 'notInstalled'; key: WidgetManagerLocaleKey } {
+  if (!row.registered) return { cls: 'notInstalled', key: 'notInstalled' }
+  return row.enabled ? { cls: 'enabled', key: 'enabled' } : { cls: 'disabled', key: 'disabled' }
 }

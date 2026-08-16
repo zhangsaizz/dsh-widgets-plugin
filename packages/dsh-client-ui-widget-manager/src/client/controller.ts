@@ -96,9 +96,14 @@ export class WidgetManagerController implements HostObservable<readonly WidgetRo
     return () => { this.listeners.delete(fn) }
   }
 
-  /** Toggle one widget: disable when visible, enable when shadowed. */
+  /** Toggle one widget: disable when visible, enable when shadowed by US. The
+   *  decision keys off our own shadow map, not the raw ledger: a THIRD-PARTY
+   *  negative-priority entry can hide a widget too, and basing the toggle on
+   *  it would flip our state without changing what the user sees (and keep
+   *  flipping forever). Our own disabled set stays consistent with our own
+   *  actions; third-party shadows still show up in the row's `enabled` state. */
   toggle(id: string): void {
-    if (this.isShadowed(id)) {
+    if (this.shadows.has(id)) {
       this.disabled.delete(id)
     } else {
       this.disabled.add(id)
@@ -132,7 +137,6 @@ export class WidgetManagerController implements HostObservable<readonly WidgetRo
       // Only shadow a widget that is actually mounted (the subscription retries otherwise).
       const target = this.ctx.slots.entries('shell.overlay').find((entry) => entry.options.id === id && !this.isShadowEntry(entry))
       if (target === undefined) return
-      if (this.ctx.slots.spec('shell.overlay') === undefined) return
       try {
         const disposer = this.ctx.slots.register(
           {
@@ -170,6 +174,23 @@ export class WidgetManagerController implements HostObservable<readonly WidgetRo
     for (const entry of this.ctx.slots.entries('shell.overlay')) {
       if (entry.options.id !== undefined && !this.isShadowEntry(entry)) widgetIds.add(entry.options.id)
     }
+    // Self-heal uninstalled widgets: when a widget we have SHADOWED disappears
+    // from the ledger (its plugin unloaded), drop our shadow AND the disabled
+    // mark — a permanent shadow would silently hide any future plugin that
+    // reuses the id, and the stale row would offer no way out. Only ids we
+    // actually shadowed are cleaned: a disabled-but-never-mounted id keeps its
+    // preference so a slower widget mount still gets shadowed.
+    let cleaned = false
+    for (const id of [...this.disabled]) {
+      if (!this.shadows.has(id)) continue
+      if (widgetIds.has(id)) continue
+      const dispose = this.shadows.get(id)!
+      this.shadows.delete(id)
+      this.disabled.delete(id)
+      dispose()
+      cleaned = true
+    }
+    if (cleaned) writeDisabled(this.disabled)
     // Late-mounted widgets retry their shadows here.
     for (const id of this.disabled) this.reconcileShadow(id)
 

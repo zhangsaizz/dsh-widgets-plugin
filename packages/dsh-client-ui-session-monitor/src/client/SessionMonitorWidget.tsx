@@ -1,7 +1,10 @@
 /**
  * The session monitor dashboard widget: a floating, draggable panel
  * registered into the shell.overlay list. It projects the live session list
- * through the standard `useSessions` prop — no Host RPC, no polling — and:
+ * through the standard `useSessions` prop — the list and running bits ride
+ * the reactive projection with no Host RPC; only the turn-end REASON table
+ * (toast refinement) is polled from the Host status route every few seconds
+ * — and:
  *
  *  - lists the live (non-blank, non-subagent by default) sessions with their
  *    status (running / idle / round-done), title, pending-interaction flag and
@@ -27,7 +30,7 @@ import type {
   PendingInteractionStatus, SessionListState, SessionSummary,
 } from '@deepseek-ai/dsh-client-runtime/client'
 import {
-  MAX_SCALE, MIN_SCALE, SETTINGS_CHANGED_EVENT, SETTINGS_KEY, clampToViewport, loadLastActive,
+  MAX_SCALE, MIN_SCALE, POS_KEY, SETTINGS_CHANGED_EVENT, SETTINGS_KEY, clampToViewport, loadLastActive,
   loadPos, loadScale, loadSettings, playChime, saveLastActive, savePos, saveScale,
 } from './settings.ts'
 import type { MonitorSettings } from './settings.ts'
@@ -142,6 +145,14 @@ const DEFAULT_BOTTOM = 150
 const PANEL_W = 268
 /** BroadcastChannel name for cross-tab acknowledgment sync. */
 const SYNC_CHANNEL = 'dsh-smon-sync'
+/** Poll interval for the Host turn-end reason table. */
+const POLL_INTERVAL_MS = 3000
+/** How long a Host turn-end record may precede the client's edge detection
+ *  and still count as the reason for THAT round. The Host records the turn-end
+ *  at event wall time, which precedes the client's running-flip detection by a
+ *  few hundred ms to one poll interval; a record strictly AFTER the detection
+ *  belongs to a later round, so the window is one-sided (see flushPending). */
+const REASON_FRESH_WINDOW_MS = 10_000
 
 /** Cross-tab sync message: one tab acknowledged a completion; the others
  *  mirror the cleanup so a reminder acknowledged anywhere stops nagging
@@ -170,6 +181,13 @@ function formatAgo(ts: number, now: number, t: TranslateNS<'session-monitor'>): 
   if (minutes < 1) return t('justNow')
   if (minutes < 60) return t('minutesAgo', { n: String(minutes) })
   return t('hoursAgo', { n: String(Math.floor(minutes / 60)) })
+}
+
+/** True when two sets hold exactly the same members (O(n) content compare). */
+function sameSet<T>(a: ReadonlySet<T>, b: ReadonlySet<T>): boolean {
+  if (a.size !== b.size) return false
+  for (const value of a) if (!b.has(value)) return false
+  return true
 }
 
 /**
@@ -225,6 +243,9 @@ export function SessionMonitorWidget(props: SessionMonitorWidgetProps) {
   const prevRunningRef = useRef<Map<string, boolean>>(new Map())
   const settingsRef = useRef(settings)
   const doneIdsRef = useRef(doneIds)
+  const lastActiveRef = useRef(lastActive)
+  /** Latest flushPending, so the mount-time poll loop never captures a stale closure. */
+  const flushPendingRef = useRef<() => void>(() => undefined)
   const toastKeyRef = useRef(0)
   const dragRef = useRef<DragState | null>(null)
   const anchorRef = useRef<HTMLDivElement | null>(null)
@@ -254,10 +275,17 @@ export function SessionMonitorWidget(props: SessionMonitorWidgetProps) {
 
   useEffect(() => { settingsRef.current = settings }, [settings])
   useEffect(() => { doneIdsRef.current = doneIds }, [doneIds])
+  useEffect(() => { lastActiveRef.current = lastActive }, [lastActive])
+  // Re-point the flush ref every render: flushPending closes over the latest
+  // `t`/settings, so the mount-time poll loop must not hold the first frame's.
+  useEffect(() => { flushPendingRef.current = flushPending })
 
-  // Re-read settings whenever the config panel writes them.
+  // Re-read settings/position/scale whenever the config panel writes them.
   useEffect(() => {
     const handler = (): void => {
+      const p = loadPos()
+      posRef.current = p
+      setPos(p)
       setSettings(loadSettings())
       setScale(loadScale())
     }
@@ -306,8 +334,12 @@ export function SessionMonitorWidget(props: SessionMonitorWidgetProps) {
   // `storage` event fires only in the other tabs, so re-read there.
   useEffect(() => {
     const onStorage = (e: StorageEvent): void => {
-      if (e.key !== SETTINGS_KEY) return
-      setSettings(loadSettings())
+      if (e.key === SETTINGS_KEY) setSettings(loadSettings())
+      else if (e.key === POS_KEY) {
+        const p = loadPos()
+        posRef.current = p
+        setPos(p)
+      }
     }
     window.addEventListener('storage', onStorage)
     return () => window.removeEventListener('storage', onStorage)
@@ -329,6 +361,7 @@ export function SessionMonitorWidget(props: SessionMonitorWidgetProps) {
       pendingRef.current.delete(id)
       roundsRef.current.delete(id)
       prevInteractionRef.current.delete(id)
+      prevRunningRef.current.delete(id)
       closeBrowserNotify(id)
     }
     setToasts((ts) => ts.filter((t) => !removed.includes(t.sessionId)))
@@ -380,12 +413,12 @@ export function SessionMonitorWidget(props: SessionMonitorWidgetProps) {
       if (prev.has(id) && prev.get(id) !== next.get(id)) bumps.set(id, now)
     }
     if (bumps.size > 0) {
-      setLastActive((prevMap) => {
-        const merged = { ...prevMap }
-        for (const [id, ts] of bumps) merged[id] = ts
-        saveLastActive(merged)
-        return merged
-      })
+      const merged = { ...lastActiveRef.current }
+      for (const [id, ts] of bumps) merged[id] = ts
+      // Persist OUTSIDE the state updater: updaters must stay pure (StrictMode
+      // double-invokes them, and a write inside would also duplicate per bump).
+      saveLastActive(merged)
+      setLastActive(merged)
     }
     // A session that starts a new round loses its stale "round done" mark.
     const newDone = new Set(doneIdsRef.current)
@@ -417,6 +450,21 @@ export function SessionMonitorWidget(props: SessionMonitorWidgetProps) {
       // one round (goal-mode multi-rounds included). The Host's cumulative
       // count replaces this in flushPending when available.
       roundsRef.current.set(row.id, (roundsRef.current.get(row.id) ?? 0) + 1)
+      // The pending slot is one per session: if an earlier alert for the same
+      // session is STILL waiting for its Host reason, a new round would
+      // overwrite (and silently drop) it — emit the earlier one now with its
+      // base kind so no finished round goes unnotified.
+      const previous = pendingRef.current.get(row.id)
+      if (previous !== undefined && previous.immediate !== true && settingsRef.current.notify) {
+        appendToasts([{
+          key: ++toastKeyRef.current,
+          sessionId: previous.sessionId,
+          title: previous.title,
+          at: previous.at,
+          kind: previous.baseKind,
+          round: previous.round,
+        }])
+      }
       pendingRef.current.set(row.id, {
         at: now,
         baseKind,
@@ -458,12 +506,30 @@ export function SessionMonitorWidget(props: SessionMonitorWidgetProps) {
         immediate: true,
       })
     }
-    if (newDone.size !== doneIdsRef.current.size) setDoneIds(newDone)
+    // Compare by CONTENT, not size: a snapshot where one session's mark is
+    // added and another's removed keeps the same size — skipping then would
+    // lose the new mark and keep the stale one (and doneIdsRef would lag too).
+    if (!sameSet(newDone, doneIdsRef.current)) setDoneIds(newDone)
     // With no Host reachable, emit pending toasts immediately instead of
     // waiting for the next poll.
     flushPending()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sessions])
+
+  /** Append toasts with the mode's dedupe/eviction policy (newest first). */
+  function appendToasts(emit: Toast[]): void {
+    if (emit.length === 0) return
+    setToasts((prevToasts) => {
+      if (settingsRef.current.notifyMode === 'confirm') {
+        // Confirm mode: a session's newer round replaces its older toast, and
+        // unconfirmed toasts are never evicted by new arrivals. Newest first.
+        const deduped = prevToasts.filter((t) => !emit.some((nt) => nt.sessionId === t.sessionId))
+        return [...emit, ...deduped].slice(0, MAX_CONFIRM_TOASTS)
+      }
+      // Auto mode: newest first, oldest dropped beyond the stack cap.
+      return [...emit, ...prevToasts].slice(0, MAX_TOASTS)
+    })
+  }
 
   /**
    * Emit toasts (and browser notifications) for finished rounds once their
@@ -481,7 +547,12 @@ export function SessionMonitorWidget(props: SessionMonitorWidgetProps) {
     const settled: string[] = []
     for (const [sessionId, alert] of pending) {
       const rec = reasonsRef.current[sessionId]
-      const recFresh = rec !== undefined && rec.at >= alert.at
+      // The Host records the turn-end at event wall time, which precedes the
+      // client's running-flip detection (the status frame arrives after the
+      // event). A record matches THIS round when it sits in a window
+      // immediately BEFORE the alert — a record strictly after the detection
+      // belongs to a later round, so it must not mislabel this toast.
+      const recFresh = rec !== undefined && rec.at <= alert.at && rec.at >= alert.at - REASON_FRESH_WINDOW_MS
       const stale = now - alert.at > 12_000
       let kind: ToastKind
       if (alert.immediate === true) {
@@ -508,18 +579,7 @@ export function SessionMonitorWidget(props: SessionMonitorWidgetProps) {
     // page (a background tab can still play it); while they are present the
     // visual toast is enough — same away-gate as the system notification.
     if (cfg.sound && isUserAway()) playChime()
-    if (cfg.notify) {
-      setToasts((prevToasts) => {
-        if (cfg.notifyMode === 'confirm') {
-          // Confirm mode: a session's newer round replaces its older toast, and
-          // unconfirmed toasts are never evicted by new arrivals. Newest first.
-          const deduped = prevToasts.filter((t) => !emit.some((nt) => nt.sessionId === t.sessionId))
-          return [...emit, ...deduped].slice(0, MAX_CONFIRM_TOASTS)
-        }
-        // Auto mode: newest first, oldest dropped beyond the stack cap.
-        return [...emit, ...prevToasts].slice(0, MAX_TOASTS)
-      })
-    }
+    if (cfg.notify) appendToasts(emit)
     // The system notification exists to reach the user while they are NOT
     // looking at the page (tab hidden / window unfocused): the in-page toast
     // already covers the "user is here" case, so skip the OS-level popup then.
@@ -535,13 +595,25 @@ export function SessionMonitorWidget(props: SessionMonitorWidgetProps) {
   useEffect(() => {
     let cancelled = false
     const tick = async (): Promise<void> => {
+      // With both the in-page toast and the system notification disabled,
+      // nothing consumes turn-end reasons — skip the fetch. Re-evaluated on
+      // every tick, so enabling either notification resumes within one
+      // interval (no effect restart needed).
+      if (!settingsRef.current.notify && !settingsRef.current.browserNotify) {
+        hostStatusRef.current = 'down'
+        flushPendingRef.current()
+        return
+      }
       let up: boolean
       try {
         const res = await fetch('/_dsh/session-monitor/status', { cache: 'no-store' })
         if (!res.ok) throw new Error(`status ${res.status}`)
         const body: any = await res.json()
         if (cancelled) return
-        if (body && body.ok && body.value && typeof body.value.sessions === 'object') {
+        // A null/array `sessions` would poison reasonsRef and crash the next
+        // flushPending lookup — only accept a plain object.
+        if (body && body.ok && body.value && typeof body.value.sessions === 'object'
+          && body.value.sessions !== null && !Array.isArray(body.value.sessions)) {
           reasonsRef.current = body.value.sessions
         }
         up = true
@@ -550,10 +622,10 @@ export function SessionMonitorWidget(props: SessionMonitorWidgetProps) {
         up = false
       }
       hostStatusRef.current = up ? 'up' : 'down'
-      flushPending()
+      flushPendingRef.current()
     }
     void tick()
-    const id = window.setInterval(() => { void tick() }, 3000)
+    const id = window.setInterval(() => { void tick() }, POLL_INTERVAL_MS)
     return () => {
       cancelled = true
       window.clearInterval(id)
@@ -570,19 +642,27 @@ export function SessionMonitorWidget(props: SessionMonitorWidgetProps) {
     return () => timers.forEach((id) => window.clearTimeout(id))
   }, [toasts, settings.notifyMode, settings.autoDismissSec])
 
-  // Re-clamp a stored position into the viewport on resize.
+  // Keep a free/stored position inside the viewport: clamp once when it
+  // changes, and again whenever the window resizes. The window-size sources
+  // are not reactive by themselves, so an explicit resize listener is
+  // required — a deps-array-only version would never re-run on resize.
   useEffect(() => {
     if (!pos) return
-    const rect = anchorRef.current?.getBoundingClientRect()
-    if (!rect) return
-    const p = clampToViewport(pos.x, pos.y, rect.width, rect.height)
-    if (p.x !== pos.x || p.y !== pos.y) {
-      posRef.current = p
-      setPos(p)
-      savePos(p)
+    const clamp = (): void => {
+      const rect = anchorRef.current?.getBoundingClientRect()
+      if (!rect) return
+      const current = posRef.current ?? pos
+      const p = clampToViewport(current.x, current.y, rect.width, rect.height)
+      if (p.x !== current.x || p.y !== current.y) {
+        posRef.current = p
+        setPos(p)
+        savePos(p)
+      }
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [pos, window.innerWidth, window.innerHeight])
+    clamp()
+    window.addEventListener('resize', clamp)
+    return () => window.removeEventListener('resize', clamp)
+  }, [pos])
 
   /**
    * Running subagent count per session (shown as a 子×N badge on the row).
@@ -641,6 +721,9 @@ export function SessionMonitorWidget(props: SessionMonitorWidgetProps) {
       if (!row || row.blank) return n
       if (row.origin === 'subagent' && !settings.showSubagents) return n
       if (row.running) return n + 1
+      // A session pausing for the user's input/confirmation is not idle — it
+      // counts as needing attention (and stays visible, see the rows memo).
+      if (row.pendingInteraction !== undefined) return n + 1
       if ((runningSubagentsByParent.get(id) ?? 0) > 0 || (runningJobsBySession.get(id) ?? 0) > 0) return n + 1
       return n
     }, 0),
@@ -663,6 +746,10 @@ export function SessionMonitorWidget(props: SessionMonitorWidgetProps) {
     const busyIds = new Set<string>()
     for (const row of live) {
       if (row.running) continue
+      // A session pausing for the user's input/confirmation is not idle: it
+      // must stay visible (time-window exemption) and rank on top — "your
+      // turn" is the row most worth seeing.
+      if (row.pendingInteraction !== undefined) { busyIds.add(row.id); continue }
       if ((runningSubagentsByParent.get(row.id) ?? 0) > 0 || (runningJobsBySession.get(row.id) ?? 0) > 0) {
         busyIds.add(row.id)
       }
@@ -892,21 +979,31 @@ export function SessionMonitorWidget(props: SessionMonitorWidgetProps) {
               // more current signal (the dot keeps its done color meanwhile).
               const busySub = !row.running && subRunning > 0
               const busyJobs = !row.running && subRunning === 0 && jobsRunning > 0
-              const statusText = row.running
-                ? t('running')
-                : busySub
-                  ? t('subagentsActive')
-                  : busyJobs
-                    ? t('jobsActive')
-                    : done && settings.showDone
-                      ? t('roundDone')
-                      : t('idle')
+              const statusText = row.pendingInteraction !== undefined
+                ? t('pendingInput')
+                : row.running
+                  ? t('running')
+                  : busySub
+                    ? t('subagentsActive')
+                    : busyJobs
+                      ? t('jobsActive')
+                      : done && settings.showDone
+                        ? t('roundDone')
+                        : t('idle')
               const statusCls = busySub ? css.statusSub : busyJobs ? css.statusJobs : undefined
               return (
                 <div
                   key={row.id}
                   className={[css.row, isCurrent ? css.current : ''].filter(Boolean).join(' ')}
+                  role="button"
+                  tabIndex={0}
                   onClick={() => handleOpen(row.id)}
+                  onKeyDown={(event) => {
+                    if (event.key === 'Enter' || event.key === ' ') {
+                      event.preventDefault()
+                      handleOpen(row.id)
+                    }
+                  }}
                   title={isCurrent ? undefined : t('jump')}
                 >
                   <span
@@ -930,7 +1027,6 @@ export function SessionMonitorWidget(props: SessionMonitorWidgetProps) {
                       <span className={[css.status, statusCls ?? ''].filter(Boolean).join(' ')}>
                         {statusText}
                       </span>
-                      {row.pendingInteraction ? <span className={css.status}>{t('pendingInput')}</span> : null}
                       {/* Activity time: the newer of the host's updatedAt (prompt
                           time) and the widget's last-observed activity, so a busy
                           row whose updatedAt is stale still shows "recent". */}

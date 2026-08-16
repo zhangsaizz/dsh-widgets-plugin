@@ -256,6 +256,17 @@ export function TokenCritWidget(props: { useSessions: (sel: (s: any) => any) => 
   const lastGrowthRef = useRef(0)
   const comboTimerRef = useRef<number | null>(null)
   const audioRef = useRef<any>(null)
+  /** Latest dragged position / scale, so drag-end can persist them once
+   *  instead of writing localStorage on every pointermove (sync writes jank). */
+  const posRef = useRef<{ x: number; y: number } | null>(null)
+  const scaleRef = useRef(1)
+  /** Deltas accumulated within one debounce batch (streaming turns push the
+   *  tokenUsage projection every frame — batch them into ONE crit event). */
+  const pendingDeltasRef = useRef({ input: 0, output: 0 })
+  /** Total at the START of the current batch (the crit-ratio base). */
+  const batchTotalRef = useRef(0)
+  const critTimerRef = useRef<number | null>(null)
+  const runTestTimerRef = useRef<number | null>(null)
 
   const [pos, setPos] = useState<{ x: number; y: number } | null>(loadPos)
   const [scale, setScale] = useState(loadScale)
@@ -267,6 +278,15 @@ export function TokenCritWidget(props: { useSessions: (sel: (s: any) => any) => 
   const [critKey, setCritKey] = useState(0)
   const [combo, setCombo] = useState(0)
   const [edgeKey, setEdgeKey] = useState(0)
+  /** Viewport size snapshot, bumped by a real resize listener: the two clamp
+   *  effects below used to list window.innerWidth/Height in their deps, which
+   *  is not reactive — without the listener they only re-ran on other changes. */
+  const [viewport, setViewport] = useState(() => [window.innerWidth, window.innerHeight])
+  useEffect(() => {
+    const onResize = (): void => setViewport([window.innerWidth, window.innerHeight])
+    window.addEventListener('resize', onResize)
+    return () => window.removeEventListener('resize', onResize)
+  }, [])
 
   // Settings load from localStorage once per mount (validated by loadSettings).
   const initial = useMemo(loadSettings, [])
@@ -326,10 +346,15 @@ export function TokenCritWidget(props: { useSessions: (sel: (s: any) => any) => 
   }, [])
 
   // Keep the canvas backing store matched to the widget scale, so the bitmap
-  // is never sampled at a non-1:1 ratio (blurry canvas text).
+  // is never sampled at a non-1:1 ratio (blurry canvas text). While a resize
+  // drag is in flight the scale changes every pointermove; applying the
+  // resolution per frame would reallocate the whole backing store (and clear
+  // it) at 60fps — defer to the drag end (the CSS transform covers the brief
+  // intermediate state).
   useEffect(() => {
+    if (dragging) return
     fxRef.current?.setResolution(scale)
-  }, [scale])
+  }, [scale, dragging])
 
   // Pause the effect layer while collapsed into the dot.
   useEffect(() => {
@@ -370,7 +395,7 @@ export function TokenCritWidget(props: { useSessions: (sel: (s: any) => any) => 
     const h = panelRef.current?.offsetHeight ?? 320
     const next = computePanelPos(rect, w, h)
     setPanelPos((prev) => (prev && prev.x === next.x && prev.y === next.y ? prev : next))
-  }, [settingsOpen, pos, scale, panelPos, window.innerWidth, window.innerHeight])
+  }, [settingsOpen, pos, scale, panelPos, viewport])
 
   // On expand, restore the badge number from the ref-tracked value.
   useEffect(() => {
@@ -402,27 +427,23 @@ export function TokenCritWidget(props: { useSessions: (sel: (s: any) => any) => 
     fx.setCombo(lang === 'zh' ? `×${combo} 连击` : `×${combo} COMBO`)
   }, [combo, comboOn, lang])
 
-  useEffect(() => {
-    try {
-      window.localStorage.setItem('dsh.tcrit.pos', pos ? JSON.stringify(pos) : '')
-    } catch { /* storage unavailable */ }
-  }, [pos])
-
   // Pull a stored position back into the viewport if the window changed
-  // since the last session, and re-clamp whenever the window resizes.
+  // since the last session, and re-clamp whenever the window resizes (the
+  // viewport snapshot above makes the dependency reactive). Position/scale
+  // persistence happens at drag end (endDrag) — NOT on every pointermove.
   useEffect(() => {
     if (!pos) return
     const rect = anchorRef.current?.getBoundingClientRect()
     if (!rect) return
     const p = clampToViewport(pos.x, pos.y, rect.width, rect.height)
-    if (p.x !== pos.x || p.y !== pos.y) setPos(p)
-  }, [pos, window.innerWidth, window.innerHeight])
-
-  useEffect(() => {
-    try {
-      window.localStorage.setItem('dsh.tcrit.scale', String(scale))
-    } catch { /* storage unavailable */ }
-  }, [scale])
+    if (p.x !== pos.x || p.y !== pos.y) {
+      posRef.current = p
+      setPos(p)
+      try {
+        window.localStorage.setItem('dsh.tcrit.pos', JSON.stringify(p))
+      } catch { /* storage unavailable */ }
+    }
+  }, [pos, viewport])
 
   // Persist every panel option as one JSON blob (survives page reloads).
   useEffect(() => {
@@ -437,6 +458,14 @@ export function TokenCritWidget(props: { useSessions: (sel: (s: any) => any) => 
 
   useEffect(() => () => {
     if (comboTimerRef.current !== null) clearTimeout(comboTimerRef.current)
+    if (critTimerRef.current !== null) clearTimeout(critTimerRef.current)
+    if (runTestTimerRef.current !== null) clearTimeout(runTestTimerRef.current)
+    // Release the shared audio context (autoplay-policy suspended contexts
+    // still hold resources until closed).
+    if (audioRef.current) {
+      void audioRef.current.close?.().catch?.(() => undefined)
+      audioRef.current = null
+    }
   }, [])
 
   function playCritSound() {
@@ -445,6 +474,10 @@ export function TokenCritWidget(props: { useSessions: (sel: (s: any) => any) => 
       if (!AC) return
       if (!audioRef.current) audioRef.current = new AC()
       const actx = audioRef.current
+      // The crit fires from token growth, NOT a user gesture, so the context
+      // is usually 'suspended' under the autoplay policy — ask to resume or
+      // the sound stays silent until the user clicks anywhere.
+      if (actx.state === 'suspended') void actx.resume().catch(() => undefined)
       const t = actx.currentTime
       const osc = actx.createOscillator()
       const gain = actx.createGain()
@@ -461,10 +494,13 @@ export function TokenCritWidget(props: { useSessions: (sel: (s: any) => any) => 
     } catch { /* audio unavailable */ }
   }
 
-  function spawnPop(kind: 'in' | 'out', delta: number, forceBig = false) {
+  function spawnPop(kind: 'in' | 'out', delta: number, forceBig = false, baseTotal?: number) {
     const fx = fxRef.current
     if (!fx) return
-    const big = forceBig || (kind === 'out' && (delta >= critAbs || delta >= total * critRatio))
+    // The ratio is judged against the total BEFORE this hit (baseTotal), not
+    // the post-update total — a self-referential ratio would misjudge the hit.
+    const base = baseTotal ?? total
+    const big = forceBig || (kind === 'out' && (delta >= critAbs || delta >= base * critRatio))
     // Cyberpunk palette: input = cyan, output = magenta, big crit = hot pink.
     const hue = kind === 'out' ? (big ? 325 : 305) : 185
     const size = kind === 'out' ? (big ? 24 + Math.random() * 10 : 15 + Math.random() * 8) : 13 + Math.random() * 6
@@ -498,9 +534,16 @@ export function TokenCritWidget(props: { useSessions: (sel: (s: any) => any) => 
     comboTimerRef.current = window.setTimeout(() => setCombo(0), 1600)
     fx.setBoost(true)
     spawnPop('out', 8888, true)
-    window.setTimeout(() => {
-      spawnPop('in', 3456)
-      if (comboOn) fx.setCombo(lang === 'zh' ? '×2 连击' : '×2 COMBO')
+    if (runTestTimerRef.current !== null) clearTimeout(runTestTimerRef.current)
+    runTestTimerRef.current = window.setTimeout(() => {
+      runTestTimerRef.current = null
+      // The engine may have been detached since the test started (collapse /
+      // unmount) — spawnPop already no-ops on a missing engine, but guard the
+      // state write too.
+      if (fxRef.current) {
+        spawnPop('in', 3456)
+        if (comboOn) fx.setCombo(lang === 'zh' ? '×2 连击' : '×2 COMBO')
+      }
     }, 550)
   }
 
@@ -512,18 +555,34 @@ export function TokenCritWidget(props: { useSessions: (sel: (s: any) => any) => 
     prevRef.current = { input, output, seen: true }
 
     if (inputDelta > 0 || outputDelta > 0) {
-      setCritKey((k) => k + 1)
-      const now = Date.now()
-      const last = lastGrowthRef.current
-      setCombo((c) => (now - last < 1600 ? c + 1 : 1))
-      lastGrowthRef.current = now
-      if (comboTimerRef.current !== null) clearTimeout(comboTimerRef.current)
-      comboTimerRef.current = window.setTimeout(() => setCombo(0), 1600)
-
-      fxRef.current?.setBoost(true)
+      // Batch hits that land within one debounce window (a streaming turn
+      // pushes tokenUsage projections every frame) into a SINGLE crit event.
+      // Per-frame hits would otherwise remount the badge, reset the combo
+      // timer and spawn a stream of tiny floats for the whole generation.
+      if (pendingDeltasRef.current.input === 0 && pendingDeltasRef.current.output === 0) {
+        batchTotalRef.current = total - (inputDelta + outputDelta)
+      }
+      pendingDeltasRef.current.input += inputDelta
+      pendingDeltasRef.current.output += outputDelta
+      if (critTimerRef.current === null) {
+        critTimerRef.current = window.setTimeout(() => {
+          critTimerRef.current = null
+          const { input: pi, output: po } = pendingDeltasRef.current
+          pendingDeltasRef.current = { input: 0, output: 0 }
+          const base = batchTotalRef.current
+          setCritKey((k) => k + 1)
+          const now = Date.now()
+          const last = lastGrowthRef.current
+          setCombo((c) => (now - last < 1600 ? c + 1 : 1))
+          lastGrowthRef.current = now
+          if (comboTimerRef.current !== null) clearTimeout(comboTimerRef.current)
+          comboTimerRef.current = window.setTimeout(() => setCombo(0), 1600)
+          fxRef.current?.setBoost(true)
+          if (po > 0) spawnPop('out', po, false, base)
+          if (pi > 0) spawnPop('in', pi, false, base)
+        }, 180)
+      }
     }
-    if (outputDelta > 0) spawnPop('out', outputDelta)
-    if (inputDelta > 0) spawnPop('in', inputDelta)
 
     // Roll the displayed number; write straight to the span, no re-render.
     const from = shownRef.current
@@ -580,11 +639,14 @@ export function TokenCritWidget(props: { useSessions: (sel: (s: any) => any) => 
         rect?.width ?? 0,
         rect?.height ?? 0,
       )
+      posRef.current = p
       setPos(p)
     } else {
       const dx = e.clientX - d.startX
       const dy = e.clientY - d.startY
-      setScale(clamp(d.startScale + (dx + dy) / 140, 0.6, 2.5))
+      const next = clamp(d.startScale + (dx + dy) / 140, 0.6, 2.5)
+      scaleRef.current = next
+      setScale(next)
     }
   }
 
@@ -593,6 +655,13 @@ export function TokenCritWidget(props: { useSessions: (sel: (s: any) => any) => 
     const wasTap = d?.mode === 'move' && !movedRef.current
     dragRef.current = null
     setDragging(false)
+    // Persist once at drag end instead of on every pointermove: synchronous
+    // localStorage writes per event were part of the drag jank.
+    if (d?.mode === 'resize') {
+      try { window.localStorage.setItem('dsh.tcrit.scale', String(scaleRef.current)) } catch { /* storage */ }
+    } else if (d?.mode === 'move' && posRef.current) {
+      try { window.localStorage.setItem('dsh.tcrit.pos', JSON.stringify(posRef.current)) } catch { /* storage */ }
+    }
     if (wasTap && collapsed) setCollapsed(false)
   }
 
@@ -619,6 +688,8 @@ export function TokenCritWidget(props: { useSessions: (sel: (s: any) => any) => 
   function resetPlacement() {
     setPos(null)
     setScale(1)
+    posRef.current = null
+    scaleRef.current = 1
     try {
       window.localStorage.removeItem('dsh.tcrit.pos')
       window.localStorage.removeItem('dsh.tcrit.scale')
@@ -708,8 +779,17 @@ export function TokenCritWidget(props: { useSessions: (sel: (s: any) => any) => 
         <div
           className={css.gear}
           title="设置"
+          role="button"
+          tabIndex={0}
+          aria-label="设置"
           onPointerDown={(e) => e.stopPropagation()}
           onClick={toggleSettings}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' || e.key === ' ') {
+              e.preventDefault()
+              toggleSettings()
+            }
+          }}
         >
           ⚙
         </div>
@@ -827,6 +907,9 @@ export function TokenCritWidget(props: { useSessions: (sel: (s: any) => any) => 
               <span className={css.slabel}>暴击比例</span>
               <input type="range" min={2} max={30} step={1} value={Math.round(critRatio * 100)} onChange={(e) => setCritRatio((Number(e.target.value) || 2) / 100)} />
               <span className={css.sval}>{Math.round(critRatio * 100)}%</span>
+            </div>
+            <div className={css.hint}>
+              {lang === 'zh' ? '暴击判定只针对输出（output）token 增长。' : 'Crit applies to output-token growth only.'}
             </div>
             <div className={css.srow}>
               <span className={css.slabel}>暴击音效</span>

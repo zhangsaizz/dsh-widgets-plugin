@@ -10,19 +10,21 @@
         requestTimeoutMs: 10000
         # New API is self-hosted; point the /api/user/self balance query at the instance.
         newApiBaseURL: http://localhost:3000
-        # Fill credentials directly here. Each entry answers one provider route;
-        # use `credentialRef` (env-var / credential-store name) OR `credential`
-        # (inline API key) — one of the two is enough.
-        bindings: []
-        # Example:
+        # Optional static bindings. The shipped providers ALREADY bind their
+        # default routes (deepseek-official / moonshot / openrouter /
+        # siliconflow / new-api), so adding a binding for one of those routes
+        # would conflict ("route already bound") and either fail boot (static
+        # config) or be skipped with a warning (settings section). Add a
+        # binding only for a route NOT already covered — e.g. a self-hosted
+        # gateway under a custom provider route. Use `credentialRef`
+        # (env-var / credential-store name) OR `credential` (inline API key) —
+        # one of the two is enough.
         # bindings:
-        #   - provider: new-api
-        #     vendor: new-api
-        #     credential: sk-xxxxxxxx
-        #     baseURL: http://localhost:3000
-        #   - provider: deepseek-official
+        #   - provider: my-gateway
         #     vendor: deepseek
-        #     credentialRef: DEEPSEEK_API_KEY
+        #     credentialRef: MY_GATEWAY_KEY
+        #     baseURL: http://localhost:8787
+        bindings: []
 
     - id: ui-token-crit
       name: '@dsh-plugins/client-ui-token-crit'

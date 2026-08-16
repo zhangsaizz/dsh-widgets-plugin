@@ -2,15 +2,18 @@
  * Session monitor plugin, browser half: one register() call contributes the
  * floating SessionMonitorWidget into the shell.overlay list, and a second one
  * registers its configuration panel into the widget manager's "Configure"
- * dialog (`widgets.config`, id `session-monitor`). All data rides the
- * standard `useSessions` global prop — the runtime pushes session-list and
- * running-status updates reactively, so the widget needs no Host RPC and no
- * polling. The jump-to-session verb closes over `ctx.sessions.open`.
+ * dialog (`widgets.config`, id `session-monitor`). The session LIST and
+ * running bits ride the standard `useSessions` global prop — the runtime
+ * pushes session-list and running-status updates reactively, so the list needs
+ * no Host RPC. Only the turn-end REASON table (toast refinement) is polled
+ * from the Host status route every few seconds. The jump-to-session verb
+ * closes over `ctx.sessions.open`.
  *
  * @module @dsh-plugins/client-ui-session-monitor/client
  */
 
 import type { ClientContext } from '@deepseek-ai/dsh-client-runtime/client'
+import type { SessionId } from '@deepseek-ai/dsh-client-runtime/client'
 // Type-only: pulls the shell.overlay SlotMap merge from ui-layout.
 import type {} from '@deepseek-ai/dsh-client-ui-layout/client'
 // Type-only: pulls the locale plugin's Context merge (ctx.locale).
@@ -62,7 +65,7 @@ export function apply(ctx: ClientContext): void {
     order: 90,
     locale: NS,
     inject: (): SessionMonitorInject => ({
-      open: (sessionId) => { ctx.sessions.open(sessionId as any) },
+      open: (sessionId) => { ctx.sessions.open(sessionId as SessionId) },
     }),
   }, SessionMonitorWidget))
 

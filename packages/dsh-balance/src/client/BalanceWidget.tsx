@@ -135,6 +135,13 @@ function BalanceBody(props: {
   }
   if (view.provider === null || view.result === null) return <span className={css.note}>{t('noModel')}</span>
   const account = view.result.account
+  // A transport-level failure arrives as an error ACCOUNT (the controller
+  // publishes bound:false + status:'error' when the remote call itself fails),
+  // so its message must win over the generic "unbound" text — otherwise a
+  // network fault would be misread as "no balance provider configured".
+  if (account !== undefined && account.status === 'error') {
+    return <span className={css.note}>{account.errorMessage ?? t('error')}</span>
+  }
   if (!view.result.bound || account === undefined) return <span className={css.note}>{t('unbound')}</span>
   switch (account.status) {
     case 'unconfigured': return <span className={css.note}>{t('unconfigured')}</span>
@@ -232,6 +239,10 @@ export function BalanceWidget(props: BalanceWidgetProps) {
     const previous = lastAccountsRef.current
     lastAccountsRef.current = accounts
     if (previous === null) return
+    // The changed-other-provider flip only makes sense in the multi-account
+    // view; in single-account mode the pill always shows the current account,
+    // so other providers' moves must not hijack it.
+    if (settings.mode !== 'all') return
     for (const entry of accounts) {
       if (entry.provider === view.provider) continue
       const account = entry.account
@@ -244,7 +255,7 @@ export function BalanceWidget(props: BalanceWidgetProps) {
       setHighlightEpoch(epoch => epoch + 1)
       break
     }
-  }, [view.accounts, view.provider])
+  }, [view.accounts, view.provider, settings.mode])
 
   useEffect(() => {
     const highlight = highlightRef.current
@@ -309,13 +320,20 @@ export function BalanceWidget(props: BalanceWidgetProps) {
     return () => { window.removeEventListener('resize', clampToViewport) }
   }, [actions, settings.dock, settings.collapsed])
 
+  // Cancel an in-flight drag frame on unmount: the store may be gone by the
+  // time the next rAF would fire.
+  useEffect(() => () => {
+    if (frame.current !== null) cancelAnimationFrame(frame.current)
+    frame.current = null
+  }, [])
+
   const onPointerDown = useCallback((event: ReactPointerEvent<HTMLDivElement>) => {
     // Control buttons never start a drag: pointer capture on the header would
     // swallow their click. The controls container also stops propagation, so
     // this guard only protects buttons rendered elsewhere in the header.
     if ((event.target as HTMLElement).closest('button') !== null) return
     event.preventDefault()
-    event.currentTarget.setPointerCapture(event.pointerId)
+    try { event.currentTarget.setPointerCapture(event.pointerId) } catch { /* pointer capture is unavailable in jsdom */ }
     const rect = event.currentTarget.closest('[data-balance-widget]')?.getBoundingClientRect()
     drag.current = {
       startX: event.clientX,
@@ -382,13 +400,12 @@ export function BalanceWidget(props: BalanceWidgetProps) {
       size: { w: pillRect.width, h: pillRect.height },
       snap: null,
       moved: false,
-    }
-    // Same dock-break on drag start as the panel header, but the box lands on
-    // the pill's current spot: in free mode the pill is top-left anchored, so
-    // this keeps it under the pointer instead of jumping from its dock corner.
-    if (settings.dock !== 'free') {
-      actions.setPosition(pillRect.left, pillRect.top)
-      actions.dockTo('free')
+      // Remember the dock instead of breaking it here: a plain tap (expand)
+      // must keep the widget docked — only a REAL move breaks the dock, in
+      // onPillPointerMove, so the box then lands on the pill's spot and the
+      // drag stays under the pointer.
+      docked: settings.dock !== 'free' ? settings.dock : null,
+      brokeDock: false,
     }
   }, [actions, settings.dock])
 
@@ -399,6 +416,15 @@ export function BalanceWidget(props: BalanceWidgetProps) {
     const dy = event.clientY - state.startY
     if (!state.moved && (Math.abs(dx) > 3 || Math.abs(dy) > 3)) state.moved = true
     if (!state.moved) return
+    // Break the dock on the first real move (not on a tap): set the free
+    // position to the pill's CURRENT spot so the drag continues under the
+    // pointer instead of jumping from its dock corner.
+    if (!state.brokeDock && state.docked !== null) {
+      state.brokeDock = true
+      const pillRect = event.currentTarget.getBoundingClientRect()
+      actions.setPosition(pillRect.left, pillRect.top)
+      actions.dockTo('free')
+    }
     resolveMagneticDrag(state, latest, dx, dy)
     frame.current ??= requestAnimationFrame(() => {
       frame.current = null
@@ -432,6 +458,19 @@ export function BalanceWidget(props: BalanceWidgetProps) {
 
   const collapsed = settings.collapsed
 
+  // A cancelled gesture (the browser steals the pointer, the touch is
+  // interrupted) must clear the drag state — otherwise the widget would stay
+  // "dragging" until the next pointerup.
+  const onPointerCancel = useCallback(() => {
+    drag.current = null
+    if (frame.current !== null) { cancelAnimationFrame(frame.current); frame.current = null }
+  }, [])
+
+  const onPillPointerCancel = useCallback(() => {
+    pillDrag.current = null
+    if (frame.current !== null) { cancelAnimationFrame(frame.current); frame.current = null }
+  }, [])
+
   const deltaText = okAccount !== null && (okAccount.trend === 'up' || okAccount.trend === 'down')
     ? (okAccount.delta >= 0 ? '+' : '-') + formatAmount(Math.abs(okAccount.delta))
     : null
@@ -455,6 +494,7 @@ export function BalanceWidget(props: BalanceWidgetProps) {
             onPointerDown={onPointerDown}
             onPointerMove={onPointerMove}
             onPointerUp={onPointerUp}
+            onPointerCancel={onPointerCancel}
           >
             <span className={css.titleDot} aria-hidden="true" />
             <span className={css.title}>{t('title')}</span>
@@ -512,6 +552,7 @@ export function BalanceWidget(props: BalanceWidgetProps) {
           onPointerDown={onPillPointerDown}
           onPointerMove={onPillPointerMove}
           onPointerUp={onPillPointerUp}
+          onPointerCancel={onPillPointerCancel}
           onKeyDown={(event) => {
             if (event.key === 'Enter' || event.key === ' ') {
               event.preventDefault()
@@ -605,6 +646,10 @@ interface DragState {
 /** Collapsed-pill drag state; a move past the threshold is a drag, else a tap. */
 interface PillDragState extends DragState {
   moved: boolean
+  /** The dock the pill was in when the gesture started (null while free). */
+  docked: DockCorner | null
+  /** Whether the dock was already broken by a real move (a tap must NOT break it). */
+  brokeDock: boolean
 }
 
 /** The corner layout position a widget's top-left must sit at to dock there. */

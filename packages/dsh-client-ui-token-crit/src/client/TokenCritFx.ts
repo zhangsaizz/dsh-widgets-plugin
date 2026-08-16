@@ -90,6 +90,8 @@ interface ComboState {
  * rising floats/tags stay visible above it (the canvas is centered on the
  * badge, so it extends equally in every direction).
  */
+// Logical canvas size (CSS px). NOTE: must match the .fxcanvas 340×220 rule
+// in TokenCritWidget.module.css — keep the two in sync.
 const CANVAS_W = 340
 const CANVAS_H = 220
 
@@ -169,7 +171,9 @@ function floatHalfH(f: FloatState): number {
   return (0.7 * f.size + 6 + 0.7 * (f.tagSize || 0)) * REPEL_SHRINK
 }
 
-const MONO = `900 italic 20px ui-monospace, 'SF Mono', 'Cascadia Code', Menlo, Consolas, monospace`
+// Upright, not italic: canvas shears italic glyphs, which softens small text
+// (see the drawFloats comment) — the combo pop uses the same family.
+const MONO = `900 20px ui-monospace, 'SF Mono', 'Cascadia Code', Menlo, Consolas, monospace`
 
 export class TokenCritFx {
   private canvas: HTMLCanvasElement | null = null
@@ -178,6 +182,10 @@ export class TokenCritFx {
   private last = 0
   private running = false
   private visible = false
+  /** Collapsed-dot state: the rAF loop is fully stopped (hide/show toggles it). */
+  private paused = false
+  /** Last brightness written to the badge filter, to skip identical writes. */
+  private lastBrightness = -1
 
   /** Display resolution factors: device pixel ratio × widget scale. */
   private dpr = 1
@@ -217,11 +225,20 @@ export class TokenCritFx {
 
   /** Start the rAF loop and bind to the given canvas. */
   attach(canvas: HTMLCanvasElement): void {
+    const ctx = canvas.getContext('2d')
+    if (!ctx) {
+      // No 2d context (extreme configs / unsupported canvas): degrade to a
+      // silent no-op rather than crashing or leaving the loop drawing nothing.
+      this.canvas = null
+      this.ctx = null
+      return
+    }
     this.canvas = canvas
-    this.ctx = canvas.getContext('2d')
+    this.ctx = ctx
     this.dpr = clamp(window.devicePixelRatio || 1, 1, 3)
     this.applyResolution()
     this.visible = true
+    this.paused = false
     if (!this.running) {
       this.running = true
       this.last = performance.now()
@@ -253,20 +270,38 @@ export class TokenCritFx {
   detach(): void {
     this.running = false
     this.visible = false
+    this.paused = false
     cancelAnimationFrame(this.raf)
     this.canvas = null
     this.ctx = null
+    // Drop every transient collection: the engine may be re-attached later
+    // (StrictMode double-mount / widget re-registration) and must not paint
+    // residue from a previous life.
+    this.floats = []
+    this.particles = []
+    this.embers = []
+    this.combo = null
+    this.numEl = null
+    this.labelEl = null
+    this.lastBrightness = -1
+    this.glitchActive = false
   }
 
   /** Resume drawing after expanding from the collapsed dot. */
   show(): void {
     this.visible = true
+    this.paused = false
     this.last = performance.now()
+    if (this.running) this.raf = requestAnimationFrame(this.frame)
   }
 
-  /** Stop drawing and clear the canvas (collapsed dot mode). */
+  /** Stop drawing and clear the canvas (collapsed dot mode). The rAF loop is
+   *  paused entirely — an empty 60fps callback would waste battery/CPU while
+   *  the widget sits as a dot. */
   hide(): void {
     this.visible = false
+    this.paused = true
+    cancelAnimationFrame(this.raf)
     this.clear()
   }
 
@@ -284,8 +319,10 @@ export class TokenCritFx {
     this.numEl = numEl
     this.labelEl = labelEl
     // A remount replaces the element: cancel any in-flight glitch so the new
-    // element isn't restored with a stale text snapshot.
+    // element isn't restored with a stale text snapshot, and reset the cached
+    // brightness so the fresh element receives the current filter value.
     this.glitchActive = false
+    this.lastBrightness = -1
   }
 
   /** Switch to (or off) the light-background palette. */
@@ -361,6 +398,13 @@ export class TokenCritFx {
       cand.y = baseY + Math.round(rand(-6, 6))
       if (!this.overlapsAnyFloat(cand)) break
     }
+    // Seed the bezier targets with the landing point. tx/ty are otherwise 0
+    // until the first animation tick, which would make overlapsAnyFloat treat
+    // a just-spawned float as sitting at (0,0) — two floats spawned in the
+    // SAME frame (input+output growing together) would then pass the overlap
+    // check and stack on the same spot.
+    cand.tx = cand.x
+    cand.ty = cand.y
     this.floats.push(cand)
     if (this.floats.length > 24) this.floats.splice(0, this.floats.length - 24)
   }
@@ -432,8 +476,13 @@ export class TokenCritFx {
 
   private frame = (now: number): void => {
     if (!this.running) return
+    if (this.paused) {
+      // hide() cancelled the loop — never reschedule here (a queued callback
+      // racing the cancel would otherwise keep the loop alive forever).
+      return
+    }
     if (document.hidden) {
-      // Tab is hidden: skip work, keep the loop alive.
+      // Hidden tab: skip work, keep the loop alive so it resumes on return.
       this.raf = requestAnimationFrame(this.frame)
       return
     }
@@ -472,8 +521,11 @@ export class TokenCritFx {
     if (!el && !this.labelEl) return
     this.ambT = (this.ambT + dt * 1000) % AMBIENT_PERIOD
     const now = performance.now()
-    // Continuous subtle hum.
-    let b = 1 + 0.04 * Math.sin((this.ambT / AMBIENT_PERIOD) * Math.PI * 2)
+    // Continuous subtle hum — but only while the flicker effect is enabled;
+    // with flicker 'off' the digits stay perfectly steady at 1.0.
+    let b = this.neonFx.flickerOn
+      ? 1 + 0.04 * Math.sin((this.ambT / AMBIENT_PERIOD) * Math.PI * 2)
+      : 1
     if (this.flickerPhase >= 0) {
       // Mid-episode: step through the dim/stutter pattern.
       if (now >= this.flickerStepAt) {
@@ -501,9 +553,16 @@ export class TokenCritFx {
       this.flickerStepAt = now + this.flickerSteps[0].dur
       this.glitchBursts = 0
     }
-    const filter = 'brightness(' + b.toFixed(2) + ')'
-    if (el) el.style.filter = filter
-    if (this.labelEl) this.labelEl.style.filter = filter
+    // Quantize to two decimals and only write when the value actually changed:
+    // the hum is ±0.04 around 1.0, so an unquantized write would touch the DOM
+    // style every frame for the whole session.
+    const brightness = Number(b.toFixed(2))
+    if (brightness !== this.lastBrightness) {
+      this.lastBrightness = brightness
+      const filter = 'brightness(' + brightness + ')'
+      if (el) el.style.filter = filter
+      if (this.labelEl) this.labelEl.style.filter = filter
+    }
 
     // Random-character glitch bursts while the digits are flickering: rare
     // and PARTIAL — only some digit positions corrupt (per the panel tuning).
@@ -688,11 +747,13 @@ export class TokenCritFx {
       const k = f.age / f.life
       const x = Math.round(f.tx + f.ox)
       const y = Math.round(f.ty + f.oy)
-      // Pop in quickly (brief fractional scale), then hold EXACTLY 1.0 so the
+      // Pop in quickly (overshoot to 1.25), settle back to EXACTLY 1.0 so the
       // glyphs rasterize crisp for the rest of the float's life; only shrink
-      // during the fade-out tail.
+      // during the fade-out tail. The 1.25 → 1.0 step eases over 0.12–0.22
+      // instead of jumping (a hard cut visibly snaps the number back).
       let scale: number
       if (k < 0.12) scale = 0.3 + (k / 0.12) * 0.95 // 0.3 → 1.25
+      else if (k < 0.22) scale = 1 + 0.25 * (1 - (k - 0.12) / 0.10) // 1.25 → 1.0
       else if (k < 0.7) scale = 1
       else scale = 1 - ((k - 0.7) / 0.3) * 0.15 // → 0.85
       // Fade starts at 70% of life (was 80%) so dense streams of floats thin

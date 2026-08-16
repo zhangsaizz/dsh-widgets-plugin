@@ -8,7 +8,9 @@
 
 /* Effects overlay canvas: larger than the badge, centered on it, so rising
    floats/tags stay visible. Painted above the (transparent) badge text but
-   below the interactive gear/resize handles; never intercepts pointers. */
+   below the interactive gear/resize handles; never intercepts pointers.
+   NOTE: 340×220 must match CANVAS_W/CANVAS_H in TokenCritFx.ts — keep the
+   two in sync when changing the canvas size. */
 .fxcanvas {
   position: absolute;
   left: 50%;
@@ -160,9 +162,21 @@
 }
 
 .anchor:hover .gear,
-.anchor:hover .resize {
+.anchor:hover .resize,
+.anchor:focus-within .gear,
+.anchor:focus-within .resize {
   opacity: 1;
   pointer-events: auto;
+}
+
+/* Touch devices have no hover: keep the gear / resize handle always visible
+   and tappable, otherwise the settings panel and zoom are unreachable. */
+@media (hover: none) {
+  .anchor .gear,
+  .anchor .resize {
+    opacity: 0.85;
+    pointer-events: auto;
+  }
 }
 
 .dot {

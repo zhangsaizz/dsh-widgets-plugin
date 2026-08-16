@@ -51,11 +51,14 @@ pnpm install
 pnpm build   # 等价于 node scripts/build.mjs
 ```
 
-`pnpm build` 用 esbuild 构建各包的 Host 与浏览器产物（`lib/`），包自带构建产物，安装即用，无需在安装端构建。
+`pnpm build` 用 esbuild 构建各包的 Host 与浏览器产物（`lib/`），并额外用 tsc 从 src
+重新生成 `@dsh-plugins/balance` 的类型面（`lib/types/**`），末尾校验所有 `exports`
+目标文件存在。包自带构建产物，安装即用，无需在安装端构建。
 
 > `@dsh-plugins/balance` 的 `lib/typert.*`（生成的 Remote 线协议）由 typert codegen
-> 产出，不在 `pnpm build` 内重建；它们随包发布（`files: ["lib"]`）。全新 clone 后若
-> 缺失，需要从发布 tarball 或 typert codegen 恢复。
+> 产出，不在 `pnpm build` 内重建；仓库内没有生成工具，因此这 4+1 个文件已**提交进
+> git**（`.gitignore` 有豁免段），随包发布（`files: ["lib"]`）。改 Remote 线协议时
+> 需要从上游/typert codegen 重新生成后提交。
 
 ## 发布
 

@@ -78,7 +78,7 @@ export type SessionMonitorKey =
   | 'notifyCurrentDesc'
   | 'showSubagentsLabel'
   | 'showSubagentsDesc'
-  | 'resetPos'
+  | 'resetPosScale'
   | 'resetAll'
 
 /** Simplified Chinese dictionary. */
@@ -155,7 +155,7 @@ export const zh: Record<SessionMonitorKey, string> = {
   notifyCurrentDesc: '当前会话完成一轮时也提醒（默认关：你正在看它，无需再弹提醒；但停下等你输入/确认时仍会提醒）',
   showSubagentsLabel: '显示子代理',
   showSubagentsDesc: '默认过滤子代理会话；开启后在列表中显示并提醒',
-  resetPos: '重置位置',
+  resetPosScale: '重置位置与缩放',
   resetAll: '重置设置',
 }
 
@@ -233,6 +233,6 @@ export const en: Record<SessionMonitorKey, string> = {
   notifyCurrentDesc: 'Also notify when the current session finishes (off by default — you are already looking at it; rounds waiting for your input/confirmation still notify)',
   showSubagentsLabel: 'Show subagents',
   showSubagentsDesc: 'Subagent sessions are filtered out by default; enable to list and notify them',
-  resetPos: 'Reset position',
+  resetPosScale: 'Reset position & zoom',
   resetAll: 'Reset settings',
 }

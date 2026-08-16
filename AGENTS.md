@@ -85,13 +85,20 @@ pnpm run publish:all         # pnpm -r publish --no-git-checks
 
 ### 3. 构建产物与 git
 
-- `lib/`、`node_modules/`、`.pnpm-store/`、`*.tgz` 都在 `.gitignore` 里，**不提交**。
+- `lib/`、`node_modules/`、`.pnpm-store/`、`*.tgz` 都在 `.gitignore` 里，**不提交**
+  （唯一例外：`@dsh-plugins/balance` 的 `lib/typert.*`，见下）。
 - 改 `src/**` 后运行 `pnpm build` 让 `lib/` 产物跟上（发布需要最新产物；
   CI 会跑 build 并断言 git 干净，所以不要把产物差异提交进仓库）。
 - 行尾由 `.gitattributes` 规范（文本 LF，ps1 CRLF）。
+- **`@dsh-plugins/balance` 的 `lib/types/**` 由 `pnpm build` 内嵌的 tsc 步骤从 src
+  重新生成**（`tsconfig.build.json`，js + d.ts + map，`.ts` 相对引用改写为 `.js`），
+  与源码永远一致，无需手工维护。
 - **`@dsh-plugins/balance` 的 `lib/typert.*` 是 typert codegen 产物**，`pnpm build`
-  不重建（build.mjs 顶部有注释）；它们随 `files: ["lib"]` 发布，改 Remote 线协议时
-  需要重新生成，不要手工编辑。
+  不重建（build.mjs 顶部有注释）；**仓库内没有 codegen 工具，无法重新生成，因此这
+  4+1 个文件已用 `git add -f` 提交进 git**（.gitignore 有对应豁免段）。改 Remote 线
+  协议时需要从上游/typert codegen 重新生成后提交，不要手工编辑。
+- `pnpm build` 末尾会做 **exports 完整性校验**：每个 `exports` 目标文件必须存在，
+  缺失即构建失败——防止「tarball 缺文件但 CI 绿」的静默损坏（曾因此踩坑）。
 
 ### 4. 新增小组件
 

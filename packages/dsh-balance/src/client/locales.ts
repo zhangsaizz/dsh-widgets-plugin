@@ -26,7 +26,6 @@ export type BalanceKey =
   | 'showCurrent'
   | 'noAccounts'
   | 'current'
-  | 'settingsNav'
   | 'noBindings'
   | 'noCredential'
   | 'sectionBindings'
@@ -81,7 +80,6 @@ export const zh: Record<BalanceKey, string> = {
   showCurrent: '只显示当前账户',
   noAccounts: '无可用账户',
   current: '当前',
-  settingsNav: '余额供应商',
   noBindings: '尚未绑定余额供应商，可在下方添加。',
   noCredential: '未配置凭据',
   sectionBindings: '已配置的绑定',
@@ -137,7 +135,6 @@ export const en: Record<BalanceKey, string> = {
   showCurrent: 'Show current account only',
   noAccounts: 'No accounts available',
   current: 'Current',
-  settingsNav: 'Balance providers',
   noBindings: 'No balance bindings yet — add one below.',
   noCredential: 'No credential',
   sectionBindings: 'Configured bindings',

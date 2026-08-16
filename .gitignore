@@ -6,6 +6,18 @@ node_modules/
 lib/
 *.tsbuildinfo
 
+# Vendored typert wire artifacts: the typert codegen is NOT available in this
+# repo, so these are committed DESPITE the lib/ rule above — the published
+# package (and a fresh clone's build) needs them. Everything else under lib/
+# stays ignored.
+!packages/dsh-balance/lib/
+packages/dsh-balance/lib/*
+!packages/dsh-balance/lib/typert.host.js
+!packages/dsh-balance/lib/typert.host.d.ts
+!packages/dsh-balance/lib/typert.remote-client.js
+!packages/dsh-balance/lib/typert.remote-client.d.ts
+!packages/dsh-balance/lib/typert.remote-client.d.ts.map
+
 # --- local dsh tooling ---
 .dsh-vision-toolkit/
 .agents/

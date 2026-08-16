@@ -1,0 +1,17 @@
+{
+  "extends": "../../tsconfig.json",
+  "compilerOptions": {
+    "noEmit": false,
+    "declaration": true,
+    "declarationMap": true,
+    "sourceMap": true,
+    "outDir": "lib/types",
+    "rootDir": "src",
+    "module": "preserve",
+    "rewriteRelativeImportExtensions": true,
+    "paths": {
+      "@dsh-plugins/client-ui-widget-manager/client": ["./src/build-env.d.ts"]
+    }
+  },
+  "include": ["src/**/*.ts", "src/**/*.tsx"]
+}

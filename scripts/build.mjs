@@ -9,7 +9,7 @@
  */
 import { execFileSync } from 'node:child_process'
 import { createRequire } from 'node:module'
-import { readFileSync, writeFileSync, rmSync } from 'node:fs'
+import { existsSync, readFileSync, writeFileSync, rmSync, readdirSync } from 'node:fs'
 import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
@@ -46,6 +46,34 @@ for (const pkg of [
     '--outfile=lib/index.js', '--log-level=warning',
   ])
   console.log('built ' + pkg + '/lib/index.js')
+}
+
+// Balance type surface: regenerate lib/types/* from src via tsc (js + .d.ts +
+// sourcemaps), so the published declarations always match the current source
+// and a fresh clone can reproduce them. The stale one-off emits from the
+// three-package era are wiped first. The `lib/typert.*` wire artifacts are
+// NOT produced here — they are vendored generated code committed to the repo
+// (see AGENTS.md); the exports check below fails loudly if they are missing.
+{
+  const pkg = 'packages/dsh-balance'
+  const tscCli = require.resolve('typescript/bin/tsc')
+  rmSync(join(root, pkg, 'lib/types'), { recursive: true, force: true })
+  rmSync(join(root, pkg, 'lib/invariant.js'), { force: true })
+  execFileSync(process.execPath, [tscCli, '-p', join(root, pkg, 'tsconfig.build.json')], { stdio: 'inherit' })
+  // tsc rewrites `.ts` specifiers to `.js` in the JS emit but (as of TS 5.9)
+  // leaves them untouched in the declaration emit. Normalize the .d.ts files
+  // so consumers resolve the shipped declarations in any moduleResolution
+  // mode — `./x.ts` only exists as a source-relative specifier, so the plain
+  // suffix rewrite is safe.
+  const dtsRoot = join(root, pkg, 'lib/types')
+  for (const entry of readdirSync(dtsRoot, { recursive: true, withFileTypes: true })) {
+    if (!entry.isFile() || !entry.name.endsWith('.d.ts')) continue
+    const file = join(entry.parentPath, entry.name)
+    const content = readFileSync(file, 'utf8')
+    const rewritten = content.replaceAll(/\.ts(['"])/g, '.js$1')
+    if (rewritten !== content) writeFileSync(file, rewritten)
+  }
+  console.log('built ' + pkg + '/lib/types (tsc emit)')
 }
 
 // Balance plugin client bundle: CJS + inlined CSS, wrapped in the ModuleLoader
@@ -136,4 +164,41 @@ for (const pkg of [
   rmSync(join(root, pkg, 'lib/client.cjs'))
   rmSync(join(root, pkg, 'lib/client.css'))
   console.log('built ' + pkg + '/lib/client.js')
+}
+
+// Exports completeness check: every `exports` target (default + types
+// conditions) must exist after the build. Neither `pnpm pack` nor
+// `git diff --exit-code` validates exports targets against the tarball, so a
+// missing file (e.g. the vendored typert.* artifacts on a fresh clone) would
+// otherwise ship a broken package silently.
+{
+  const pkgs = [
+    'packages/dsh-balance',
+    'packages/dsh-client-ui-token-crit',
+    'packages/dsh-client-ui-session-monitor',
+    'packages/dsh-client-ui-widget-manager',
+    'bundles/dsh-widgets-plugin',
+  ]
+  const failures = []
+  for (const pkg of pkgs) {
+    const manifest = JSON.parse(readFileSync(join(root, pkg, 'package.json'), 'utf8'))
+    const exportsMap = manifest.exports
+    if (exportsMap === undefined) continue
+    for (const [subpath, target] of Object.entries(exportsMap)) {
+      if (subpath === './package.json') continue
+      const entries = typeof target === 'string' ? { default: target } : target
+      for (const [condition, file] of Object.entries(entries)) {
+        if (typeof file !== 'string') continue
+        if (!existsSync(join(root, pkg, file))) {
+          failures.push(`${pkg} exports["${subpath}"].${condition} -> ${file} (missing)`)
+        }
+      }
+    }
+  }
+  if (failures.length > 0) {
+    console.error('ERROR: exported files are missing — a published tarball would be broken:')
+    for (const line of failures) console.error('  ' + line)
+    process.exit(1)
+  }
+  console.log('exports completeness: ok')
 }

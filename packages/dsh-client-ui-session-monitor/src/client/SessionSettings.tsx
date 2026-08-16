@@ -6,7 +6,7 @@
  * widget re-reads them live. Localized through the injected `t` seat.
  */
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import type { ReactNode } from 'react'
 import type { TranslateNS } from '@deepseek-ai/dsh-client-ui-slots'
 import {
@@ -41,6 +41,11 @@ export function SessionSettings({ t }: SessionSettingsInjected) {
 
   function update(patch: Partial<MonitorSettings>): void {
     const next = { ...settings, ...patch }
+    // Clamp on save, not only on load: the number input allows out-of-range
+    // values and the panel must not show them until a reload.
+    if (patch.autoDismissSec !== undefined) {
+      next.autoDismissSec = Math.min(60, Math.max(2, Math.round(next.autoDismissSec)))
+    }
     setSettings(next)
     saveSettings(next)
   }
@@ -49,6 +54,25 @@ export function SessionSettings({ t }: SessionSettingsInjected) {
     setSettings({ ...DEFAULT_SETTINGS })
     saveSettings({ ...DEFAULT_SETTINGS })
   }
+
+  // Keep the permission line honest when the user changes the permission in
+  // the browser's site settings while the panel is open.
+  useEffect(() => {
+    if (typeof Notification === 'undefined') return
+    const refresh = (): void => { setPerm(Notification.permission) }
+    const onFocus = (): void => { refresh() }
+    window.addEventListener('focus', onFocus)
+    let status: PermissionStatus | undefined
+    if (navigator.permissions !== undefined) {
+      void navigator.permissions.query({ name: 'notifications' as PermissionName })
+        .then((s) => { status = s; s.onchange = refresh })
+        .catch(() => undefined)
+    }
+    return () => {
+      window.removeEventListener('focus', onFocus)
+      if (status !== undefined) status.onchange = null
+    }
+  }, [])
 
   return (
     <div className={css.panel}>
@@ -172,7 +196,7 @@ export function SessionSettings({ t }: SessionSettingsInjected) {
             } catch { /* storage */ }
           }}
         >
-          {t('resetPos')}
+          {t('resetPosScale')}
         </button>
         <button className={css.resetBtn} onClick={resetAll}>{t('resetAll')}</button>
       </div>

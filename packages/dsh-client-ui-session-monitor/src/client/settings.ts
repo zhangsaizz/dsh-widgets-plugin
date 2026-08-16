@@ -178,7 +178,9 @@ export function saveLastActive(map: Record<string, number>): void {
     const cutoff = Date.now() - LAST_ACTIVE_TTL_MS
     const pruned: Record<string, number> = {}
     for (const [id, ts] of Object.entries(map)) {
-      if (ts >= cutoff) pruned[id] = ts
+      // Same validation as loadLastActive: a non-finite value would poison the
+      // stored map and make every read fall back to defaults.
+      if (typeof ts === 'number' && Number.isFinite(ts) && ts >= cutoff) pruned[id] = ts
     }
     window.localStorage.setItem(LAST_ACTIVE_KEY, JSON.stringify(pruned))
   } catch { /* storage unavailable */ }
@@ -193,12 +195,24 @@ export function clampToViewport(x: number, y: number, w: number, h: number): { x
   }
 }
 
+/**
+ * Lazily-created shared chime context, one per page, never closed. Browsers
+ * cap concurrent AudioContexts (~6 per page); creating one per chime could
+ * silently exhaust that pool under a toast burst.
+ */
+let chimeCtx: AudioContext | null = null
+
 /** Short two-tone notification chime via WebAudio (fails silently). */
 export function playChime(): void {
   try {
     const AC = (window as any).AudioContext || (window as any).webkitAudioContext
     if (!AC) return
-    const actx: AudioContext = new AC()
+    const actx: AudioContext = chimeCtx ?? new AC()
+    chimeCtx = actx
+    // Chimes are not triggered by a user gesture, so the context may be
+    // suspended by the autoplay policy — request a resume (may still be
+    // refused, which is fine: the chime simply stays silent).
+    if (actx.state === 'suspended') void actx.resume().catch(() => undefined)
     const t = actx.currentTime
     const gain = actx.createGain()
     gain.gain.setValueAtTime(0.0001, t)
@@ -213,6 +227,5 @@ export function playChime(): void {
       osc.start(at)
       osc.stop(at + 0.22)
     }
-    window.setTimeout(() => { void actx.close().catch(() => undefined) }, 600)
   } catch { /* audio unavailable */ }
 }

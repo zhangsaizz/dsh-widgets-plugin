@@ -7,6 +7,7 @@
 
 import z from '@deepseek-ai/schemastery'
 import { settingsNamespace } from '@deepseek-ai/dsh-settings'
+import type { BalanceBindingConfig } from './types.ts'
 
 /** One deployment-configured balance binding (filled directly in cordis.patch.yml). */
 export const bindingSchema = z.object({
@@ -17,8 +18,17 @@ export const bindingSchema = z.object({
   baseURL: z.string(),
 })
 
-/** The `balance` settings-section schema (validates the stored user document). */
-export const BalanceSettingsSchema = z.object({
+/** The stored shape of the `balance` settings section (mirrors `BalanceBindingConfig`). */
+export interface BalanceSettingsShape {
+  bindings: BalanceBindingConfig[]
+}
+
+/**
+ * The `balance` settings-section schema (validates the stored user document).
+ * Annotated explicitly: the inferred schemastery type references cosmokit
+ * internals, which declaration emit cannot name portably (TS2742).
+ */
+export const BalanceSettingsSchema: z<BalanceSettingsShape> = z.object({
   bindings: z.array(bindingSchema).default([]),
 })
 
