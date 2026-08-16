@@ -119,8 +119,9 @@
   `dsh-api-remotes`、`dsh-client-runtime`、`dsh-client-locale`、`dsh-client-ui-layout`、
   `dsh-client-ui-slots`、`@dsh-plugins/client-ui-widget-manager`（type-only，peer）、
   `react`（peer）。
-- 构建：Host → `lib/index.js`（ESM，外部化）；Client → `lib/client.js`
-  （ModuleLoader CJS + 内联 CSS，`--loader:.css=local-css`）。`lib/types/**`
+- 构建：Host → `lib/index.js`（ESM，外部化，esbuild）；Client → `lib/client.js`
+  （ModuleLoader CJS + 内联 CSS，**Vite library mode**，与官方 deepseek-harness 的
+  Web 工具链一致）。`lib/types/**`
   由 `pnpm build` 的 tsc 步骤重新生成（`tsconfig.build.json`，改写 `.ts` 相对
   引用为 `.js`）；`lib/typert.*` 为 typert codegen 产物，**已提交进 git**
   （仓库无 codegen 工具，无法重建），`pnpm build` 不重建但会校验其存在。
@@ -274,17 +275,21 @@ graph LR
 
 ## 5. 构建产物
 
-`pnpm build`（`node scripts/build.mjs`）用 esbuild 构建，产物全部进 `lib/`（gitignore，不提交）：
+`pnpm build`（`node scripts/build.mjs`）构建，产物全部进 `lib/`（gitignore，不提交）：
+Host 半用 esbuild，浏览器半用 **Vite library mode**（与官方 deepseek-harness 的 Web
+工具链一致）：
 
 | 包 | Host 产物 | 浏览器产物 | 包装方式 |
 |---|---|---|---|
-| `@dsh-plugins/balance` | `lib/index.js`（ESM，外部化） | `lib/client.js` | ModuleLoader CJS + 内联 CSS（`--loader:.css=local-css`）；`lib/types/**` 由 `pnpm build` 内嵌的 tsc 步骤从 src 重新生成（js + d.ts + map）；`lib/typert.*` 为 typert codegen 产物，**已提交进 git**（仓库内无法重新生成，见 AGENTS.md），`pnpm build` 不重建 |
+| `@dsh-plugins/balance` | `lib/index.js`（ESM，外部化） | `lib/client.js` | ModuleLoader CJS + 内联 CSS（Vite lib mode + CSS Modules）；`lib/types/**` 由 `pnpm build` 内嵌的 tsc 步骤从 src 重新生成（js + d.ts + map）；`lib/typert.*` 为 typert codegen 产物，**已提交进 git**（仓库内无法重新生成，见 AGENTS.md），`pnpm build` 不重建 |
 | `@dsh-plugins/client-ui-token-crit` | `lib/index.js`（空 apply 壳） | `lib/client.js` | ModuleLoader CJS + 内联 CSS |
 | `@dsh-plugins/client-ui-session-monitor` | `lib/index.js`（Host 半：`turn/end` 原因跟踪 + 状态路由） | `lib/client.js` | ModuleLoader CJS + 内联 CSS |
 | `@dsh-plugins/client-ui-widget-manager` | `lib/index.js`（ESM，空 apply 壳） | `lib/client.js` | ModuleLoader CJS + 内联 CSS |
 | `@dsh-plugins/dsh-widgets-plugin` | —（仅 `cordis.patch.yml`） | — | — |
 
-外部化清单：`@deepseek-ai/*`、`@dsh-plugins/*`、`zod`、`react`、`react/*`。
+外部化清单：`@deepseek-ai/*`、`@dsh-plugins/*`、`zod`、`react`、`react/*`
+（client bundle 会**内联 zod**——ModuleLoader 模块表没有 zod factory，见
+`scripts/build.mjs` 的 `EXTERNAL_CLIENT`）。
 
 > `pnpm build` 末尾会做 **exports 完整性校验**：每个 `exports` 目标文件（default + types 条件）
 > 必须存在，缺失即构建失败（CI 亦如此）——防止「tarball 缺文件但 CI 绿」的静默损坏。

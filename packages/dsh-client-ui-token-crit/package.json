@@ -3,6 +3,11 @@
   "description": "Floating token-usage crit meter (web): transparent, draggable/resizable counter with crit-damage animations and a config panel",
   "version": "0.1.0",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/zhangsaizz/dsh-widgets-plugin.git",
+    "directory": "packages/dsh-client-ui-token-crit"
+  },
   "publishConfig": {
     "access": "public"
   },

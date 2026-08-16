@@ -51,7 +51,14 @@ pnpm install
 pnpm build   # 等价于 node scripts/build.mjs
 ```
 
-`pnpm build` 用 esbuild 构建各包的 Host 与浏览器产物（`lib/`），并额外用 tsc 从 src
+pnpm 版本由 root `package.json` 的 `packageManager` 固定（`pnpm@10.30.3`，与官方
+deepseek-harness 同款做法）；`pnpm/action-setup` 会按该字段安装对应版本，本机用
+corepack 管理时也会读取同一字段。Node 引擎约束见 root `engines`
+（`^22.19.0 || >=24.0.0`）。
+
+`pnpm build` 用 esbuild 构建各包的 Host 产物（`lib/index.js`），用 **Vite
+library mode**（官方 deepseek-harness 的 Web 工具链）构建浏览器端 bundle
+（`lib/client.js`，ModuleLoader CJS + 内联 CSS），并额外用 tsc 从 src
 重新生成 `@dsh-plugins/balance` 的类型面（`lib/types/**`），末尾校验所有 `exports`
 目标文件存在。包自带构建产物，安装即用，无需在安装端构建。
 

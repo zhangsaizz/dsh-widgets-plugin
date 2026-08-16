@@ -35,12 +35,15 @@ packages/
 bundles/
   dsh-widgets-plugin/        可安装 bundle：cordis.patch.yml 插入 4 个插件
 scripts/
-  build.mjs                   用 esbuild 构建全部 Host + 浏览器产物到各包 lib/
+  build.mjs                   用 esbuild 构建 Host 产物、用 Vite library mode 构建
+                             浏览器 client bundle（官方 deepseek-harness 同款工具链）
+                             + tsc 重生成 balance 类型面，全部进各包 lib/
 .github/workflows/             ci.yml（PR/推送校验）+ publish.yml（v* tag 发布 npm）
 ```
 
 每个包的 `package.json` 有 `exports`（`./client` 指浏览器 bundle）、`dsh.client`
-声明（`inject` + `platform: "web"`）、`files: ["lib"]`。
+声明（`inject` + `platform: "web"`）、`files: ["lib"]`、`repository`（指向本仓库 +
+`directory` 子路径，发布元数据用）。
 
 ## 常用命令
 
@@ -51,6 +54,10 @@ pnpm typecheck               # 类型检查（tsc --noEmit，根 tsconfig.json�
 pnpm -r pack                 # 打包校验（可加 --dry-run）
 pnpm run publish:all         # pnpm -r publish --no-git-checks
 ```
+
+pnpm 版本由 root `package.json` 的 `packageManager` 固定（当前 `pnpm@10.30.3`），
+`pnpm/action-setup` 会按它装对应版本，无需手工升级；本机若用 corepack 管理也会
+读同一字段。Node 引擎约束见 root `engines`（`^22.19.0 || >=24.0.0`）。
 
 没有测试套件：CI 的校验是「install → typecheck → build → pack → git diff 干净」。
 类型检查要点：esbuild 只转译不查类型（如运行时时序/引用顺序问题它拦不住），
@@ -110,8 +117,8 @@ pnpm run publish:all         # pnpm -r publish --no-git-checks
   注册挂件（需要 `@deepseek-ai/dsh-client-ui-layout` 的类型合并）。
 - `package.json` 加 `dsh.client`（inject 依赖 + `platform: "web"`）、`exports["./client"]`、
   `files: ["lib"]`、`publishConfig.access: public`。
-- 在 `scripts/build.mjs` 加一段 client bundle 构建（ModuleLoader CJS 包装 +
-  内联 CSS 注入，照抄现有段落）。
+- 在 `scripts/build.mjs` 加一段 client bundle 构建（Vite lib mode 产出 CJS +
+  提取 CSS，再包 ModuleLoader 包装 + 内联 CSS 注入，照抄现有段落）。
 - 若随 bundle 分发，加进 `bundles/dsh-widgets-plugin/` 的依赖与 `cordis.patch.yml`。
 - 补双语 README + `README.i18n.yaml`。
 
@@ -130,6 +137,23 @@ pnpm run publish:all         # pnpm -r publish --no-git-checks
 - 小组件管理页的目录（`dsh-client-ui-widget-manager/src/client/widgets.ts`）把余额看板
   的 `packageName` 标为 `@dsh-plugins/balance`——新增/重命名包时同步更新。
 
+### 6. 包管理（与官方 deepseek-harness 架构对齐）
+
+包管理配置镜像官方仓库（deepseek-ai/deepseek-harness）的做法：
+
+- root `package.json`：`packageManager` 固定 pnpm 版本（`pnpm@10.30.3`）、
+  `engines.node`（`^22.19.0 || >=24.0.0`）、`workspaces` 列出 `packages/*` 与
+  `bundles/*`（与 `pnpm-workspace.yaml` 的 `packages` 保持一致）。
+- `pnpm-workspace.yaml`：`linkWorkspacePackages: true`、`overrides`（目前为空，
+  保留官方 `link:vendor/...` 用法注释）、`peerDependencyRules.allowedVersions`
+  （typescript `>=5 <7`）、`allowBuilds`（**pnpm 10.26+ 已支持**，官方 pnpm 11
+  同款键，替代旧的 `onlyBuiltDependencies`；默认拒绝、只放行必要的构建脚本）、
+  `patchedDependencies` + `patches/` 目录（当前为空占位）。
+- 每个可发布包的 `package.json` 带 `repository`（`git+https://github.com/
+  zhangsaizz/dsh-widgets-plugin.git` + `directory` 子路径），与官方每个包都声明
+  `repository.directory` 的约定一致。
+- 版本号与官方一样全仓同步（当前 0.1.0，非 rc 预发布风格——本仓库维持稳定版语义）。
+
 ## 发布流程
 
 1. 本地 `pnpm build` → `pnpm -r pack`（检查 tarball 内容）。
@@ -139,7 +163,17 @@ pnpm run publish:all         # pnpm -r publish --no-git-checks
 
 ## 本次会话的近期改动（了解现状用）
 
-- 修复了 `allowBuilds` 占位符（pnpm 10 用 `onlyBuiltDependencies`）。
+- **浏览器 bundle 改用 Vite 构建（官方同款工具链）**：`scripts/build.mjs` 的
+  client bundle 段落从 esbuild 换成 **Vite library mode**（`vite` JS API，CJS
+  输出 + CSS Modules 提取，再包 ModuleLoader 包装 + 内联 CSS 注入）；Host 半仍用
+  esbuild。root devDeps 增加 `vite@^6.0.0`。各包 `lib/client.js` 产物结构不变
+  （`@deepseek-ai/*`/`@dsh-plugins/*`/`react` 外部化经 `require` 解析、zod 内联、
+  CSS 内联注入）。
+- **包管理与官方 deepseek-harness 架构对齐**：root `package.json` 增加
+  `packageManager`（`pnpm@10.30.3`）、`engines.node`、`workspaces`；
+  `pnpm-workspace.yaml` 采用官方字段（`linkWorkspacePackages`、`overrides`、
+  `peerDependencyRules`、`allowBuilds`、`patchedDependencies`）；新增
+  `patches/` 目录；5 个可发布包补 `repository` 字段。版本维持 0.1.0。
 - bundle 依赖从 `link:` 改为 `workspace:*`，junction 重新指向正确路径。
 - 删除重复脚本 `build-client.mjs`；`build.mjs` 的 esbuild 查找已跨平台
   （`require.resolve('esbuild/bin/esbuild')`，不再硬编码 win32）。

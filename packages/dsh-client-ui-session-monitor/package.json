@@ -3,6 +3,11 @@
   "description": "Session monitor dashboard (web): floating list of running/finished sessions, proactive round-completion toasts with jump-to-session, and a config panel",
   "version": "0.1.0",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/zhangsaizz/dsh-widgets-plugin.git",
+    "directory": "packages/dsh-client-ui-session-monitor"
+  },
   "publishConfig": {
     "access": "public"
   },

@@ -1,10 +1,18 @@
 {
   "name": "dsh-widgets-plugin",
-  "private": true,
   "version": "0.1.0",
+  "license": "MIT",
+  "private": true,
   "type": "module",
   "description": "A collection of small DeepSeek Harness widgets (挂件): the merged balance plugin (seam + vendors + dashboard), token crit meter, the widgets manager, and an installable bundle",
-  "license": "MIT",
+  "packageManager": "pnpm@10.30.3",
+  "engines": {
+    "node": "^22.19.0 || >=24.0.0"
+  },
+  "workspaces": [
+    "packages/*",
+    "bundles/*"
+  ],
   "files": [],
   "scripts": {
     "build": "node scripts/build.mjs",
@@ -16,6 +24,7 @@
     "@types/node": "^22.20.1",
     "@types/react": "^18.2.0",
     "esbuild": "^0.28.2",
-    "typescript": "^5.5.0"
+    "typescript": "^5.5.0",
+    "vite": "^6.0.0"
   }
 }

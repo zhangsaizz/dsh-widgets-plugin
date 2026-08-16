@@ -128,27 +128,19 @@ export function ClockWidget({ t }: ClockWidgetProps) {
 
 ### 1.4 构建与分发
 
-在 `scripts/build.mjs` 照抄「Token-crit client bundle」段，产出 `lib/client.js`
-（ModuleLoader CJS + 内联 CSS）：
+在 `scripts/build.mjs` 照抄现有 client bundle 段（Vite library mode），产出
+`lib/client.js`（ModuleLoader CJS + 内联 CSS）：
 
 ```js
-{
-  const pkg = 'packages/dsh-client-ui-clock'
-  run(pkg, [
-    'src/client/index.ts',
-    '--bundle', '--format=cjs', '--platform=browser', '--target=es2022',
-    '--jsx=automatic',
-    '--loader:.css=local-css',
-    ...EXTERNAL_CLIENT.flatMap((e) => ['--external:' + e]),
-    '--outfile=lib/client.cjs', '--log-level=warning',
-  ])
-  // ...读 lib/client.css，包进 ModuleLoader factory（照抄现有段落）...
-}
+// 在 CLIENT_PACKAGES 数组加一行：
+//   { pkg: 'packages/dsh-client-ui-clock', id: '@dsh-plugins/client-ui-clock' }
+// buildClientBundle() 会用 Vite library mode 构建：CJS 输出 + CSS Modules 提取，
+// 再包 ModuleLoader factory + 内联 CSS 注入（照抄现有段落，无需手写 esbuild 参数）。
 ```
 
-> client bundle 必须用 `EXTERNAL_CLIENT`（不含 `zod`）：浏览器 ModuleLoader 的模块
-> 表里没有 `zod` 工厂，typert 生成的线协议代码会 import 它，所以要内联（build.mjs
-> 顶部注释有完整说明）；Host bundle 才用 `EXTERNAL`。
+> client bundle 必须用 `isClientExternal`（`EXTERNAL_CLIENT`，不含 `zod`）：浏览器
+> ModuleLoader 的模块表里没有 `zod` 工厂，typert 生成的线协议代码会 import 它，所以
+> 要内联（build.mjs 顶部注释有完整说明）；Host bundle 才用 `EXTERNAL`。
 
 若随 bundle 分发：在 `bundles/dsh-widgets-plugin/package.json` 的 dependencies 加
 `"@dsh-plugins/client-ui-clock": "workspace:*"`，并在 `cordis.patch.yml` 加一行：
@@ -242,7 +234,7 @@ ctx.slots.inject('widgets.config', () => ctx.slots.register({
 配套改动：
 
 - **类型依赖**：`import type {} from '@dsh-plugins/client-ui-widget-manager/client'`
-  是 type-only（esbuild 会剥离，无运行时 require），但在 `package.json` 的
+  是 type-only（esbuild/Vite 会剥离，无运行时 require），但在 `package.json` 的
   `peerDependencies` 加 `"@dsh-plugins/client-ui-widget-manager": "workspace:*"`。
 - **配置组件自包含**：弹窗里只注入它自己的面（如 `t` / hooks / 动作），数据读写
   自己负责（BalanceSettings 就是自己 fetch `/_dsh/balance/settings`）。

@@ -1,8 +1,29 @@
 packages:
-  - 'packages/*'
-  - 'bundles/*'
+  - packages/*
+  - bundles/*
 
-# pnpm 10: allow esbuild's postinstall (binary verify) to run.
-# (pnpm 11 renamed this to allowBuilds.)
-onlyBuiltDependencies:
-  - esbuild
+# Workspace packages keep their upstream semver ranges, while local builds must
+# resolve those matching names to this workspace's pinned sources.
+linkWorkspacePackages: true
+
+# Framework packages vendored into this workspace resolve to the local sources
+# via link: overrides. This repo currently vendors nothing; entries look like:
+# overrides:
+#   '@deepseek-ai/cosmokit': 'link:vendor/cosmokit'
+overrides: {}
+
+peerDependencyRules:
+  allowedVersions:
+    typescript: '>=5 <7'
+
+# pnpm 10.26+ (11 renamed the old onlyBuiltDependencies/ignoredBuiltDependencies
+# pair): any dependency shipping an install/build script must be explicitly
+# reviewed here. We deny by default and only allow scripts we need — esbuild
+# (native binary verify) genuinely needs its postinstall.
+allowBuilds:
+  esbuild: true
+
+# Patch files live in patches/ and are referenced here, e.g.
+# patchedDependencies:
+#   node-pty@1.1.0: patches/node-pty@1.1.0.patch
+patchedDependencies: {}

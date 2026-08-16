@@ -3,6 +3,11 @@
   "description": "The balance plugin in one package: ctx.balance capability seam (balance/query + balance/list Remotes), shipped vendor providers, provider-bindings settings + Web route, and the floating Web balance dashboard",
   "version": "0.1.0",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/zhangsaizz/dsh-widgets-plugin.git",
+    "directory": "packages/dsh-balance"
+  },
   "publishConfig": {
     "access": "public"
   },
