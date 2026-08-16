@@ -29,7 +29,8 @@ export interface MonitorSettings {
   timeWindowMin: number
   /** Mark sessions that finished a round with a "本轮完成" badge until visited. */
   showDone: boolean
-  /** Also notify when the current session finishes its round. */
+  /** Also notify when the current session finishes its round (off by default:
+   *  the user is already looking at it, so the round needs no toast). */
   notifyCurrent: boolean
   /** Show (and notify about) subagent sessions in the dashboard; off filters them out. */
   showSubagents: boolean
@@ -45,7 +46,7 @@ export const DEFAULT_SETTINGS: MonitorSettings = {
   runningOnly: false,
   timeWindowMin: 60,
   showDone: true,
-  notifyCurrent: true,
+  notifyCurrent: false,
   showSubagents: false,
 }
 

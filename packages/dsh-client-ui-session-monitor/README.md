@@ -65,7 +65,8 @@ rounds. Without the host half the widget still works (base notification kinds).
   footer button).
 - **Configurable**: the widget-manager "Configure" dialog toggles notifications
   on/off, dismissal mode + seconds, sound, **browser notifications** (with
-  permission status), whether to notify for the current session, whether to
+  permission status), whether to notify for the current session (off by
+  default — you are already looking at it), whether to
   show subagent sessions (off by default), running-only listing, the recent
   **time window** (all / 15 min … 24 h) and done marks; while "Running only"
   is on the time-window control is visually dimmed with a hint that it applies
