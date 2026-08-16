@@ -32,6 +32,7 @@ src/index.ts                  # Host 空 apply（纯 UI 插件）
 src/client/index.ts           # 浏览器 apply + inject（注册 settings.section）
 src/client/controller.ts      # 运行时开关：影子注册 / 台账投影 / localStorage
 src/client/widgets.ts         # 项目挂件静态目录
+src/client/locales.ts         # 字典 NS `widgets`（zh / en）
 src/client/WidgetManagerSettings.tsx
 src/client/WidgetManagerSettings.module.css
 lib/index.js                  # Host 构建产物（静态）
@@ -53,7 +54,7 @@ pnpm build   # 等价于 node scripts/build.mjs
 纯客户端 surface 插件：把它（连同其 `dsh.client` 声明的依赖）加入部署的 web
 插件表 / host `cordis.yml` 后，浏览器端通过 `exports["./client"]` 加载
 `lib/client.js`，Web 设置里即出现「小组件管理」页。推荐直接安装
-`@dsh-plugins/balance-bundle`，它会一次挂载本页与全部小组件。
+`@dsh-plugins/dsh-widgets-plugin`，它会一次挂载本页与全部小组件。
 
 ## 使用
 

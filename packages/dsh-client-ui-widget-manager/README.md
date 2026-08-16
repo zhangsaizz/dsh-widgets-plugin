@@ -40,6 +40,7 @@ src/index.ts                  # Host empty apply (pure UI plugin)
 src/client/index.ts           # Browser apply + inject (registers settings.section)
 src/client/controller.ts      # Runtime toggling: shadow registration / ledger projection / localStorage
 src/client/widgets.ts         # Static catalog of the project widgets
+src/client/locales.ts         # Dictionary namespace `widgets` (zh/en)
 src/client/WidgetManagerSettings.tsx
 src/client/WidgetManagerSettings.module.css
 lib/index.js                  # Host build artifact (static)
@@ -63,7 +64,7 @@ A pure client-side surface plugin: once it (together with the dependencies
 declared in its `dsh.client`) is added to the deployed web plugin table / host
 `cordis.yml`, the browser loads `lib/client.js` through
 `exports["./client"]` and the "Widgets" page appears in the web settings.
-Installing `@dsh-plugins/balance-bundle` mounts this page together with every
+Installing `@dsh-plugins/dsh-widgets-plugin` mounts this page together with every
 widget.
 
 ## Usage

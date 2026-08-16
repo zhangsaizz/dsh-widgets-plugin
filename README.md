@@ -32,7 +32,7 @@
 | `@dsh-plugins/client-ui-token-crit` | Token 暴击挂件（浏览器端，纯 UI） |
 | `@dsh-plugins/client-ui-session-monitor` | 会话监控看板（双半：Host 半 turn/end 原因跟踪 + 状态路由；浏览器端列出运行中会话、按状态提醒、点击跳转） |
 | `@dsh-plugins/client-ui-widget-manager` | 小组件管理设置页（浏览器端）：列出小组件并支持「添加 / 关闭」，为带配置的挂件提供「配置」弹窗 |
-| `@dsh-plugins/balance-bundle` | 可安装 bundle：一层挂载以上全部插件 |
+| `@dsh-plugins/dsh-widgets-plugin` | 可安装 bundle：一层挂载以上全部插件 |
 
 > 完整的组件管理列表（组件明细、插槽注册、构建产物、依赖关系、维护清单）见
 > [COMPONENTS.md](COMPONENTS.md)。
@@ -71,10 +71,10 @@ pnpm -r publish --no-git-checks   # 等价于 npm run publish:all
 
 ## 安装（推荐：bundle）
 
-1. 在宿主环境安装 bundle 包：`npm install @dsh-plugins/balance-bundle`。
-2. 把 `@dsh-plugins/balance-bundle` 加进目标 profile 的 `dsh.profile.bundles`（profile 的 package.json），例如：
+1. 在宿主环境安装 bundle 包：`npm install @dsh-plugins/dsh-widgets-plugin`。
+2. 把 `@dsh-plugins/dsh-widgets-plugin` 加进目标 profile 的 `dsh.profile.bundles`（profile 的 package.json），例如：
    ```json
-   { "dsh": { "profile": { "bundles": ["@deepseek-ai/dsh-base", "@deepseek-ai/dsh-web-app", "@dsh-plugins/balance-bundle"] } } }
+   { "dsh": { "profile": { "bundles": ["@deepseek-ai/dsh-base", "@deepseek-ai/dsh-web-app", "@dsh-plugins/dsh-widgets-plugin"] } } }
    ```
 3. 重启 `dsh web`。
 

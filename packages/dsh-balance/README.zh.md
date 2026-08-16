@@ -49,7 +49,7 @@
 推荐安装 bundle——它会连同 Token 暴击挂件与小组件管理页一起挂载本插件：
 
 ```sh
-npm install @dsh-plugins/balance-bundle
+npm install @dsh-plugins/dsh-widgets-plugin
 ```
 
 或把插件行直接加进 profile 的 `cordis.patch.yml`：

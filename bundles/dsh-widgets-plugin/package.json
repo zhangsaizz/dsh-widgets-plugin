@@ -1,6 +1,6 @@
 {
-  "name": "@dsh-plugins/balance-bundle",
-  "description": "Installable dsh bundle: mounts the one balance plugin (seam + vendors + web dashboard), the token-crit widget, the session monitor widget, and the widgets manager in one layer",
+  "name": "@dsh-plugins/dsh-widgets-plugin",
+  "description": "Installable dsh bundle: mounts all widgets in one layer — the balance plugin (seam + vendors + web dashboard), the token-crit widget, the session monitor widget, and the widgets manager",
   "version": "0.1.0",
   "license": "MIT",
   "publishConfig": {

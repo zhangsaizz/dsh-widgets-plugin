@@ -16,7 +16,7 @@
 | 会话监控看板 | `@dsh-plugins/client-ui-session-monitor` |
 
 其余包是支撑：`@dsh-plugins/client-ui-widget-manager`（小组件管理设置页）、
-`@dsh-plugins/balance-bundle`（可安装 bundle，一层挂载全部插件）。
+`@dsh-plugins/dsh-widgets-plugin`（可安装 bundle，一层挂载全部插件）。
 余额链路已合并为**单包单插件**（`@dsh-plugins/balance` = 能力缝隙 + 厂商 Provider +
 Web 看板），不再拆包。
 
@@ -33,7 +33,7 @@ packages/
                              检测「完成一轮」提醒、点击跳转会话）
   dsh-client-ui-widget-manager/ 小组件管理设置页（声明 widgets.config 子槽）
 bundles/
-  dsh-balance-bundle/         可安装 bundle：cordis.patch.yml 插入 4 个插件
+  dsh-widgets-plugin/        可安装 bundle：cordis.patch.yml 插入 4 个插件
 scripts/
   build.mjs                   用 esbuild 构建全部 Host + 浏览器产物到各包 lib/
 .github/workflows/             ci.yml（PR/推送校验）+ publish.yml（v* tag 发布 npm）
@@ -101,7 +101,7 @@ pnpm run publish:all         # pnpm -r publish --no-git-checks
   `files: ["lib"]`、`publishConfig.access: public`。
 - 在 `scripts/build.mjs` 加一段 client bundle 构建（ModuleLoader CJS 包装 +
   内联 CSS 注入，照抄现有段落）。
-- 若随 bundle 分发，加进 `bundles/dsh-balance-bundle/` 的依赖与 `cordis.patch.yml`。
+- 若随 bundle 分发，加进 `bundles/dsh-widgets-plugin/` 的依赖与 `cordis.patch.yml`。
 - 补双语 README + `README.i18n.yaml`。
 
 ### 5. 余额插件是单包结构
@@ -158,3 +158,6 @@ pnpm run publish:all         # pnpm -r publish --no-git-checks
   widget-manager 目录已登记。已本地安装到 `~/.dsh/profiles/web`（junction 直连
   仓库包，client bundle 按请求读盘，改代码 build 后刷新页面即生效；**Host 半改动
   需要重启 web 服务**）。
+- **安装 bundle 更名**：`@dsh-plugins/balance-bundle`（`bundles/dsh-balance-bundle`）
+  更名为 `@dsh-plugins/dsh-widgets-plugin`（`bundles/dsh-widgets-plugin`）；目录用
+  `git mv` 迁移、锁文件 importer 同步改名、全部文档引用与双语 README 已更新。

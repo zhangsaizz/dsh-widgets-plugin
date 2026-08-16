@@ -61,7 +61,7 @@ Recommended: install the bundle, which mounts this plugin together with the
 token-crit widget and the widgets manager page:
 
 ```sh
-npm install @dsh-plugins/balance-bundle
+npm install @dsh-plugins/dsh-widgets-plugin
 ```
 
 Or add the plugin row directly to the profile's `cordis.patch.yml`:

@@ -29,7 +29,7 @@
 | 12 | 会话监控看板 `SessionMonitorWidget` | Web 挂件 | `@dsh-plugins/client-ui-session-monitor` | `shell.overlay`（order 90） | 列出运行中/空闲/本轮完成的会话（子代理默认过滤、可配置时间范围默认 1h），完成一轮主动弹提醒（按状态配色：完成/待处理/出错/中止/阻塞/token 上限等，可自动消失或需确认），点击行一键跳转；可收起为胶囊、拖角缩放 |
 | 13 | 会话监控 Host 半 + 状态路由 | Host 插件 + Web 路由 | `@dsh-plugins/client-ui-session-monitor` | `/_dsh/session-monitor/status` | 监听 `turn/end` 记录结束原因（completed/aborted/blocked/error/max-tokens/interrupted），浏览器半 3s 轮询取回 |
 | 14 | 会话监控配置面板 `SessionSettings` | Web 配置弹窗 | `@dsh-plugins/client-ui-session-monitor` | `widgets.config`（管理器「配置」弹窗） | 提醒开关/关闭方式/秒数/音效/提醒范围与列表显示选项，localStorage 持久化 |
-| 15 | 安装 bundle | 分发层 | `@dsh-plugins/balance-bundle` | `cordis.patch.yml` | 一次插入 4 个插件，一键挂载全部组件 |
+| 15 | 安装 bundle | 分发层 | `@dsh-plugins/dsh-widgets-plugin` | `cordis.patch.yml` | 一次插入 4 个插件，一键挂载全部组件 |
 | 16 | 小组件管理页 `WidgetManagerSettings` | Web 设置页 | `@dsh-plugins/client-ui-widget-manager` | `settings.section`（order 10） | 实时列出小组件，支持「添加/关闭」，并为带配置的挂件提供「配置」弹窗 |
 
 > 1–10 全部由 `@dsh-plugins/balance` 一个包、一个插件行承载（原 `balance` 缝隙 +
@@ -48,7 +48,7 @@
 | `@dsh-plugins/client-ui-token-crit` | 0.1.0 | Token 暴击挂件（浏览器端，纯 UI） | `lib` | `.`、`./client` | 独立维护 |
 | `@dsh-plugins/client-ui-session-monitor` | 0.1.0 | 会话监控看板（Host 半：turn/end 原因跟踪 + 状态路由；浏览器端看板） | `lib` | `.`、`./client` | 独立维护 |
 | `@dsh-plugins/client-ui-widget-manager` | 0.1.0 | 小组件管理设置页（浏览器端，纯 UI） | `lib` | `.`、`./client` | 独立维护 |
-| `@dsh-plugins/balance-bundle` | 0.1.0 | 可安装 bundle | `cordis.patch.yml` | `./cordis.patch.yml` | 独立维护 |
+| `@dsh-plugins/dsh-widgets-plugin` | 0.1.0 | 可安装 bundle | `cordis.patch.yml` | `./cordis.patch.yml` | 独立维护 |
 
 每个包的 `package.json` 还带 `dsh.client` 声明（`inject` 依赖列表 + `platform: "web"`），
 浏览器产物由该声明被发现。
@@ -135,9 +135,9 @@
   hover 显示设置面板（语言、数字格式/字号、标签、连击、粒子、暴击阈值/比例、音效、泛光）；
   位置与缩放写入 `localStorage`。
 
-### 3.3 安装 bundle（`balance-bundle`）
+### 3.3 安装 bundle（`dsh-widgets-plugin`）
 
-- 包：`@dsh-plugins/balance-bundle`（`bundles/dsh-balance-bundle`）。
+- 包：`@dsh-plugins/dsh-widgets-plugin`（`bundles/dsh-widgets-plugin`）。
 - `dsh.bundle.patch = ./cordis.patch.yml`；依赖 4 个 `workspace:*` 包。
 - `cordis.patch.yml` 插入顺序：`balance`（requestTimeoutMs / newApiBaseURL / bindings）→
   `ui-token-crit` → `ui-session-monitor` → `ui-widget-manager`。
@@ -151,7 +151,7 @@
   并在同一注册中**声明 `widgets.config` 子槽**（list，条目 id = 挂件 id）。
 - 列表数据：`WidgetManagerController` 订阅 `shell.overlay` 与 `widgets.config` 台账
   （`ctx.slots.subscribe` + `entries`），结合内置目录（`widgets.ts`：balance /
-  token-crit）投影每行的「已启用 / 已关闭 / 未安装」状态；`hasConfig` 由 `widgets.config`
+  token-crit / session-monitor）投影每行的「已启用 / 已关闭 / 未安装」状态；`hasConfig` 由 `widgets.config`
   的实时注册推导。**目录中余额看板的 `packageName` 是 `@dsh-plugins/balance`**。
 - **关闭（禁用）机制**：向 `shell.overlay` 注册同 `id`、`priority: -1` 的影子条目
   （list 槽单元渲染最低优先级胜者，ui-slots 影子机制）——挂件条目仍存活但不渲染；
@@ -237,7 +237,7 @@
 
 ```mermaid
 graph LR
-  BUNDLE[@dsh-plugins/balance-bundle]
+  BUNDLE[@dsh-plugins/dsh-widgets-plugin]
   BALANCE[@dsh-plugins/balance]
   UI_CRIT[@dsh-plugins/client-ui-token-crit]
   UI_SMON[@dsh-plugins/client-ui-session-monitor]
@@ -280,7 +280,7 @@ graph LR
 | `@dsh-plugins/client-ui-token-crit` | `lib/index.js`（空 apply 壳） | `lib/client.js` | ModuleLoader CJS + 内联 CSS |
 | `@dsh-plugins/client-ui-session-monitor` | `lib/index.js`（空 apply 壳） | `lib/client.js` | ModuleLoader CJS + 内联 CSS |
 | `@dsh-plugins/client-ui-widget-manager` | `lib/index.js`（ESM，空 apply 壳） | `lib/client.js` | ModuleLoader CJS + 内联 CSS |
-| `@dsh-plugins/balance-bundle` | —（仅 `cordis.patch.yml`） | — | — |
+| `@dsh-plugins/dsh-widgets-plugin` | —（仅 `cordis.patch.yml`） | — | — |
 
 外部化清单：`@deepseek-ai/*`、`@dsh-plugins/*`、`zod`、`react`、`react/*`。
 

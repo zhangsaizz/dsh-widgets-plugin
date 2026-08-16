@@ -139,14 +139,18 @@ export function ClockWidget({ t }: ClockWidgetProps) {
     '--bundle', '--format=cjs', '--platform=browser', '--target=es2022',
     '--jsx=automatic',
     '--loader:.css=local-css',
-    ...EXTERNAL.flatMap((e) => ['--external:' + e]),
+    ...EXTERNAL_CLIENT.flatMap((e) => ['--external:' + e]),
     '--outfile=lib/client.cjs', '--log-level=warning',
   ])
   // ...读 lib/client.css，包进 ModuleLoader factory（照抄现有段落）...
 }
 ```
 
-若随 bundle 分发：在 `bundles/dsh-balance-bundle/package.json` 的 dependencies 加
+> client bundle 必须用 `EXTERNAL_CLIENT`（不含 `zod`）：浏览器 ModuleLoader 的模块
+> 表里没有 `zod` 工厂，typert 生成的线协议代码会 import 它，所以要内联（build.mjs
+> 顶部注释有完整说明）；Host bundle 才用 `EXTERNAL`。
+
+若随 bundle 分发：在 `bundles/dsh-widgets-plugin/package.json` 的 dependencies 加
 `"@dsh-plugins/client-ui-clock": "workspace:*"`，并在 `cordis.patch.yml` 加一行：
 
 ```yaml
