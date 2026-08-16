@@ -19,6 +19,12 @@ export interface TurnEndRecord {
   readonly reason: string
   /** Event wall time (Unix epoch milliseconds). */
   readonly at: number
+  /**
+   * Cumulative finished-round count for the session (host lifetime, survives
+   * page reloads). Every `turn/end` increments it; the browser uses it as the
+   * authoritative "第 N 轮" number in completion notifications.
+   */
+  readonly round: number
 }
 
 /** Exact route the browser half polls for turn-end reasons. */
@@ -41,9 +47,13 @@ function responseJson(res: import('node:http').ServerResponse, status: number, b
 /** In-memory turn-end reason store (insertion-ordered, TTL-pruned). */
 class TurnEndStore {
   private readonly records = new Map<string, TurnEndRecord>()
+  /** Cumulative per-session round counters — live for the session's life (not TTL-pruned). */
+  private readonly rounds = new Map<string, number>()
 
-  upsert(sessionId: string, record: TurnEndRecord): void {
-    this.records.set(sessionId, record)
+  upsert(sessionId: string, record: Omit<TurnEndRecord, 'round'>): void {
+    const round = (this.rounds.get(sessionId) ?? 0) + 1
+    this.rounds.set(sessionId, round)
+    this.records.set(sessionId, { ...record, round })
     if (this.records.size > MAX_RECORDS) {
       // Map preserves insertion order — drop the oldest entry.
       const oldest = this.records.keys().next().value
@@ -54,6 +64,7 @@ class TurnEndStore {
 
   remove(sessionId: string): void {
     this.records.delete(sessionId)
+    this.rounds.delete(sessionId)
   }
 
   snapshot(): Record<string, TurnEndRecord> {

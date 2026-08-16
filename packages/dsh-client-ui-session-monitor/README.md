@@ -42,7 +42,10 @@ rounds. Without the host half the widget still works (base notification kinds).
   sessions ("N 个忙碌中").
 - **Round-completion notifications**: watches `running` true→false edges (one
   edge = one finished round, goal rounds included), and pops a toast
-  `「title」已完成一轮` with **跳转** (jump) and **知道了** (dismiss) actions.
+  `「title」已完成第 N 轮` with **跳转** (jump) and **知道了** (dismiss)
+  actions — the toast states which round just finished (with the host half
+  mounted it is the cumulative round count; otherwise the rounds observed
+  while the widget is open).
   Sessions finishing at the same time stack as separate toasts (newest first,
   auto mode caps the stack at 5 and drops the oldest). Two dismissal modes:
   **auto** (auto-dismiss after N seconds) and **confirm** (the toast stays

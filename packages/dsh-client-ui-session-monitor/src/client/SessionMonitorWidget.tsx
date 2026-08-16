@@ -60,6 +60,8 @@ interface Toast {
   title: string
   at: number
   kind: ToastKind
+  /** Round number this completion represents (Host count preferred, else observed). */
+  round?: number
 }
 
 /** A finished round waiting for its Host turn-end reason before toasting. */
@@ -68,6 +70,8 @@ interface PendingAlert {
   baseKind: ToastKind
   title: string
   sessionId: string
+  /** Round number as observed by this widget (Host cumulative count may replace it). */
+  round: number
 }
 
 /** Turn-end reasons that deserve their own notification kind (vs plain done). */
@@ -81,16 +85,16 @@ function mapReasonKind(reason: string | undefined, base: ToastKind): ToastKind {
 }
 
 /** Per-kind notification copy (title + body builder), shared by toasts and system notifications. */
-function toastCopy(t: TranslateNS<'session-monitor'>, kind: ToastKind): { title: string; body: (title: string) => string } {
+function toastCopy(t: TranslateNS<'session-monitor'>, kind: ToastKind): { title: string; body: (title: string, round?: number) => string } {
   switch (kind) {
     case 'interaction': return { title: t('interactionTitle'), body: (title) => t('interactionBody', { title }) }
-    case 'subagent': return { title: t('subagentTitle'), body: (title) => t('toastBody', { title }) }
+    case 'subagent': return { title: t('subagentTitle'), body: (title, round) => t('toastBody', { title, round }) }
     case 'error': return { title: t('errorTitle'), body: (title) => t('errorBody', { title }) }
     case 'aborted': return { title: t('abortedTitle'), body: (title) => t('abortedBody', { title }) }
     case 'blocked': return { title: t('blockedTitle'), body: (title) => t('blockedBody', { title }) }
     case 'max-tokens': return { title: t('maxTokensTitle'), body: (title) => t('maxTokensBody', { title }) }
     case 'interrupted': return { title: t('interruptedTitle'), body: (title) => t('interruptedBody', { title }) }
-    default: return { title: t('toastTitle'), body: (title) => t('toastBody', { title }) }
+    default: return { title: t('toastTitle'), body: (title, round) => t('toastBody', { title, round }) }
   }
 }
 
@@ -211,11 +215,14 @@ export function SessionMonitorWidget(props: SessionMonitorWidgetProps) {
   /** Live system-Notification instances per session, so other surfaces can dismiss them. */
   const notifyInstRef = useRef<Map<string, Notification>>(new Map())
   /** Host turn-end reason table (sessionId → { reason, at }), refreshed by polling. */
-  const reasonsRef = useRef<Record<string, { reason: string; at: number }>>({})
+  const reasonsRef = useRef<Record<string, { reason: string; at: number; round?: number }>>({})
   /** Whether the Host status route answered at least once ('unknown' before the first poll). */
   const hostStatusRef = useRef<'unknown' | 'up' | 'down'>('unknown')
   /** Finished rounds waiting for their Host reason before the toast is emitted. */
   const pendingRef = useRef<Map<string, PendingAlert>>(new Map())
+  /** Per-session finished-round counter observed by THIS widget (fallback when
+   *  the Host is absent; the Host's cumulative count is preferred when fresh). */
+  const roundsRef = useRef<Map<string, number>>(new Map())
   /** Live BroadcastChannel for cross-tab acknowledgment sync (null when unavailable). */
   const syncChannelRef = useRef<BroadcastChannel | null>(null)
   /** Last-observed session-id set; shrinking ids = disposed sessions. */
@@ -300,6 +307,7 @@ export function SessionMonitorWidget(props: SessionMonitorWidgetProps) {
     if (removed.length === 0) return
     for (const id of removed) {
       pendingRef.current.delete(id)
+      roundsRef.current.delete(id)
       closeBrowserNotify(id)
     }
     setToasts((ts) => ts.filter((t) => !removed.includes(t.sessionId)))
@@ -384,11 +392,16 @@ export function SessionMonitorWidget(props: SessionMonitorWidgetProps) {
         : row.origin === 'subagent'
           ? 'subagent'
           : 'done'
+      // Round number as observed by this widget: every finished edge counts as
+      // one round (goal-mode multi-rounds included). The Host's cumulative
+      // count replaces this in flushPending when available.
+      roundsRef.current.set(row.id, (roundsRef.current.get(row.id) ?? 0) + 1)
       pendingRef.current.set(row.id, {
         at: now,
         baseKind,
         title: row.displayTitle || row.id,
         sessionId: row.id,
+        round: roundsRef.current.get(row.id) ?? 1,
       })
     }
     if (newDone.size !== doneIdsRef.current.size) setDoneIds(newDone)
@@ -425,7 +438,11 @@ export function SessionMonitorWidget(props: SessionMonitorWidgetProps) {
         // Wait for the next poll to resolve the reason.
         continue
       }
-      emit.push({ key: ++toastKeyRef.current, sessionId, title: alert.title, at: alert.at, kind })
+      // Round number: the Host's cumulative per-session count is authoritative
+      // when fresh (it counts every turn/end, surviving page reloads); the
+      // widget's own observed count is the fallback (Host down / stale).
+      const round = recFresh && rec.round !== undefined ? rec.round : alert.round
+      emit.push({ key: ++toastKeyRef.current, sessionId, title: alert.title, at: alert.at, kind, round })
       settled.push(sessionId)
     }
     for (const id of settled) pending.delete(id)
@@ -452,7 +469,7 @@ export function SessionMonitorWidget(props: SessionMonitorWidgetProps) {
     if (cfg.browserNotify && isUserAway()) {
       for (const toast of emit) {
         const copy = toastCopy(t, toast.kind)
-        sendBrowserNotify(copy.title, copy.body(toast.title), toast.sessionId)
+        sendBrowserNotify(copy.title, copy.body(toast.title, toast.round), toast.sessionId)
       }
     }
   }
@@ -925,7 +942,7 @@ export function SessionMonitorWidget(props: SessionMonitorWidgetProps) {
                     </span>
                     <span className={css.toastTime}>{formatAgo(toast.at, now, t)}</span>
                   </div>
-                  <div className={css.toastBody}>{copy.body(toast.title)}</div>
+                  <div className={css.toastBody}>{copy.body(toast.title, toast.round)}</div>
                   <div className={css.toastActions}>
                     <button
                       className={css.jumpBtn}
