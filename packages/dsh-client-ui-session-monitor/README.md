@@ -68,7 +68,8 @@ rounds. Without the host half the widget still works (base notification kinds).
 - **Configurable**: the widget-manager "Configure" dialog toggles notifications
   on/off, dismissal mode + seconds, sound, **browser notifications** (with
   permission status), whether to notify for the current session (off by
-  default — you are already looking at it; if you switch to another tab or
+  default — you are already looking at it; rounds waiting for your
+  input/confirmation still notify; if you switch to another tab or
   window, or the page is hidden / unfocused, the current session's finished
   round still notifies — the in-page toast waits for you and a system
   notification reaches you on the OS level when enabled (system notifications

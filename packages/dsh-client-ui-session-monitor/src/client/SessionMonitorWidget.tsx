@@ -279,8 +279,11 @@ export function SessionMonitorWidget(props: SessionMonitorWidgetProps) {
       // "show subagents" is enabled (then they show up and notify too).
       if (row.origin === 'subagent' && !cfg.showSubagents) continue
       // Current session: skip only while the user is looking at it AND has not
-      // opted in; once they are away, the round still notifies.
-      if (row.id === sessions.current && !cfg.notifyCurrent && !userAway) continue
+      // opted in; once they are away, the round still notifies. Exception:
+      // rounds that stop waiting for the user's input/confirmation always
+      // notify — "your turn" is the one case the user must not miss, even
+      // while looking at the page (the ordinary "round done" can stay silent).
+      if (row.id === sessions.current && !cfg.notifyCurrent && !userAway && !row.pendingInteraction) continue
       newDone.add(row.id)
       // Base kind from what the client alone can observe; the Host reason may
       // refine it to error / aborted / blocked / max-tokens / interrupted.
