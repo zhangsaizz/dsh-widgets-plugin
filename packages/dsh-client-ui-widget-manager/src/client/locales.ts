@@ -22,6 +22,8 @@ export type WidgetManagerLocaleKey =
   | 'balanceDescription'
   | 'tokenCritName'
   | 'tokenCritDescription'
+  | 'sessionMonitorName'
+  | 'sessionMonitorDescription'
 
 /** Simplified Chinese dictionary. */
 export const zh: Record<WidgetManagerLocaleKey, string> = {
@@ -42,6 +44,8 @@ export const zh: Record<WidgetManagerLocaleKey, string> = {
   balanceDescription: '把模型提供商的账户余额显示为可缩放、可吸附的浮动看板。',
   tokenCritName: 'Token 暴击挂件',
   tokenCritDescription: '实时显示当前会话累计 token 用量，增长时触发暴击动效。',
+  sessionMonitorName: '会话监控看板',
+  sessionMonitorDescription: '列出正在执行的会话，完成一轮时主动提醒，点击即可跳转到目标会话。',
 }
 
 /** English dictionary. */
@@ -63,4 +67,6 @@ export const en: Record<WidgetManagerLocaleKey, string> = {
   balanceDescription: 'Shows the model provider account balance in a zoomable, dockable floating dashboard.',
   tokenCritName: 'Token crit meter',
   tokenCritDescription: 'Shows the current session token usage in real time with crit animations on growth.',
+  sessionMonitorName: 'Session monitor',
+  sessionMonitorDescription: 'Lists running sessions, notifies you when a round finishes, and jumps to the target session on click.',
 }

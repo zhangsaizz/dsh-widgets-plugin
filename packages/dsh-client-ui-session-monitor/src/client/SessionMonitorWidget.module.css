@@ -1,0 +1,489 @@
+/* Session monitor dashboard: floating panel + toast stack. Uses the host
+   theme's --dsw-alias-* semantic tokens with conservative fallbacks so the
+   widget stays readable even when the tokens are absent. */
+
+.anchor {
+  position: fixed;
+}
+
+/* Bottom-right zoom handle: drag to scale the panel (0.6x – 1.6x). */
+.resize {
+  position: absolute;
+  right: 3px;
+  bottom: 3px;
+  width: 14px;
+  height: 14px;
+  cursor: nwse-resize;
+  touch-action: none;
+  z-index: 2;
+  opacity: 0.5;
+  background: linear-gradient(135deg, transparent 55%, var(--dsw-alias-label-tertiary, rgba(232, 234, 240, 0.55)) 55%);
+  border-radius: 3px;
+}
+
+.resize:hover {
+  opacity: 0.9;
+}
+
+.panel {
+  width: 268px;
+  max-height: min(420px, 62vh);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border: 1px solid var(--dsw-alias-border-l2, rgba(255, 255, 255, 0.14));
+  border-radius: 14px;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.06), rgba(255, 255, 255, 0) 42%),
+    var(--dsw-alias-bg-overlay, rgba(24, 26, 32, 0.92));
+  backdrop-filter: blur(14px) saturate(1.2);
+  -webkit-backdrop-filter: blur(14px) saturate(1.2);
+  box-shadow:
+    0 1px 2px rgba(0, 0, 0, 0.08),
+    0 8px 20px rgba(0, 0, 0, 0.1),
+    0 24px 56px rgba(0, 0, 0, 0.14);
+  user-select: none;
+}
+
+.panel::before {
+  content: '';
+  position: absolute;
+  inset: 0 0 auto 0;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.22), transparent);
+  pointer-events: none;
+}
+
+.dragging {
+  cursor: grabbing;
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 9px 10px 9px 14px;
+  cursor: grab;
+  border-bottom: 1px solid var(--dsw-alias-border-l1, rgba(255, 255, 255, 0.08));
+  flex: none;
+}
+
+.titleDot {
+  flex: none;
+  width: 8px;
+  height: 8px;
+  border-radius: 3px;
+  background: var(--dsw-alias-state-business-primary, #4f8cff);
+  box-shadow: 0 0 8px color-mix(in srgb, var(--dsw-alias-state-business-primary, #4f8cff) 45%, transparent);
+}
+
+.title {
+  flex: none;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: var(--dsw-alias-label-primary, #e8eaf0);
+}
+
+.count {
+  flex: 1;
+  min-width: 0;
+  text-align: right;
+  font-size: 11px;
+  color: var(--dsw-alias-label-secondary, rgba(232, 234, 240, 0.62));
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.iconBtn {
+  flex: none;
+  width: 24px;
+  height: 24px;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--dsw-alias-label-secondary, rgba(232, 234, 240, 0.62));
+  font-size: 14px;
+  line-height: 1;
+  cursor: pointer;
+  transition: background 120ms ease, color 120ms ease;
+}
+
+.iconBtn:hover {
+  background: var(--dsw-alias-bg-hover, rgba(255, 255, 255, 0.1));
+  color: var(--dsw-alias-label-primary, #e8eaf0);
+}
+
+.list {
+  overflow-y: auto;
+  padding: 6px;
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+.empty {
+  padding: 22px 12px;
+  text-align: center;
+  font-size: 12px;
+  color: var(--dsw-alias-label-secondary, rgba(232, 234, 240, 0.62));
+}
+
+/* Muted "N older sessions hidden" line when the time window filters rows out. */
+.hiddenHint {
+  padding: 7px 9px 4px;
+  text-align: center;
+  font-size: 10.5px;
+  color: var(--dsw-alias-label-tertiary, rgba(232, 234, 240, 0.42));
+}
+
+.row {
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+  padding: 8px 9px;
+  border-radius: 9px;
+  cursor: pointer;
+}
+
+.row:hover {
+  background: var(--dsw-alias-bg-hover, rgba(255, 255, 255, 0.07));
+}
+
+.row.current {
+  background: color-mix(in srgb, var(--dsw-alias-state-business-primary, #4f8cff) 12%, transparent);
+}
+
+.dot {
+  flex: none;
+  width: 8px;
+  height: 8px;
+  margin-top: 4px;
+  border-radius: 50%;
+  background: var(--dsw-alias-label-tertiary, rgba(232, 234, 240, 0.35));
+}
+
+.dotRunning {
+  background: var(--dsw-alias-state-success, #3dd68c);
+  animation: pulse 1.4s ease-in-out infinite;
+}
+
+.dotDone {
+  background: var(--dsw-alias-state-warning, #f5b544);
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; box-shadow: 0 0 0 0 color-mix(in srgb, var(--dsw-alias-state-success, #3dd68c) 40%, transparent); }
+  50% { opacity: 0.55; box-shadow: 0 0 0 4px transparent; }
+}
+
+.rowMain {
+  flex: 1;
+  min-width: 0;
+}
+
+.rowTitle {
+  font-size: 12.5px;
+  font-weight: 500;
+  color: var(--dsw-alias-label-primary, #e8eaf0);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.rowMeta {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 3px;
+  flex-wrap: wrap;
+}
+
+.badge {
+  flex: none;
+  font-size: 10px;
+  line-height: 1.4;
+  padding: 0 5px;
+  border-radius: 4px;
+  background: var(--dsw-alias-bg-layer-3, rgba(255, 255, 255, 0.1));
+  color: var(--dsw-alias-label-secondary, rgba(232, 234, 240, 0.62));
+}
+
+/* "子×N" badge: how many subagents this parent session has running. Violet
+   echoes the subagent toast accent — informational, never a status color. */
+.subBadge {
+  background: color-mix(in srgb, #b388ff 16%, transparent);
+  color: #b388ff;
+  font-weight: 600;
+}
+
+.status {
+  font-size: 11px;
+  color: var(--dsw-alias-label-secondary, rgba(232, 234, 240, 0.72));
+}
+
+.time {
+  font-size: 11px;
+  color: var(--dsw-alias-label-tertiary, rgba(232, 234, 240, 0.4));
+  margin-left: auto;
+}
+
+.footer {
+  flex: none;
+  padding: 6px 10px;
+  border-top: 1px solid var(--dsw-alias-border-l1, rgba(255, 255, 255, 0.08));
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+/* "N older sessions hidden" hint — sits beside the clear action in the footer. */
+.footerHint {
+  font-size: 10.5px;
+  color: var(--dsw-alias-label-tertiary, rgba(232, 234, 240, 0.5));
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.clearBtn {
+  border: none;
+  background: transparent;
+  font-size: 11px;
+  color: var(--dsw-alias-label-secondary, rgba(232, 234, 240, 0.62));
+  cursor: pointer;
+  padding: 2px 6px;
+  border-radius: 5px;
+}
+
+.clearBtn:hover {
+  background: var(--dsw-alias-bg-hover, rgba(255, 255, 255, 0.08));
+  color: var(--dsw-alias-label-primary, #e8eaf0);
+}
+
+/* Collapsed pill */
+.pill {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 7px 12px;
+  border: 1px solid var(--dsw-alias-border-l2, rgba(255, 255, 255, 0.14));
+  border-radius: 999px;
+  background: var(--dsw-alias-bg-overlay, rgba(24, 26, 32, 0.92));
+  backdrop-filter: blur(12px) saturate(1.2);
+  -webkit-backdrop-filter: blur(12px) saturate(1.2);
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.16);
+  cursor: grab;
+  user-select: none;
+}
+
+.pillIcon {
+  color: var(--dsw-alias-state-business-primary, #4f8cff);
+  font-size: 13px;
+  line-height: 1;
+}
+
+.pillText {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--dsw-alias-label-primary, #e8eaf0);
+}
+
+.pillCount {
+  min-width: 18px;
+  text-align: center;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--dsw-alias-label-on-color, #fff);
+  background: var(--dsw-alias-state-business-primary, #4f8cff);
+  border-radius: 999px;
+  padding: 1px 6px;
+}
+
+/* Toast stack (fixed, top-right, above everything) */
+.toasts {
+  position: fixed;
+  top: 76px;
+  right: 14px;
+  z-index: 10010;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 300px;
+  max-width: calc(100vw - 28px);
+  /* Tall stacks (many sessions finishing at once, or unconfirmed toasts) scroll
+     instead of overflowing the viewport. */
+  max-height: min(62vh, 520px);
+  overflow-y: auto;
+  pointer-events: none;
+}
+
+.toast {
+  pointer-events: auto;
+  /* Per-kind accent: set by the toastDone / toastInteraction / toastSubagent
+     variants below and consumed by the accent bar and the title color. */
+  --toast-accent: var(--dsw-alias-state-warning, #f5b544);
+  border: 1px solid var(--dsw-alias-border-l2, rgba(255, 255, 255, 0.16));
+  border-radius: 12px;
+  background: var(--dsw-alias-bg-layer-2, rgba(30, 32, 40, 0.96));
+  backdrop-filter: blur(14px) saturate(1.2);
+  -webkit-backdrop-filter: blur(14px) saturate(1.2);
+  box-shadow:
+    0 1px 2px rgba(0, 0, 0, 0.1),
+    0 10px 28px rgba(0, 0, 0, 0.24);
+  padding: 10px 12px;
+  animation: toastIn 200ms ease-out;
+  user-select: none;
+  position: relative;
+}
+
+/* Left accent bar makes the notification state legible at a glance. */
+.toast::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 9px;
+  bottom: 9px;
+  width: 3px;
+  border-radius: 2px;
+  background: var(--toast-accent);
+}
+
+/* Normal round completion — amber. */
+.toastDone {
+  --toast-accent: var(--dsw-alias-state-warning, #f5b544);
+}
+
+/* The session stopped and is waiting for the user — blue, needs attention. */
+.toastInteraction {
+  --toast-accent: var(--dsw-alias-state-business-primary, #4f8cff);
+}
+
+/* A subagent session finished — violet. */
+.toastSubagent {
+  --toast-accent: #b388ff;
+}
+
+/* The turn errored — red. */
+.toastError {
+  --toast-accent: var(--dsw-alias-state-danger, #ff6b6b);
+}
+
+/* The turn was cancelled — grey. */
+.toastAborted {
+  --toast-accent: #9aa0ab;
+}
+
+/* The turn is blocked — orange. */
+.toastBlocked {
+  --toast-accent: #ff9f43;
+}
+
+/* The step hit its output-token ceiling — cool cyan, distinct from warm states. */
+.toastMaxTokens {
+  --toast-accent: #4dd0e1;
+}
+
+/* A crash-orphaned turn was closed on reload — grey-blue, distinct from the
+   neutral grey of an abort. */
+.toastInterrupted {
+  --toast-accent: #7d93c4;
+}
+
+@keyframes toastIn {
+  from { opacity: 0; transform: translateY(-8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.toastHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.toastTitle {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 700;
+  /* Neutral title — the state color lives on the icon and the left bar. */
+  color: var(--dsw-alias-label-primary, #e8eaf0);
+}
+
+/* Per-kind accent icon: the only place (besides the left bar) the state color appears. */
+.toastIcon {
+  color: var(--toast-accent);
+  font-style: normal;
+  font-size: 14px;
+  line-height: 1;
+}
+
+.toastTime {
+  font-size: 10.5px;
+  color: var(--dsw-alias-label-tertiary, rgba(232, 234, 240, 0.4));
+}
+
+.toastBody {
+  margin-top: 4px;
+  font-size: 12.5px;
+  line-height: 1.45;
+  color: var(--dsw-alias-label-primary, #e8eaf0);
+  word-break: break-all;
+}
+
+.toastActions {
+  display: flex;
+  gap: 8px;
+  margin-top: 9px;
+}
+
+.jumpBtn,
+.dismissBtn {
+  flex: 1;
+  border: none;
+  border-radius: 7px;
+  padding: 6px 0;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.jumpBtn {
+  color: var(--dsw-alias-label-on-color, #fff);
+  background: var(--dsw-alias-state-business-primary, #4f8cff);
+}
+
+.jumpBtn:hover {
+  filter: brightness(1.08);
+}
+
+/* Passive states (plain done, subagent, aborted, interrupted) don't demand an
+   action — downgrade their jump button to a neutral secondary so the cards
+   that DO need attention (interaction / error / blocked / token-limit) keep
+   the strong primary button. */
+.toastDone .jumpBtn,
+.toastSubagent .jumpBtn,
+.toastAborted .jumpBtn,
+.toastInterrupted .jumpBtn {
+  color: var(--dsw-alias-label-primary, #e8eaf0);
+  background: var(--dsw-alias-bg-layer-3, rgba(255, 255, 255, 0.1));
+}
+
+.toastDone .jumpBtn:hover,
+.toastSubagent .jumpBtn:hover,
+.toastAborted .jumpBtn:hover,
+.toastInterrupted .jumpBtn:hover {
+  background: var(--dsw-alias-bg-hover, rgba(255, 255, 255, 0.16));
+}
+
+.dismissBtn {
+  color: var(--dsw-alias-label-primary, #e8eaf0);
+  background: var(--dsw-alias-bg-layer-3, rgba(255, 255, 255, 0.1));
+}
+
+.dismissBtn:hover {
+  background: var(--dsw-alias-bg-hover, rgba(255, 255, 255, 0.16));
+}

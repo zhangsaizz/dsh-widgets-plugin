@@ -7,12 +7,13 @@
 
 `dsh-balance-plugin` 是一个 **DeepSeek Harness 小组件（widgets）monorepo**：
 制作可独立发布、可安装到任意 Harness 实例的插件。浏览器端以 `shell.overlay`
-浮动挂件或 Web 设置页呈现。当前两个小组件：
+浮动挂件或 Web 设置页呈现。当前三个小组件：
 
 | 小组件 | 包 |
 |---|---|
 | 余额看板 | `@dsh-plugins/balance` |
 | Token 暴击挂件 | `@dsh-plugins/client-ui-token-crit` |
+| 会话监控看板 | `@dsh-plugins/client-ui-session-monitor` |
 
 其余包是支撑：`@dsh-plugins/client-ui-widget-manager`（小组件管理设置页）、
 `@dsh-plugins/balance-bundle`（可安装 bundle，一层挂载全部插件）。
@@ -27,9 +28,12 @@ packages/
                              balance/list Remote）+ 厂商 Provider + 设置/Web 路由 +
                              浏览器看板挂件 + 供应商配置面板（单插件行）
   dsh-client-ui-token-crit/   Web token 暴击挂件（纯 UI，浏览器端）
+  dsh-client-ui-session-monitor/ 会话监控看板（双半：Host 半 turn/end 原因 + 状态
+                             路由；浏览器端 useSessions 投影列表、running 边沿
+                             检测「完成一轮」提醒、点击跳转会话）
   dsh-client-ui-widget-manager/ 小组件管理设置页（声明 widgets.config 子槽）
 bundles/
-  dsh-balance-bundle/         可安装 bundle：cordis.patch.yml 插入 3 个插件
+  dsh-balance-bundle/         可安装 bundle：cordis.patch.yml 插入 4 个插件
 scripts/
   build.mjs                   用 esbuild 构建全部 Host + 浏览器产物到各包 lib/
 .github/workflows/             ci.yml（PR/推送校验）+ publish.yml（v* tag 发布 npm）
@@ -135,3 +139,22 @@ pnpm run publish:all         # pnpm -r publish --no-git-checks
   `@dsh-plugins/balance` 单包单插件行；删除 `scripts/sync.mjs`（废弃 harness 同步）；
   bundle 的 `cordis.patch.yml` 从 5 行减为 3 行；widget-manager 目录的余额
   `packageName` 改为 `@dsh-plugins/balance`。
+- **新增会话监控看板** `@dsh-plugins/client-ui-session-monitor`（**双半插件行**：
+  Host 半监听 `session/event` 的 `turn/end` 记结束原因，`/_dsh/session-monitor/status`
+  路由（webServer 可选）；浏览器半 `shell.overlay` id `session-monitor` order 90 +
+  `widgets.config` 配置弹窗）：
+  投影标准 `useSessions` 列表，diff `running` true→false 边沿判定「完成一轮」，
+  弹 toast 提醒（自动消失 / 需确认两种模式，可选音效；**toast 按状态配色**：完成 /
+  待处理 / 子代理 / 出错 / 中止 / 阻塞 / token 上限 / 中断，3s 轮询取 Host reason，
+  Host 缺席退回基础 kind），行点击经
+  `ctx.sessions.open` 跳转会话；**子代理会话默认过滤**（`showSubagents` 开关默认
+  关：列表不显示、计数与通知均不含子代理），但主代理行显示「子×N」徽标（聚合
+   `origin==='subagent' && running && parentId` 的实时子代理执行数）；可收起为胶囊
+   （tap 展开）、拖右下角缩放（0.6×–1.6×）；**时间范围过滤**（`timeWindowMin` 默认
+   60、0=全部，运行中会话始终显示；"最近活跃"取 `max(updatedAt, lastActive)`，
+   `dsh.smon.lastActive` 持久化运行边沿时间戳）；**浏览器通知**（`browserNotify`
+   开关，`Notification` API，勾选时请求授权，同会话 tag 替换、onclick 跳转）；
+   bundle 增至 4 个插件行，
+  widget-manager 目录已登记。已本地安装到 `~/.dsh/profiles/web`（junction 直连
+  仓库包，client bundle 按请求读盘，改代码 build 后刷新页面即生效；**Host 半改动
+  需要重启 web 服务**）。

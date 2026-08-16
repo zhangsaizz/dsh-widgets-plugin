@@ -36,6 +36,12 @@ export const WIDGET_CATALOG: readonly WidgetDescriptor[] = [
     nameKey: 'tokenCritName',
     descriptionKey: 'tokenCritDescription',
   },
+  {
+    id: 'session-monitor',
+    packageName: '@dsh-plugins/client-ui-session-monitor',
+    nameKey: 'sessionMonitorName',
+    descriptionKey: 'sessionMonitorDescription',
+  },
 ]
 
 /** The overlay ids the catalog knows about (used to tag manager shadows). */

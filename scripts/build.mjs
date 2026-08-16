@@ -36,6 +36,7 @@ function run(pkg, args) {
 for (const pkg of [
   'packages/dsh-balance',
   'packages/dsh-client-ui-token-crit',
+  'packages/dsh-client-ui-session-monitor',
   'packages/dsh-client-ui-widget-manager',
 ]) {
   run(pkg, [
@@ -108,6 +109,28 @@ for (const pkg of [
   const css = readFileSync(join(root, pkg, 'lib/client.css'), 'utf8')
   const banner = 'window.__ModuleLoader__.load({\n\tid: "@dsh-plugins/client-ui-widget-manager",\n\tfactory: (require) => {\n\t\tvar module = { exports: {} };\n\t\tvar exports = module.exports;\n\t\tObject.defineProperty(exports, Symbol.toStringTag, { value: "Module" });\n'
   const cssInject = `\n\t\tif (typeof document !== "undefined") {\n\t\t\tvar __wmStyleId = "@dsh-plugins/client-ui-widget-manager/styles";\n\t\t\tif (!document.querySelector("style[data-plugin-css=" + JSON.stringify(__wmStyleId) + "]")) {\n\t\t\t\tvar __wmStyleTag = document.createElement("style");\n\t\t\t\t__wmStyleTag.dataset.plugin = "@dsh-plugins/client-ui-widget-manager";\n\t\t\t\t__wmStyleTag.dataset.pluginCss = __wmStyleId;\n\t\t\t\t__wmStyleTag.textContent = ${JSON.stringify(css)};\n\t\t\t\tdocument.head.appendChild(__wmStyleTag);\n\t\t\t}\n\t\t}\n`
+  const footer = '\n\t\treturn module.exports;\n\t}\n});\n'
+  writeFileSync(join(root, pkg, 'lib/client.js'), banner + code + cssInject + footer)
+  rmSync(join(root, pkg, 'lib/client.cjs'))
+  rmSync(join(root, pkg, 'lib/client.css'))
+  console.log('built ' + pkg + '/lib/client.js')
+}
+
+// Session-monitor client bundle: CJS + inlined CSS, wrapped in the ModuleLoader factory shape.
+{
+  const pkg = 'packages/dsh-client-ui-session-monitor'
+  run(pkg, [
+    'src/client/index.ts',
+    '--bundle', '--format=cjs', '--platform=browser', '--target=es2022',
+    '--jsx=automatic',
+    '--loader:.css=local-css',
+    ...EXTERNAL_CLIENT.flatMap((e) => ['--external:' + e]),
+    '--outfile=lib/client.cjs', '--log-level=warning',
+  ])
+  const code = readFileSync(join(root, pkg, 'lib/client.cjs'), 'utf8')
+  const css = readFileSync(join(root, pkg, 'lib/client.css'), 'utf8')
+  const banner = 'window.__ModuleLoader__.load({\n\tid: "@dsh-plugins/client-ui-session-monitor",\n\tfactory: (require) => {\n\t\tvar module = { exports: {} };\n\t\tvar exports = module.exports;\n\t\tObject.defineProperty(exports, Symbol.toStringTag, { value: "Module" });\n'
+  const cssInject = `\n\t\tif (typeof document !== "undefined") {\n\t\t\tvar __smonStyleId = "@dsh-plugins/client-ui-session-monitor/styles";\n\t\t\tif (!document.querySelector("style[data-plugin-css=" + JSON.stringify(__smonStyleId) + "]")) {\n\t\t\t\tvar __smonStyleTag = document.createElement("style");\n\t\t\t\t__smonStyleTag.dataset.plugin = "@dsh-plugins/client-ui-session-monitor";\n\t\t\t\t__smonStyleTag.dataset.pluginCss = __smonStyleId;\n\t\t\t\t__smonStyleTag.textContent = ${JSON.stringify(css)};\n\t\t\t\tdocument.head.appendChild(__smonStyleTag);\n\t\t\t}\n\t\t}\n`
   const footer = '\n\t\treturn module.exports;\n\t}\n});\n'
   writeFileSync(join(root, pkg, 'lib/client.js'), banner + code + cssInject + footer)
   rmSync(join(root, pkg, 'lib/client.cjs'))

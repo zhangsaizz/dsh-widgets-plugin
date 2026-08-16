@@ -62,7 +62,7 @@ export function apply(ctx: ClientContext): void {
   ctx.slots.inject('shell.overlay', () => ctx.slots.register({
     name: 'shell.overlay',
     id: 'clock',        // ★ 唯一且稳定：面板按这个 id 管理/持久化
-    order: 80,          // 浮层列表中的排序（balance=100、token-crit=50）
+    order: 80,          // 浮层列表中的排序（balance=100、session-monitor=90、token-crit=50）
     locale: NS,         // 声明后组件 props 会拿到 t seat
     inject: () => ({ refresh: () => {} }),   // 可选：注入业务面（hooks/动作）
   }, ClockWidget))
