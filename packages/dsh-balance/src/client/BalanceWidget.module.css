@@ -6,21 +6,34 @@
 }
 
 .scaleBox {
+  position: relative;
   transition: transform 120ms ease-out;
 }
 
 .panel {
   position: relative;
   min-width: 250px;
-  background: var(--dsw-alias-bg-overlay);
-  backdrop-filter: blur(12px) saturate(1.15);
-  -webkit-backdrop-filter: blur(12px) saturate(1.15);
-  border: 1px solid var(--dsw-alias-border-inverted);
-  border-radius: 14px;
+  border: 1px solid var(--dsw-alias-border-l2);
+  border-radius: 16px;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.06), rgba(255, 255, 255, 0) 42%),
+    var(--dsw-alias-bg-overlay);
+  backdrop-filter: blur(14px) saturate(1.2);
+  -webkit-backdrop-filter: blur(14px) saturate(1.2);
   box-shadow:
-    0 1px 2px rgba(0, 0, 0, 0.12),
-    0 12px 32px rgba(0, 0, 0, 0.28);
+    0 0 0 1px rgba(0, 0, 0, 0.02),
+    0 1px 2px rgba(0, 0, 0, 0.08),
+    0 8px 20px rgba(0, 0, 0, 0.1),
+    0 24px 56px rgba(0, 0, 0, 0.14);
   overflow: hidden;
+  /* Collapse/expand crossfade. Visibility is discrete: it flips immediately
+     when entering and at the end of the fade when leaving (see the state
+     rules below), so the exiting element stays interactive-safe while fading. */
+  transform-origin: top left;
+  transition:
+    opacity 180ms ease,
+    transform 240ms cubic-bezier(0.22, 1, 0.36, 1),
+    visibility 0s linear 0s;
 }
 
 .panel::before {
@@ -28,7 +41,7 @@
   position: absolute;
   inset: 0 0 auto 0;
   height: 1px;
-  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.16), transparent);
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.22), transparent);
   pointer-events: none;
 }
 
@@ -36,13 +49,22 @@
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 10px 12px;
+  padding: 9px 10px 9px 14px;
   cursor: grab;
-  border-bottom: 1px solid var(--dsw-alias-border-inverted);
+  border-bottom: 1px solid var(--dsw-alias-border-l1);
 }
 
 .header:active {
   cursor: grabbing;
+}
+
+.titleDot {
+  flex: none;
+  width: 8px;
+  height: 8px;
+  border-radius: 3px;
+  background: var(--dsw-alias-state-business-primary);
+  box-shadow: 0 0 8px color-mix(in srgb, var(--dsw-alias-state-business-primary) 45%, transparent);
 }
 
 .title {
@@ -53,13 +75,39 @@
 }
 
 .provider {
+  display: flex;
+  align-items: center;
+  gap: 6px;
   flex: 1;
   min-width: 0;
   overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
   font-size: 12px;
   color: var(--dsw-alias-label-tertiary);
+}
+
+.providerName {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.statusDot {
+  flex: none;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--dsw-alias-label-tertiary);
+  transition: background 160ms ease, box-shadow 160ms ease;
+}
+
+.statusDot[data-status='ok'] {
+  background: var(--dsw-alias-state-success-primary);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--dsw-alias-state-success-primary) 16%, transparent);
+}
+
+.statusDot[data-status='error'] {
+  background: var(--dsw-alias-state-error-primary);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--dsw-alias-state-error-primary) 14%, transparent);
 }
 
 .controls {
@@ -73,20 +121,26 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 22px;
-  height: 22px;
+  width: 24px;
+  height: 24px;
   border: none;
-  border-radius: 6px;
+  border-radius: 7px;
   background: transparent;
   color: var(--dsw-alias-label-secondary);
   font-size: 13px;
   line-height: 1;
   padding: 0;
   cursor: pointer;
+  transition: background 120ms ease, color 120ms ease;
 }
 
 .iconButton:hover {
   background: var(--dsw-alias-interactive-bg-hover);
+  color: var(--dsw-alias-label-primary);
+}
+
+.iconButton:active {
+  background: var(--dsw-alias-interactive-bg-active);
 }
 
 .iconButton:disabled {
@@ -95,24 +149,32 @@
 }
 
 .iconButton[data-active] {
-  color: var(--dsw-alias-brand-primary-invert);
-  background: var(--dsw-alias-interactive-bg-active);
+  color: var(--dsw-alias-state-business-primary);
+  background: var(--dsw-alias-state-business-tertiary);
+}
+
+.iconButton:focus-visible,
+.zoomLevel:focus-visible,
+.pill:focus-visible {
+  outline: 2px solid var(--dsw-alias-state-business-primary);
+  outline-offset: 1px;
 }
 
 .zoomLevel {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  height: 22px;
-  min-width: 34px;
+  height: 24px;
+  min-width: 36px;
   padding: 0 4px;
   border: none;
-  border-radius: 6px;
+  border-radius: 7px;
   background: transparent;
   color: var(--dsw-alias-label-tertiary);
   font-size: 11px;
   font-variant-numeric: tabular-nums;
   cursor: pointer;
+  transition: background 120ms ease, color 120ms ease;
 }
 
 .zoomLevel:hover {
@@ -124,56 +186,83 @@
   width: 1px;
   height: 14px;
   margin: 0 3px;
-  background: var(--dsw-alias-border-inverted);
+  background: var(--dsw-alias-border-l2);
 }
 
 .body {
   display: flex;
   align-items: center;
-  min-height: 44px;
-  padding: 12px 14px;
+  min-height: 48px;
+  padding: 14px 16px;
 }
 
 .amountRow {
   display: flex;
   align-items: baseline;
-  gap: 6px;
+  gap: 7px;
 }
 
 .amount {
-  font-size: 28px;
+  font-size: 30px;
   font-weight: 700;
   line-height: 1;
   font-variant-numeric: tabular-nums;
-  letter-spacing: -0.01em;
+  letter-spacing: -0.02em;
   color: var(--dsw-alias-label-primary);
 }
 
 .currency {
-  font-size: 13px;
+  font-size: 12px;
   color: var(--dsw-alias-label-tertiary);
 }
 
 .trend {
-  font-size: 12px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  border-radius: 7px;
+  font-size: 10px;
   line-height: 1;
+  margin-left: 2px;
 }
 
-.trend[data-trend='up'], .amount[data-trend='up'] {
+.trend[data-trend='up'] {
   color: var(--dsw-alias-state-success-primary);
+  background: color-mix(in srgb, var(--dsw-alias-state-success-primary) 14%, transparent);
 }
 
-.trend[data-trend='down'], .amount[data-trend='down'] {
+.trend[data-trend='down'] {
   color: var(--dsw-alias-state-error-primary);
+  background: color-mix(in srgb, var(--dsw-alias-state-error-primary) 12%, transparent);
 }
 
 .trend[data-trend='flat'] {
-  color: var(--dsw-alias-label-tertiary);
+  color: var(--dsw-alias-label-secondary);
+  background: color-mix(in srgb, var(--dsw-alias-label-tertiary) 16%, transparent);
 }
 
 .note {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
   font-size: 13px;
-  color: var(--dsw-alias-label-tertiary);
+  color: var(--dsw-alias-label-secondary);
+}
+
+.spinner {
+  display: inline-block;
+  width: 13px;
+  height: 13px;
+  border: 2px solid var(--dsw-alias-interactive-bg-hover-solid);
+  border-top-color: var(--dsw-alias-state-business-primary);
+  border-radius: 50%;
+  animation: balance-spin 800ms linear infinite;
+}
+
+@keyframes balance-spin {
+  to { transform: rotate(360deg); }
 }
 
 .footer {
@@ -181,27 +270,34 @@
   align-items: center;
   justify-content: space-between;
   gap: 8px;
-  padding: 7px 14px;
-  border-top: 1px solid var(--dsw-alias-border-inverted);
+  padding: 8px 16px;
+  border-top: 1px solid var(--dsw-alias-border-l1);
   font-size: 11px;
-  color: var(--dsw-alias-label-caption);
+  color: var(--dsw-alias-label-secondary);
 }
 
 .delta {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  border-radius: 999px;
   font-variant-numeric: tabular-nums;
   font-weight: 600;
 }
 
 .delta[data-trend='up'] {
-  color: var(--dsw-alias-state-success-primary);
+  color: color-mix(in srgb, var(--dsw-alias-state-success-primary) 65%, var(--dsw-alias-label-primary));
+  background: var(--dsw-alias-state-success-tertiary);
 }
 
 .delta[data-trend='down'] {
-  color: var(--dsw-alias-state-error-primary);
+  color: color-mix(in srgb, var(--dsw-alias-state-error-primary) 70%, var(--dsw-alias-label-primary));
+  background: color-mix(in srgb, var(--dsw-alias-state-error-primary) 10%, transparent);
 }
 
 .delta[data-trend='flat'] {
-  color: var(--dsw-alias-label-caption);
+  color: var(--dsw-alias-label-tertiary);
 }
 
 .updatedAt {
@@ -209,28 +305,340 @@
 }
 
 .pill {
+  position: absolute;
+  top: 0;
+  left: 0;
   display: flex;
   align-items: center;
   gap: 6px;
   padding: 8px 14px;
-  border: 1px solid var(--dsw-alias-border-inverted);
+  border: 1px solid var(--dsw-alias-border-l2);
   border-radius: 999px;
-  background: var(--dsw-alias-bg-overlay);
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.05), rgba(255, 255, 255, 0) 60%),
+    var(--dsw-alias-bg-overlay);
+  backdrop-filter: blur(12px) saturate(1.2);
+  -webkit-backdrop-filter: blur(12px) saturate(1.2);
   color: var(--dsw-alias-label-primary);
   cursor: pointer;
   font-size: 13px;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1), 0 8px 20px rgba(0, 0, 0, 0.22);
+  box-shadow:
+    0 1px 2px rgba(0, 0, 0, 0.08),
+    0 6px 16px rgba(0, 0, 0, 0.14),
+    0 16px 40px rgba(0, 0, 0, 0.16);
+  pointer-events: auto;
+  white-space: nowrap;
+  /* Same collapse/expand crossfade as the panel; the pill is always mounted
+     and anchored to a box corner (per-dock rules below). */
+  transform-origin: top left;
+  transition:
+    opacity 180ms ease,
+    transform 240ms cubic-bezier(0.22, 1, 0.36, 1),
+    visibility 0s linear 0s,
+    border-color 160ms ease,
+    box-shadow 160ms ease,
+    background-color 160ms ease;
 }
 
 .pill:hover {
-  background: var(--dsw-alias-bg-multi-select);
+  border-color: var(--dsw-alias-border-l3);
+  background-color: var(--dsw-alias-bg-multi-select);
+  box-shadow:
+    0 1px 2px rgba(0, 0, 0, 0.08),
+    0 10px 24px rgba(0, 0, 0, 0.18),
+    0 20px 48px rgba(0, 0, 0, 0.2);
 }
 
 .pill[data-highlight] {
   border-color: var(--dsw-alias-state-business-primary);
-  box-shadow: 0 0 0 1px var(--dsw-alias-state-business-primary), 0 8px 20px rgba(0, 0, 0, 0.22);
+  box-shadow:
+    0 0 0 1px var(--dsw-alias-state-business-primary),
+    0 8px 24px color-mix(in srgb, var(--dsw-alias-state-business-primary) 28%, transparent);
+}
+
+/* --- Collapse/expand transition ---------------------------------------- *
+ * The panel stays in flow (it owns the box size), the pill is anchored to
+ * the same corner the zoom grows from, so a docked widget collapses toward
+ * its docked edge. While collapsed the panel-sized box is click-through:
+ * only the visible pill captures pointers. Visibility flips immediately on
+ * enter (0s delay) and after the fade on leave (180ms delay), which lets the
+ * exiting element stay hit-testable-safe for its fade-out.
+ */
+.widget[data-collapsed] {
+  pointer-events: none;
+}
+
+.widget[data-collapsed] .pill {
+  pointer-events: auto;
+}
+
+.widget[data-dock='top-right'] .pill {
+  top: 0;
+  right: 0;
+  left: auto;
+}
+
+.widget[data-dock='bottom-left'] .pill {
+  bottom: 0;
+  top: auto;
+  left: 0;
+}
+
+.widget[data-dock='bottom-right'] .pill {
+  bottom: 0;
+  right: 0;
+  top: auto;
+  left: auto;
+}
+
+.widget[data-dock='top-right'] .panel,
+.widget[data-dock='top-right'] .pill {
+  transform-origin: top right;
+}
+
+.widget[data-dock='bottom-left'] .panel,
+.widget[data-dock='bottom-left'] .pill {
+  transform-origin: bottom left;
+}
+
+.widget[data-dock='bottom-right'] .panel,
+.widget[data-dock='bottom-right'] .pill {
+  transform-origin: bottom right;
+}
+
+.widget[data-collapsed] .panel {
+  opacity: 0;
+  transform: scale(0.92);
+  visibility: hidden;
+  pointer-events: none;
+  transition:
+    opacity 180ms ease,
+    transform 240ms cubic-bezier(0.22, 1, 0.36, 1),
+    visibility 0s linear 180ms;
+}
+
+.widget:not([data-collapsed]) .pill {
+  opacity: 0;
+  transform: scale(0.92);
+  visibility: hidden;
+  pointer-events: none;
+  transition:
+    opacity 180ms ease,
+    transform 240ms cubic-bezier(0.22, 1, 0.36, 1),
+    visibility 0s linear 180ms;
+}
+
+/* --- Collapsed pill hover tip (multi-account) --------------------------- *
+ * Rendered only in 'all' mode: hovering the collapsed pill lists every
+ * OTHER bound account's balance. Anchored to the dock corner so it stays on
+ * screen — above the pill for bottom/free docks, below for top docks, and
+ * aligned toward the docked edge. The transparent ::before bridges the gap
+ * to the pill so the hover does not flicker while crossing it; the ::after
+ * arrow points back at the pill.
+ */
+.pillTip {
+  position: absolute;
+  bottom: calc(100% + 6px);
+  left: 0;
+  z-index: 1;
+  min-width: 190px;
+  max-height: 220px;
+  overflow-y: auto;
+  padding: 6px;
+  border: 1px solid var(--dsw-alias-border-l2);
+  border-radius: 12px;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.06), rgba(255, 255, 255, 0) 40%),
+    var(--dsw-alias-bg-overlay);
+  backdrop-filter: blur(14px) saturate(1.2);
+  -webkit-backdrop-filter: blur(14px) saturate(1.2);
+  box-shadow:
+    0 0 0 1px rgba(0, 0, 0, 0.02),
+    0 4px 12px rgba(0, 0, 0, 0.12),
+    0 16px 40px rgba(0, 0, 0, 0.2);
+  font-size: 12px;
+  color: var(--dsw-alias-label-primary);
+  pointer-events: auto;
+  transform-origin: bottom left;
+  opacity: 0;
+  visibility: hidden;
+  transform: translateY(4px) scale(0.96);
+  transition:
+    opacity 140ms ease,
+    transform 180ms cubic-bezier(0.22, 1, 0.36, 1),
+    visibility 0s linear 140ms;
+}
+
+.pillTip::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 100%;
+  height: 6px;
+}
+
+.pill:hover .pillTip {
+  opacity: 1;
+  visibility: visible;
+  transform: none;
+  transition:
+    opacity 140ms ease,
+    transform 180ms cubic-bezier(0.22, 1, 0.36, 1),
+    visibility 0s linear 0s;
+}
+
+/* Hide while the pill is pressed (drag or tap) so the tip does not follow
+   the drag and a tap-to-expand does not leave it stranded. */
+.pill:active .pillTip {
+  opacity: 0;
+  visibility: hidden;
+  transform: translateY(4px) scale(0.96);
+  transition:
+    opacity 100ms ease,
+    transform 140ms cubic-bezier(0.22, 1, 0.36, 1),
+    visibility 0s linear 100ms;
+}
+
+.widget[data-dock='top-left'] .pillTip {
+  bottom: auto;
+  top: calc(100% + 6px);
+  transform-origin: top left;
+}
+
+.widget[data-dock='top-left'] .pillTip::before {
+  bottom: auto;
+  top: 100%;
+}
+
+.widget[data-dock='top-right'] .pillTip {
+  bottom: auto;
+  top: calc(100% + 6px);
+  left: auto;
+  right: 0;
+  transform-origin: top right;
+}
+
+.widget[data-dock='top-right'] .pillTip::before {
+  bottom: auto;
+  top: 100%;
+}
+
+.widget[data-dock='bottom-right'] .pillTip {
+  left: auto;
+  right: 0;
+  transform-origin: bottom right;
+}
+
+/* Pointer arrow on the pill, aligned with the tip's anchor corner (the tip
+   itself scrolls, so its own ::after would be clipped by overflow-y). It
+   follows the tip's visibility: only while the pill is hovered. */
+.pill::after {
+  content: '';
+  position: absolute;
+  left: 26px;
+  /* The colored triangle's apex sits at the box's vertical center; offset
+     the box so that apex lands exactly on the pill's edge (a plain 100%
+     would push the triangle underneath the floating tip). */
+  bottom: calc(100% - 5px);
+  border: 5px solid transparent;
+  border-top-color: var(--dsw-alias-bg-overlay);
+  filter: drop-shadow(0 1px 1px rgba(0, 0, 0, 0.16));
+  pointer-events: none;
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 140ms ease, visibility 0s linear 140ms;
+}
+
+.pill:hover::after {
+  opacity: 1;
+  visibility: visible;
+  transition: opacity 140ms ease, visibility 0s linear 0s;
+}
+
+.pill:active::after {
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 100ms ease, visibility 0s linear 100ms;
+}
+
+.widget[data-dock='bottom-right'] .pill::after {
+  left: auto;
+  right: 26px;
+}
+
+.widget[data-dock='top-left'] .pill::after {
+  bottom: auto;
+  top: calc(100% - 5px);
+  border-top-color: transparent;
+  border-bottom-color: var(--dsw-alias-bg-overlay);
+}
+
+.widget[data-dock='top-right'] .pill::after {
+  bottom: auto;
+  top: calc(100% - 5px);
+  left: auto;
+  right: 26px;
+  border-top-color: transparent;
+  border-bottom-color: var(--dsw-alias-bg-overlay);
+}
+
+.pillTipRow {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  padding: 5px 8px;
+  border-radius: 8px;
+  white-space: nowrap;
+  transition: background 120ms ease;
+}
+
+.pillTipRow:hover {
+  background: var(--dsw-alias-interactive-bg-hover);
+}
+
+.pillTipName {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: var(--dsw-alias-label-secondary);
+}
+
+.pillTipVendor {
+  font-weight: 600;
+  color: var(--dsw-alias-label-primary);
+}
+
+.pillTipLabel {
+  margin-left: 6px;
+  color: var(--dsw-alias-label-tertiary);
+}
+
+.pillTipValue {
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: var(--dsw-alias-label-primary);
+}
+
+.pillTipValue[data-trend='up'] {
+  color: var(--dsw-alias-state-success-primary);
+}
+
+.pillTipValue[data-trend='down'] {
+  color: var(--dsw-alias-state-error-primary);
+}
+
+.pillTipCurrency {
+  font-size: 11px;
+  color: var(--dsw-alias-label-secondary);
+}
+
+.pillTip .trend {
+  width: 16px;
+  height: 16px;
+  border-radius: 5px;
+  font-size: 9px;
 }
 
 .pillAmount {
@@ -245,9 +653,9 @@
 .accountList {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 2px;
   width: 100%;
-  max-height: 180px;
+  max-height: 200px;
   overflow-y: auto;
 }
 
@@ -255,7 +663,14 @@
   display: flex;
   align-items: baseline;
   gap: 6px;
-  padding: 2px 0;
+  padding: 4px 8px;
+  margin: 0 -8px;
+  border-radius: 9px;
+  transition: background 120ms ease;
+}
+
+.accountRow:hover {
+  background: var(--dsw-alias-interactive-bg-hover);
 }
 
 .accountName {
@@ -295,7 +710,7 @@
 
 .accountCurrency {
   font-size: 11px;
-  color: var(--dsw-alias-label-tertiary);
+  color: var(--dsw-alias-label-secondary);
 }
 
 .accountStatus {
@@ -309,11 +724,12 @@
 
 .accountCurrent {
   margin-left: 6px;
-  padding: 1px 6px;
+  padding: 1px 7px;
   border-radius: 999px;
   font-size: 10px;
-  color: var(--dsw-alias-brand-primary-invert);
-  background: var(--dsw-alias-interactive-bg-active);
+  font-weight: 600;
+  color: var(--dsw-alias-label-secondary);
+  background: var(--dsw-alias-interactive-bg-hover-solid);
 }
 
 .accountRow[data-current] .accountName {

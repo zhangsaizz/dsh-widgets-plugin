@@ -125,7 +125,14 @@ function BalanceBody(props: {
 }) {
   const { view, animated, t } = props
   if (view.phase === 'no-session') return <span className={css.note}>{t('noSession')}</span>
-  if (view.phase === 'loading' && view.result === null) return <span className={css.note}>{t('loading')}</span>
+  if (view.phase === 'loading' && view.result === null) {
+    return (
+      <span className={css.note}>
+        <span className={css.spinner} aria-hidden="true" />
+        {t('loading')}
+      </span>
+    )
+  }
   if (view.provider === null || view.result === null) return <span className={css.note}>{t('noModel')}</span>
   const account = view.result.account
   if (!view.result.bound || account === undefined) return <span className={css.note}>{t('unbound')}</span>
@@ -216,7 +223,7 @@ export function BalanceWidget(props: BalanceWidgetProps) {
   // The collapsed pill shows the current account by default, but briefly flips
   // to a CHANGED other provider (multi-account view), then restores.
   const lastAccountsRef = useRef<readonly BalanceListEntry[] | null>(null)
-  const highlightRef = useRef<{ account: BalanceAccount; until: number } | null>(null)
+  const highlightRef = useRef<{ provider: string; account: BalanceAccount; until: number } | null>(null)
   const [highlightEpoch, setHighlightEpoch] = useState(0)
 
   useEffect(() => {
@@ -233,7 +240,7 @@ export function BalanceWidget(props: BalanceWidgetProps) {
       const changed = before === undefined || before.status !== 'ok'
         || before.total !== account.total || before.updatedAt !== account.updatedAt
       if (!changed || (account.trend !== 'up' && account.trend !== 'down')) continue
-      highlightRef.current = { account, until: Date.now() + HIGHLIGHT_MS }
+      highlightRef.current = { provider: entry.provider, account, until: Date.now() + HIGHLIGHT_MS }
       setHighlightEpoch(epoch => epoch + 1)
       break
     }
@@ -250,6 +257,21 @@ export function BalanceWidget(props: BalanceWidgetProps) {
   }, [highlightEpoch])
 
   const pillAccount = highlightRef.current !== null ? highlightRef.current.account : okAccount
+  // Header status dot: green when the bound account resolved ok, red on
+  // error, neutral while loading / unbound / unconfigured.
+  const providerStatus = view.result?.bound && view.result.account !== undefined
+    ? (view.result.account.status === 'ok' ? 'ok' : view.result.account.status === 'error' ? 'error' : 'idle')
+    : 'idle'
+  // The provider the pill currently shows (the highlighted changed provider
+  // while a highlight is live, else the current session's provider).
+  const pillProvider = highlightRef.current !== null ? highlightRef.current.provider : view.provider
+  // Multi-account hover tip: every OTHER bound account with a resolved
+  // balance, complementing whatever the pill itself shows.
+  const otherAccounts = settings.mode === 'all' && view.accounts !== null
+    ? view.accounts.filter(entry =>
+        entry.bound && entry.account !== undefined && entry.account.status === 'ok'
+        && entry.provider !== pillProvider)
+    : null
   const animated = useAnimatedNumber(pillAccount?.total ?? 0, pillAccount !== null)
   // Model-provider display name once a bound account resolves; the raw route otherwise.
   const headerLabel = view.result?.account?.displayName ?? view.provider
@@ -259,6 +281,33 @@ export function BalanceWidget(props: BalanceWidgetProps) {
   const latest = useRef<{ x: number; y: number }>({ x: 0, y: 0 })
   /** Collapsed-pill gesture: a move past the threshold drags; a plain tap expands. */
   const pillDrag = useRef<PillDragState | null>(null)
+  const widgetRef = useRef<HTMLDivElement | null>(null)
+  const pillRef = useRef<HTMLDivElement | null>(null)
+
+  // Keep a persisted free position inside the viewport: a saved position may
+  // come from a larger screen, and the window may shrink at runtime. Without
+  // this the widget could be stranded where it cannot be grabbed again. While
+  // collapsed the visible surface is the pill, so it is the pill (not the
+  // invisible panel-sized box) that must stay on screen; and an in-flight drag
+  // already enforces its own bounds, so never fight it here.
+  useEffect(() => {
+    const el = widgetRef.current
+    if (el === null) return
+    const clampToViewport = (): void => {
+      if (settings.dock !== 'free') return
+      if (drag.current !== null || pillDrag.current !== null) return
+      const rect = el.getBoundingClientRect()
+      const pillRect = pillRef.current?.getBoundingClientRect()
+      const w = settings.collapsed ? (pillRect?.width ?? rect.width) : rect.width
+      const h = settings.collapsed ? (pillRect?.height ?? rect.height) : rect.height
+      const x = clampAxis(rect.left, w, window.innerWidth)
+      const y = clampAxis(rect.top, h, window.innerHeight)
+      if (x !== rect.left || y !== rect.top) actions.setPosition(x, y)
+    }
+    clampToViewport()
+    window.addEventListener('resize', clampToViewport)
+    return () => { window.removeEventListener('resize', clampToViewport) }
+  }, [actions, settings.dock, settings.collapsed])
 
   const onPointerDown = useCallback((event: ReactPointerEvent<HTMLDivElement>) => {
     // Control buttons never start a drag: pointer capture on the header would
@@ -292,7 +341,7 @@ export function BalanceWidget(props: BalanceWidgetProps) {
     frame.current ??= requestAnimationFrame(() => {
       frame.current = null
       const { x, y } = latest.current
-      actions.setPosition(Math.max(0, Math.round(x)), Math.max(0, Math.round(y)))
+      actions.setPosition(Math.round(x), Math.round(y))
     })
   }, [actions])
 
@@ -306,12 +355,12 @@ export function BalanceWidget(props: BalanceWidgetProps) {
     // A live magnetic snap wins: dock to the corner the widget was pulled to.
     // Otherwise land the final position and fall back to the release-edge call.
     if (state.snap !== null) {
-      actions.setPosition(latest.current.x, latest.current.y)
+      actions.setPosition(Math.round(latest.current.x), Math.round(latest.current.y))
       actions.dockTo(state.snap)
       return
     }
     const { x, y } = latest.current
-    actions.setPosition(Math.max(0, Math.round(x)), Math.max(0, Math.round(y)))
+    actions.setPosition(Math.round(x), Math.round(y))
     const rect = event.currentTarget.closest('[data-balance-widget]')?.getBoundingClientRect()
     actions.dockTo(rect === undefined ? snapCorner(event.clientX, event.clientY) : snapRect(rect))
   }, [actions])
@@ -320,19 +369,25 @@ export function BalanceWidget(props: BalanceWidgetProps) {
   const onPillPointerDown = useCallback((event: ReactPointerEvent<HTMLDivElement>) => {
     event.preventDefault()
     try { event.currentTarget.setPointerCapture(event.pointerId) } catch { /* pointer capture is unavailable in jsdom */ }
-    const rect = event.currentTarget.closest('[data-balance-widget]')?.getBoundingClientRect()
+    // The pill is the grabbed surface: base the drag on the pill's own rect so
+    // the top-left-anchored free pill keeps the pointer's grab point, and use
+    // the pill's size (not the panel's) for the viewport clamp and magnetic
+    // snapping — the visible thing is what must stay on screen.
+    const pillRect = event.currentTarget.getBoundingClientRect()
     pillDrag.current = {
       startX: event.clientX,
       startY: event.clientY,
-      baseX: rect?.left ?? 0,
-      baseY: rect?.top ?? 0,
-      size: { w: rect?.width ?? 0, h: rect?.height ?? 0 },
+      baseX: pillRect.left,
+      baseY: pillRect.top,
+      size: { w: pillRect.width, h: pillRect.height },
       snap: null,
       moved: false,
     }
-    // Same dock-break on drag start as the panel header.
+    // Same dock-break on drag start as the panel header, but the box lands on
+    // the pill's current spot: in free mode the pill is top-left anchored, so
+    // this keeps it under the pointer instead of jumping from its dock corner.
     if (settings.dock !== 'free') {
-      if (rect !== undefined) actions.setPosition(rect.left, rect.top)
+      actions.setPosition(pillRect.left, pillRect.top)
       actions.dockTo('free')
     }
   }, [actions, settings.dock])
@@ -348,7 +403,7 @@ export function BalanceWidget(props: BalanceWidgetProps) {
     frame.current ??= requestAnimationFrame(() => {
       frame.current = null
       const { x, y } = latest.current
-      actions.setPosition(Math.max(0, Math.round(x)), Math.max(0, Math.round(y)))
+      actions.setPosition(Math.round(x), Math.round(y))
     })
   }, [actions])
 
@@ -363,16 +418,16 @@ export function BalanceWidget(props: BalanceWidgetProps) {
       return
     }
     if (state.snap !== null) {
-      actions.setPosition(latest.current.x, latest.current.y)
+      actions.setPosition(Math.round(latest.current.x), Math.round(latest.current.y))
       actions.dockTo(state.snap)
       return
     }
     // Same synchronous final-position flush as the header drag, then snap by
     // the pill's real edges rather than the pointer position.
     const { x, y } = latest.current
-    actions.setPosition(Math.max(0, Math.round(x)), Math.max(0, Math.round(y)))
-    const rect = event.currentTarget.closest('[data-balance-widget]')?.getBoundingClientRect()
-    actions.dockTo(rect === undefined ? snapCorner(event.clientX, event.clientY) : snapRect(rect))
+    actions.setPosition(Math.round(x), Math.round(y))
+    const pillRect = event.currentTarget.getBoundingClientRect()
+    actions.dockTo(snapRect(pillRect))
   }, [actions])
 
   const collapsed = settings.collapsed
@@ -383,6 +438,7 @@ export function BalanceWidget(props: BalanceWidgetProps) {
 
   return (
     <div
+      ref={widgetRef}
       className={css.widget}
       style={positionStyle(settings.dock, settings.position)}
       data-dock={settings.dock}
@@ -393,85 +449,119 @@ export function BalanceWidget(props: BalanceWidgetProps) {
         className={css.scaleBox}
         style={{ transform: `scale(${settings.scale})`, transformOrigin: transformOrigin(settings.dock) }}
       >
-        {collapsed ? (
+        <div className={css.panel}>
           <div
-            role="button"
-            tabIndex={0}
-            className={css.pill}
-            aria-label={t('expand')}
-            title={t('expand')}
-            data-highlight={highlightRef.current !== null || undefined}
-            onPointerDown={onPillPointerDown}
-            onPointerMove={onPillPointerMove}
-            onPointerUp={onPillPointerUp}
-            onKeyDown={(event) => {
-              if (event.key === 'Enter' || event.key === ' ') {
-                event.preventDefault()
-                actions.toggleCollapsed()
-              }
-            }}
+            className={css.header}
+            onPointerDown={onPointerDown}
+            onPointerMove={onPointerMove}
+            onPointerUp={onPointerUp}
           >
-            {pillAccount !== null ? (
-              <>
-                <span className={css.pillLabel}>{pillAccount.displayName}</span>
-                <span className={css.pillAmount} data-trend={pillAccount.trend}>{formatAmount(animated)}</span>
-                <TrendArrow trend={pillAccount.trend} />
-              </>
-            ) : headerLabel !== null ? (
-              <span className={css.pillLabel}>{headerLabel}</span>
-            ) : null}
+            <span className={css.titleDot} aria-hidden="true" />
+            <span className={css.title}>{t('title')}</span>
+            {headerLabel !== null && (
+              <span className={css.provider} title={view.provider ?? undefined}>
+                <span className={css.statusDot} data-status={providerStatus} aria-hidden="true" />
+                <span className={css.providerName}>{headerLabel}</span>
+              </span>
+            )}
+            <span className={css.controls} onPointerDown={(event) => { event.stopPropagation() }}>
+              <button type="button" className={css.iconButton} onClick={() => { actions.zoomOut() }} disabled={settings.scale <= MIN_SCALE} aria-label={t('zoomOut')} title={t('zoomOut')}>−</button>
+              <button type="button" className={css.zoomLevel} onClick={() => { actions.resetZoom() }} aria-label={t('resetZoom')} title={t('resetZoom')}>{Math.round(settings.scale * 100)}%</button>
+              <button type="button" className={css.iconButton} onClick={() => { actions.zoomIn() }} disabled={settings.scale >= MAX_SCALE} aria-label={t('zoomIn')} title={t('zoomIn')}>+</button>
+              <span className={css.divider} />
+              <button type="button" className={css.iconButton} onClick={(event) => {
+                if (settings.dock === 'free') {
+                  actions.dockTo('bottom-right')
+                  return
+                }
+                // Un-docking keeps the current spot: record the widget rect as
+                // the free position so it does not jump to a stale value.
+                const rect = (event.currentTarget as HTMLElement).closest('[data-balance-widget]')?.getBoundingClientRect()
+                if (rect !== undefined) actions.setPosition(rect.left, rect.top)
+                actions.dockTo('free')
+              }} aria-label={t('dock')} title={t('dock')} data-active={settings.dock !== 'free' || undefined}>⛶</button>
+              <button type="button" className={css.iconButton} onClick={() => { actions.setMode(settings.mode === 'current' ? 'all' : 'current') }} aria-label={settings.mode === 'current' ? t('showAll') : t('showCurrent')} title={settings.mode === 'current' ? t('showAll') : t('showCurrent')} data-active={settings.mode === 'all' || undefined}>▦</button>
+              <button type="button" className={css.iconButton} onClick={() => { refresh() }} aria-label={t('refresh')} title={t('refresh')}>⟳</button>
+              <button type="button" className={css.iconButton} onClick={() => { actions.toggleCollapsed() }} aria-label={t('collapse')} title={t('collapse')}>—</button>
+            </span>
           </div>
-        ) : (
-          <div className={css.panel}>
-            <div
-              className={css.header}
-              onPointerDown={onPointerDown}
-              onPointerMove={onPointerMove}
-              onPointerUp={onPointerUp}
-            >
-              <span className={css.title}>{t('title')}</span>
-              {headerLabel !== null && <span className={css.provider} title={view.provider ?? undefined}>{headerLabel}</span>}
-              <span className={css.controls} onPointerDown={(event) => { event.stopPropagation() }}>
-                <button type="button" className={css.iconButton} onClick={() => { actions.zoomOut() }} disabled={settings.scale <= MIN_SCALE} aria-label={t('zoomOut')} title={t('zoomOut')}>−</button>
-                <button type="button" className={css.zoomLevel} onClick={() => { actions.resetZoom() }} aria-label={t('resetZoom')} title={t('resetZoom')}>{Math.round(settings.scale * 100)}%</button>
-                <button type="button" className={css.iconButton} onClick={() => { actions.zoomIn() }} disabled={settings.scale >= MAX_SCALE} aria-label={t('zoomIn')} title={t('zoomIn')}>+</button>
-                <span className={css.divider} />
-                <button type="button" className={css.iconButton} onClick={(event) => {
-                  if (settings.dock === 'free') {
-                    actions.dockTo('bottom-right')
-                    return
-                  }
-                  // Un-docking keeps the current spot: record the widget rect as
-                  // the free position so it does not jump to a stale value.
-                  const rect = (event.currentTarget as HTMLElement).closest('[data-balance-widget]')?.getBoundingClientRect()
-                  if (rect !== undefined) actions.setPosition(rect.left, rect.top)
-                  actions.dockTo('free')
-                }} aria-label={t('dock')} title={t('dock')} data-active={settings.dock !== 'free' || undefined}>⛶</button>
-                <button type="button" className={css.iconButton} onClick={() => { actions.setMode(settings.mode === 'current' ? 'all' : 'current') }} aria-label={settings.mode === 'current' ? t('showAll') : t('showCurrent')} title={settings.mode === 'current' ? t('showAll') : t('showCurrent')} data-active={settings.mode === 'all' || undefined}>▦</button>
-                <button type="button" className={css.iconButton} onClick={() => { refresh() }} aria-label={t('refresh')} title={t('refresh')}>⟳</button>
-                <button type="button" className={css.iconButton} onClick={() => { actions.toggleCollapsed() }} aria-label={t('collapse')} title={t('collapse')}>—</button>
+          <div className={css.body}>
+            {settings.mode === 'all'
+              ? <AccountList accounts={view.accounts} currentResult={view.result} t={t} />
+              : <BalanceBody view={view} animated={animated} t={t} />}
+          </div>
+          {settings.mode === 'current' && okAccount !== null && (
+            <div className={css.footer}>
+              <span className={css.delta} data-trend={okAccount.trend}>
+                {deltaText !== null ? deltaText : okAccount.trend === 'flat' ? t('flat') : ''}
+              </span>
+              <span className={css.updatedAt}>
+                {t('updatedAt')} {new Date(okAccount.updatedAt).toLocaleTimeString()}
               </span>
             </div>
-            <div className={css.body}>
-              {settings.mode === 'all'
-                ? <AccountList accounts={view.accounts} currentResult={view.result} t={t} />
-                : <BalanceBody view={view} animated={animated} t={t} />}
+          )}
+        </div>
+        <div
+          ref={pillRef}
+          role="button"
+          tabIndex={0}
+          className={css.pill}
+          aria-label={t('expand')}
+          title={t('expand')}
+          data-highlight={highlightRef.current !== null || undefined}
+          onPointerDown={onPillPointerDown}
+          onPointerMove={onPillPointerMove}
+          onPointerUp={onPillPointerUp}
+          onKeyDown={(event) => {
+            if (event.key === 'Enter' || event.key === ' ') {
+              event.preventDefault()
+              actions.toggleCollapsed()
+            }
+          }}
+        >
+          {pillAccount !== null ? (
+            <>
+              <span className={css.pillLabel}>{pillAccount.displayName}</span>
+              <span className={css.pillAmount} data-trend={pillAccount.trend}>{formatAmount(animated)}</span>
+              <TrendArrow trend={pillAccount.trend} />
+            </>
+          ) : headerLabel !== null ? (
+            <span className={css.pillLabel}>{headerLabel}</span>
+          ) : null}
+          {otherAccounts !== null && otherAccounts.length > 0 && (
+            <div
+              className={css.pillTip}
+              role="tooltip"
+              onPointerDown={(event) => { event.stopPropagation() }}
+            >
+              {otherAccounts.map((entry) => {
+                const account = entry.account
+                if (account === undefined) return null
+                return (
+                  <div key={entry.provider} className={css.pillTipRow}>
+                    <span className={css.pillTipName} title={entry.provider}>
+                      <span className={css.pillTipVendor}>{account.displayName}</span>
+                      {account.label !== '' && account.label.toLowerCase() !== account.displayName.toLowerCase()
+                        ? <span className={css.pillTipLabel}>{account.label}</span>
+                        : null}
+                    </span>
+                    <span className={css.pillTipValue} data-trend={account.trend}>{formatAmount(account.total)}</span>
+                    <span className={css.pillTipCurrency}>{account.currency}</span>
+                    <TrendArrow trend={account.trend} />
+                  </div>
+                )
+              })}
             </div>
-            {settings.mode === 'current' && okAccount !== null && (
-              <div className={css.footer}>
-                <span className={css.delta} data-trend={okAccount.trend}>
-                  {deltaText !== null ? deltaText : okAccount.trend === 'flat' ? t('flat') : ''}
-                </span>
-                <span className={css.updatedAt}>
-                  {t('updatedAt')} {new Date(okAccount.updatedAt).toLocaleTimeString()}
-                </span>
-              </div>
-            )}
-          </div>
-        )}
+          )}
+        </div>
       </div>
     </div>
   )
+}
+
+/** Clamp one axis so a `size`-px element stays inside the `viewport` extent. */
+function clampAxis(value: number, size: number, viewport: number): number {
+  return Math.min(Math.max(value, 0), Math.max(0, viewport - size))
 }
 
 /** Choose the nearest viewport corner within the snap threshold, else free. */
@@ -568,6 +658,11 @@ function resolveMagneticDrag(
     latest.current = target.pos
   } else {
     state.snap = null
-    latest.current = { x, y }
+    // Restrict the movement range: the dragged element (panel box, or the
+    // pill while collapsed) always stays fully inside the viewport.
+    latest.current = {
+      x: clampAxis(x, state.size.w, window.innerWidth),
+      y: clampAxis(y, state.size.h, window.innerHeight),
+    }
   }
 }
