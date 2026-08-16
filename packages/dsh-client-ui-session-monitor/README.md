@@ -56,8 +56,10 @@ rounds. Without the host half the widget still works (base notification kinds).
   when you turn it on; clicking the notification jumps to the session and
   dismisses the matching in-page toasts (that round is acknowledged — the
   page toast's own buttons would be redundant); same-session notifications
-  replace instead of stacking.
-  same-session notifications replace instead of stacking.
+  replace instead of stacking. The system notification is only sent while you
+  are away from the page (tab hidden, window minimized, or unfocused) — while
+  you are looking at it, the in-page toast is enough, so no OS-level popup
+  fires.
 - **Jump to session**: clicking any row — or a toast's 跳转 button — switches
   the app to that session immediately (`ctx.sessions.open`).
 - **Done marks**: sessions that finished a round while the widget was open get
@@ -69,7 +71,8 @@ rounds. Without the host half the widget still works (base notification kinds).
   default — you are already looking at it; if you switch to another tab or
   window, or the page is hidden / unfocused, the current session's finished
   round still notifies — the in-page toast waits for you and a system
-  notification reaches you on the OS level when enabled), whether to
+  notification reaches you on the OS level when enabled (system notifications
+  fire only while you are away from the page)), whether to
   show subagent sessions (off by default), running-only listing, the recent
   **time window** (all / 15 min … 24 h) and done marks; while "Running only"
   is on the time-window control is visually dimmed with a hint that it applies

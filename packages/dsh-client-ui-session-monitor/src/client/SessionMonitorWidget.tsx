@@ -140,6 +140,17 @@ function formatAgo(ts: number, now: number, t: TranslateNS<'session-monitor'>): 
 }
 
 /**
+ * Whether the user is currently NOT looking at this page: the tab is hidden,
+ * the window is minimized, or the browser window simply lost focus. Both the
+ * current-session suppression and the OS-level system notification hinge on
+ * this — an in-page toast only helps while the user can see the page.
+ */
+function isUserAway(): boolean {
+  return typeof document !== 'undefined'
+    && (document.visibilityState === 'hidden' || !document.hasFocus())
+}
+
+/**
  * Order the visible rows: busy first (running, or not running but still doing
  * work — running subagents or background jobs), then round-done, then idle;
  * each group newest first.
@@ -236,8 +247,7 @@ export function SessionMonitorWidget(props: SessionMonitorWidgetProps) {
     // finished round of the *current* session still deserves a notification —
     // the in-page toast waits for them on return, and the system notification
     // (when enabled) reaches them on the OS level.
-    const userAway = typeof document !== 'undefined'
-      && (document.visibilityState === 'hidden' || !document.hasFocus())
+    const userAway = isUserAway()
     // Record the moment a session starts or finishes a round as its last
     // activity (feeds the recent-window filter; updatedAt only tracks prompts).
     // The `prev.has(id)` guard is load-bearing: `prev` starts empty on mount,
@@ -338,7 +348,10 @@ export function SessionMonitorWidget(props: SessionMonitorWidgetProps) {
         return [...emit, ...prevToasts].slice(0, MAX_TOASTS)
       })
     }
-    if (cfg.browserNotify) {
+    // The system notification exists to reach the user while they are NOT
+    // looking at the page (tab hidden / window unfocused): the in-page toast
+    // already covers the "user is here" case, so skip the OS-level popup then.
+    if (cfg.browserNotify && isUserAway()) {
       for (const toast of emit) {
         const copy = toastCopy(t, toast.kind)
         sendBrowserNotify(copy.title, copy.body(toast.title), toast.sessionId)
