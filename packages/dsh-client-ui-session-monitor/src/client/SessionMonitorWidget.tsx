@@ -253,6 +253,11 @@ export function SessionMonitorWidget(props: SessionMonitorWidgetProps) {
   const movedRef = useRef(false)
   /** Live system-Notification instances per session, so other surfaces can dismiss them. */
   const notifyInstRef = useRef<Map<string, Notification>>(new Map())
+  /** Sessions for which a system notification was ACTUALLY created (permission
+   *  granted). Outlives the notification instance: even if the OS already
+   *  auto-dismissed the popup before the user returned, the delivery happened,
+   *  so the return-cleanup can still clear the "round done" badge. */
+  const notifiedRef = useRef<Set<string>>(new Set())
   /** Host turn-end reason table (sessionId → { reason, at }), refreshed by polling. */
   const reasonsRef = useRef<Record<string, { reason: string; at: number; round?: number }>>({})
   /** Whether the Host status route answered at least once ('unknown' before the first poll). */
@@ -391,23 +396,32 @@ export function SessionMonitorWidget(props: SessionMonitorWidgetProps) {
   // clear that session's "round done" badge, so a stale OS popup does not
   // linger after the user is already here. Scope: ONLY the current session
   // (other sessions' completions still await the user's attention and must
-  // not be silently dropped), ONLY when a live system notification exists
-  // (with browserNotify off there is nothing to clean, and the badge stays
-  // as the only record of the finished round), and the in-page toasts are
-  // untouched (the toast is the in-page notification now). Each tab cleans
-  // its own notification instance — no cross-tab broadcast: another tab may
-  // have a different current session, and its own return event cleans its
-  // own instance.
+  // not be silently dropped), ONLY when a notification was actually sent for
+  // it (with browserNotify off, or without permission, nothing was delivered
+  // and the badge stays as the only record of the finished round), and the
+  // in-page toasts are untouched (the toast is the in-page notification
+  // now). Each tab cleans its own notification instance — no cross-tab
+  // broadcast: another tab may have a different current session, and its own
+  // return event cleans its own instance.
+  //
+  // The away↔back edge must be tracked on BOTH directions. Listening to
+  // `focus` alone is not enough: switching to another program leaves the tab
+  // `visible` (the window is merely unfocused) and fires NO event on the way
+  // out, so prevAway would never become true and the later `focus` would not
+  // be recognized as a return. `blur` records the away transition,
+  // `visibilitychange` covers tab hidden/shown and window minimize/restore.
   useEffect(() => {
     let prevAway = isUserAway()
-    const onReturn = (): void => {
+    const sync = (): void => {
       const away = isUserAway()
       const returned = prevAway && !away
       prevAway = away
       if (!returned) return
       const id = currentIdRef.current
-      if (id === undefined || !notifyInstRef.current.has(id)) return
-      closeBrowserNotify(id)
+      if (id === undefined) return
+      const live = notifyInstRef.current.has(id)
+      if (!live && !notifiedRef.current.has(id)) return
+      if (live) closeBrowserNotify(id)
       setDoneIds((ds) => {
         if (!ds.has(id)) return ds
         const next = new Set(ds)
@@ -415,11 +429,13 @@ export function SessionMonitorWidget(props: SessionMonitorWidgetProps) {
         return next
       })
     }
-    document.addEventListener('visibilitychange', onReturn)
-    window.addEventListener('focus', onReturn)
+    window.addEventListener('focus', sync)
+    window.addEventListener('blur', sync)
+    document.addEventListener('visibilitychange', sync)
     return () => {
-      document.removeEventListener('visibilitychange', onReturn)
-      window.removeEventListener('focus', onReturn)
+      window.removeEventListener('focus', sync)
+      window.removeEventListener('blur', sync)
+      document.removeEventListener('visibilitychange', sync)
     }
   }, [])
 
@@ -818,6 +834,7 @@ export function SessionMonitorWidget(props: SessionMonitorWidgetProps) {
 
   /** Close the live system notification for one session (no-op when none is showing). */
   function closeBrowserNotify(sessionId: string): void {
+    notifiedRef.current.delete(sessionId)
     const inst = notifyInstRef.current.get(sessionId)
     if (!inst) return
     notifyInstRef.current.delete(sessionId)
@@ -861,6 +878,10 @@ export function SessionMonitorWidget(props: SessionMonitorWidgetProps) {
         tag: 'dsh-smon:' + sessionId,
       })
       notifyInstRef.current.set(sessionId, n)
+      // Delivery record: outlives the instance, so the return-cleanup can
+      // clear the round's done mark even if the OS already dismissed the
+      // popup before the user came back.
+      notifiedRef.current.add(sessionId)
       n.onclose = () => { notifyInstRef.current.delete(sessionId) }
       n.onclick = () => {
         // Clicking the notification: focus the window, jump to the session
