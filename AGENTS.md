@@ -5,7 +5,7 @@
 
 ## 项目是什么
 
-`dsh-balance-plugin` 是一个 **DeepSeek Harness 小组件（widgets）monorepo**：
+`dsh-widgets-plugin` 是一个 **DeepSeek Harness 小组件（widgets）monorepo**：
 制作可独立发布、可安装到任意 Harness 实例的插件。浏览器端以 `shell.overlay`
 浮动挂件或 Web 设置页呈现。当前三个小组件：
 
