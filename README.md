@@ -51,7 +51,7 @@ pnpm install
 pnpm build   # 等价于 node scripts/build.mjs
 ```
 
-pnpm 版本由 root `package.json` 的 `packageManager` 固定（`pnpm@10.30.3`，与官方
+pnpm 版本由 root `package.json` 的 `packageManager` 固定（`pnpm@11.7.0`，与官方
 deepseek-harness 同款做法）；`pnpm/action-setup` 会按该字段安装对应版本，本机用
 corepack 管理时也会读取同一字段。Node 引擎约束见 root `engines`
 （`^22.19.0 || >=24.0.0`）。

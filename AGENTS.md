@@ -55,7 +55,7 @@ pnpm -r pack                 # 打包校验（可加 --dry-run）
 pnpm run publish:all         # pnpm -r publish --no-git-checks
 ```
 
-pnpm 版本由 root `package.json` 的 `packageManager` 固定（当前 `pnpm@10.30.3`），
+pnpm 版本由 root `package.json` 的 `packageManager` 固定（当前 `pnpm@11.7.0`），
 `pnpm/action-setup` 会按它装对应版本，无需手工升级；本机若用 corepack 管理也会
 读同一字段。Node 引擎约束见 root `engines`（`^22.19.0 || >=24.0.0`）。
 
@@ -141,7 +141,7 @@ pnpm 版本由 root `package.json` 的 `packageManager` 固定（当前 `pnpm@10
 
 包管理配置镜像官方仓库（deepseek-ai/deepseek-harness）的做法：
 
-- root `package.json`：`packageManager` 固定 pnpm 版本（`pnpm@10.30.3`）、
+- root `package.json`：`packageManager` 固定 pnpm 版本（`pnpm@11.7.0`）、
   `engines.node`（`^22.19.0 || >=24.0.0`）、`workspaces` 列出 `packages/*` 与
   `bundles/*`（与 `pnpm-workspace.yaml` 的 `packages` 保持一致）。
 - `pnpm-workspace.yaml`：`linkWorkspacePackages: true`、`overrides`（目前为空，
@@ -170,7 +170,7 @@ pnpm 版本由 root `package.json` 的 `packageManager` 固定（当前 `pnpm@10
   （`@deepseek-ai/*`/`@dsh-plugins/*`/`react` 外部化经 `require` 解析、zod 内联、
   CSS 内联注入）。
 - **包管理与官方 deepseek-harness 架构对齐**：root `package.json` 增加
-  `packageManager`（`pnpm@10.30.3`）、`engines.node`、`workspaces`；
+  `packageManager`（现 `pnpm@11.7.0`）、`engines.node`、`workspaces`；
   `pnpm-workspace.yaml` 采用官方字段（`linkWorkspacePackages`、`overrides`、
   `peerDependencyRules`、`allowBuilds`、`patchedDependencies`）；新增
   `patches/` 目录；5 个可发布包补 `repository` 字段。版本维持 0.1.0。
