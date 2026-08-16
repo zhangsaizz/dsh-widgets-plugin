@@ -7,7 +7,7 @@
 /** Dictionary keys of the `session-monitor` namespace (the LocaleNamespaceMap merge is declared at registration). */
 export type SessionMonitorKey =
   | 'title'
-  | 'runningCount'
+  | 'busyCount'
   | 'noSessions'
   | 'noRunning'
   | 'running'
@@ -80,7 +80,7 @@ export type SessionMonitorKey =
 /** Simplified Chinese dictionary. */
 export const zh: Record<SessionMonitorKey, string> = {
   title: '会话监控',
-  runningCount: '{count} 个运行中',
+  busyCount: '{count} 个忙碌中',
   noSessions: '暂无会话',
   noRunning: '没有运行中的会话',
   running: '运行中',
@@ -154,7 +154,7 @@ export const zh: Record<SessionMonitorKey, string> = {
 /** English dictionary. */
 export const en: Record<SessionMonitorKey, string> = {
   title: 'Session monitor',
-  runningCount: '{count} running',
+  busyCount: '{count} busy',
   noSessions: 'No sessions',
   noRunning: 'No running sessions',
   running: 'Running',

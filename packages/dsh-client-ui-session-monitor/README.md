@@ -34,7 +34,10 @@ rounds. Without the host half the widget still works (base notification kinds).
   jobs executing, its status reads **子代理执行中** (subagents working, violet)
   or **后台执行中** (bg jobs running, cyan) instead of 空闲 — such rows rank
   with the running ones and are never hidden by the time window; the "Running
-  only" switch stays strictly `running`.
+  only" switch stays strictly `running`. When such a row also carries a
+  **本轮完成** mark, the busy label wins the status text (the dot keeps the
+  done color); the header and collapsed-pill counts include these busy
+  sessions ("N 个忙碌中").
 - **Round-completion notifications**: watches `running` true→false edges (one
   edge = one finished round, goal rounds included), and pops a toast
   `「title」已完成一轮` with **跳转** (jump) and **知道了** (dismiss) actions.
@@ -110,8 +113,10 @@ web profile restart is required for the host half to be picked up.
 No configuration is needed after mounting:
 
 1. **Watch** — the panel lists the live (non-subagent) sessions; running
-   sessions sit on top with a pulsing dot, the header shows the running count,
-   and each row carries a **后×N** badge with its background-task count.
+   sessions sit on top with a pulsing dot, the header and collapsed pill show
+   the busy count (running plus sessions with subagents/background jobs
+   executing), and each row carries a **后×N** badge with its background-task
+   count.
 2. **Jump** — click any row to switch the app to that session.
 3. **Shrink / zoom** — click the **—** button in the header to collapse the
    panel into a compact pill (tap the pill to expand it again); drag the

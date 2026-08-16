@@ -385,16 +385,6 @@ export function SessionMonitorWidget(props: SessionMonitorWidgetProps) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pos, window.innerWidth, window.innerHeight])
 
-  const runningCount = useMemo(
-    () => sessions.ids.reduce((n, id) => {
-      const row = sessions.byId[id]
-      if (!row || row.blank) return n
-      if (row.origin === 'subagent' && !settings.showSubagents) return n
-      return n + (row.running ? 1 : 0)
-    }, 0),
-    [sessions, settings.showSubagents],
-  )
-
   /** Running subagent count per parent session (shown as a 子×N badge on the parent row). */
   const runningSubagentsByParent = useMemo(() => {
     const map = new Map<string, number>()
@@ -426,6 +416,22 @@ export function SessionMonitorWidget(props: SessionMonitorWidgetProps) {
     }
     return map
   }, [sessions])
+
+  // Sessions currently doing work: in a turn, or not in a turn but with
+  // subagents / background jobs executing. Feeds the header and collapsed-pill
+  // counts — a parent waiting on running subagents is not idle, so it must
+  // count. Placed after the two busyness sources (TDZ — see the rows memo).
+  const busyCount = useMemo(
+    () => sessions.ids.reduce((n, id) => {
+      const row = sessions.byId[id]
+      if (!row || row.blank) return n
+      if (row.origin === 'subagent' && !settings.showSubagents) return n
+      if (row.running) return n + 1
+      if ((runningSubagentsByParent.get(id) ?? 0) > 0 || (runningJobsBySession.get(id) ?? 0) > 0) return n + 1
+      return n
+    }, 0),
+    [sessions, settings.showSubagents, runningSubagentsByParent, runningJobsBySession],
+  )
 
   // The visible rows projection. Deliberately placed after the two busyness
   // sources above: it reads runningSubagentsByParent / runningJobsBySession,
@@ -620,7 +626,7 @@ export function SessionMonitorWidget(props: SessionMonitorWidgetProps) {
       >
         <span className={css.pillIcon}>◫</span>
         <span className={css.pillText}>{t('title')}</span>
-        <span className={css.pillCount}>{runningCount}</span>
+        <span className={css.pillCount}>{busyCount}</span>
       </div>
     )
   } else {
@@ -629,7 +635,7 @@ export function SessionMonitorWidget(props: SessionMonitorWidgetProps) {
         <div className={css.header} onPointerDown={(e) => startDrag(e, 'move')}>
           <span className={css.titleDot} />
           <span className={css.title}>{t('title')}</span>
-          <span className={css.count}>{t('runningCount', { count: String(runningCount) })}</span>
+          <span className={css.count}>{t('busyCount', { count: String(busyCount) })}</span>
           <button
             className={css.iconBtn}
             title={t('collapse')}
@@ -649,7 +655,9 @@ export function SessionMonitorWidget(props: SessionMonitorWidgetProps) {
               const jobsRunning = runningJobsBySession.get(row.id) ?? 0
               // A session that is not in a turn but still has subagents (or
               // background jobs) executing is "busy", not idle: label it so
-              // instead of showing 空闲 next to a 子×N / 后×N badge.
+              // instead of showing 空闲 next to a 子×N / 后×N badge. The busy
+              // labels also win over the 本轮完成 text — "still working" is the
+              // more current signal (the dot keeps its done color meanwhile).
               const busySub = !row.running && subRunning > 0
               const busyJobs = !row.running && subRunning === 0 && jobsRunning > 0
               const statusText = row.running
