@@ -5,7 +5,7 @@
   "private": true,
   "type": "module",
   "description": "A collection of small DeepSeek Harness widgets (挂件): the merged balance plugin (seam + vendors + dashboard), token crit meter, the widgets manager, and an installable bundle",
-  "packageManager": "pnpm@10.30.3",
+  "packageManager": "pnpm@11.7.0",
   "engines": {
     "node": "^22.19.0 || >=24.0.0"
   },
