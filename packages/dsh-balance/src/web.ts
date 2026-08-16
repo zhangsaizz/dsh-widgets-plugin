@@ -6,16 +6,20 @@
  * @module @dsh-plugins/balance/web
  */
 
+import type { IncomingMessage, ServerResponse } from 'node:http'
+import type { Context } from '@deepseek-ai/cordis'
+// Type-only: pulls the `webServer` service merge onto Context (dsh-host-webserver).
+import type {} from '@deepseek-ai/dsh-host-webserver'
 import { BALANCE_SETTINGS_NS } from './settings.ts'
 
 /** Exact route used by the browser Balance providers page. */
 export const SETTINGS_ROUTE = '/_dsh/balance/settings'
 
-function isRecord(value) {
+function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 
-function responseJson(res, status, body) {
+function responseJson(res: ServerResponse, status: number, body: unknown): void {
   const bytes = Buffer.from(JSON.stringify(body))
   res.setHeader('Content-Type', 'application/json; charset=utf-8')
   res.setHeader('Content-Length', String(bytes.length))
@@ -24,14 +28,14 @@ function responseJson(res, status, body) {
   res.end(bytes)
 }
 
-function requestError(res, status, code, message) {
+function requestError(res: ServerResponse, status: number, code: string, message: string): void {
   responseJson(res, status, { ok: false, error: { code, message } })
 }
 
-async function readJson(req, maxBytes = 64 * 1024) {
+async function readJson(req: IncomingMessage, maxBytes = 64 * 1024): Promise<unknown> {
   const contentType = req.headers['content-type']?.split(';', 1)[0]?.trim().toLowerCase()
   if (contentType !== 'application/json') throw new TypeError('Content-Type must be application/json')
-  const chunks = []
+  const chunks: Buffer[] = []
   let bytes = 0
   for await (const chunk of req) {
     const part = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk)
@@ -43,44 +47,56 @@ async function readJson(req, maxBytes = 64 * 1024) {
   return JSON.parse(Buffer.concat(chunks).toString('utf8'))
 }
 
-function parseRequest(value) {
+/** The one supported POST action, validated by {@link parseRequest}. */
+interface SaveRequest {
+  action: 'save'
+  expectedRevision: number
+  bindings: unknown[]
+}
+
+function parseRequest(value: unknown): SaveRequest {
   if (!isRecord(value) || typeof value.action !== 'string') throw new TypeError('request action is required')
   if (value.action === 'save') {
-    if (!Number.isSafeInteger(value.expectedRevision) || value.expectedRevision < 0) {
+    if (!Number.isSafeInteger(value.expectedRevision as number) || (value.expectedRevision as number) < 0) {
       throw new TypeError('save.expectedRevision must be a non-negative integer')
     }
     if (!isRecord(value.value)) throw new TypeError('save.value must be an object')
     const bindings = Array.isArray(value.value.bindings) ? value.value.bindings : []
-    return { action: 'save', expectedRevision: value.expectedRevision, bindings }
+    return { action: 'save', expectedRevision: value.expectedRevision as number, bindings }
   }
   throw new TypeError(`unsupported action: ${value.action}`)
 }
 
 /** Strip inline credential values before they cross the wire. */
-function redactBinding(binding) {
-  if (!isRecord(binding)) return binding
+function redactBinding(binding: unknown): Record<string, unknown> {
+  if (!isRecord(binding)) return binding as Record<string, unknown>
   const { credential, ...rest } = binding
   return { ...rest, ...(typeof credential === 'string' && credential.length > 0 ? { credentialConfigured: true } : {}) }
 }
 
-function publicMessage(error) {
+function publicMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error)
 }
 
 /** Same-origin Settings handler for the balance bindings document. */
 export class BalanceWebBackend {
-  constructor(ctx) {
+  // The settings seam and llm service are injected services reached through
+  // the cordis context; typed loosely here (legacy file) — the request/response
+  // surface above carries the strict types.
+  private readonly ctx: any
+
+  constructor(ctx: any) {
     this.ctx = ctx
   }
 
-  settingsSeam() {
+  settingsSeam(): any {
     const settings = this.ctx.get('settings')
     if (settings === undefined) throw new Error('balance settings seam is not mounted')
     return settings
   }
 
-  descriptor() {
-    const descriptor = this.settingsSeam().describe().find((row) => row.ns === BALANCE_SETTINGS_NS)
+  descriptor(): any {
+    const descriptor = this.settingsSeam().describe().find((row: { ns: string }) => row.ns === BALANCE_SETTINGS_NS)
     if (descriptor === undefined) throw new Error('balance Settings namespace is not registered')
     return descriptor
   }
@@ -93,10 +109,10 @@ export class BalanceWebBackend {
    * part of the model list and are not offered here either. The panel's free
    * input still accepts any other route.
    */
-  async configuredProviders() {
+  async configuredProviders(): Promise<Array<{ provider: string; displayName?: string }>> {
     const llm = this.ctx.get('llm')
     if (llm === undefined || typeof llm.listProviders !== 'function' || typeof llm.listModels !== 'function') return []
-    const settled = await Promise.all(llm.listProviders().map(async (provider) => {
+    const settled = await Promise.all(llm.listProviders().map(async (provider: unknown) => {
       if (!isRecord(provider) || typeof provider.id !== 'string' || provider.id.length === 0) return null
       try {
         const models = await llm.listModels(provider.id)
@@ -109,10 +125,10 @@ export class BalanceWebBackend {
         return null
       }
     }))
-    return settled.filter((entry) => entry !== null)
+    return settled.filter((entry: unknown): entry is { provider: string; displayName?: string } => entry !== null)
   }
 
-  async snapshot() {
+  async snapshot(): Promise<unknown> {
     const descriptor = this.descriptor()
     const raw = descriptor.value
     const bindings = isRecord(raw) && Array.isArray(raw.bindings) ? raw.bindings : []
@@ -128,18 +144,21 @@ export class BalanceWebBackend {
     }
   }
 
-  async save(request) {
+  async save(request: SaveRequest): Promise<unknown> {
     const settings = this.settingsSeam()
     if (!settings.writable) throw new Error('settings provider is read-only')
     const previous = this.descriptor().value
     const oldBindings = isRecord(previous) && Array.isArray(previous.bindings) ? previous.bindings : []
-    const oldByProvider = new Map(oldBindings.filter(isRecord).map((binding) => [binding.provider, binding]))
+    const oldByProvider = new Map<string, Record<string, unknown>>()
+    for (const binding of oldBindings) {
+      if (isRecord(binding) && typeof binding.provider === 'string') oldByProvider.set(binding.provider, binding)
+    }
     // An inline credential left blank on save means "keep the stored one";
     // `credentialClear: true` is the explicit "remove the stored one" (the
     // panel uses it when the user switches a key-bearing binding to env-var
     // reference, or clicks "clear stored key").
     const merged = request.bindings.filter(isRecord).map((binding) => {
-      const previousBinding = oldByProvider.get(binding.provider)
+      const previousBinding = oldByProvider.get(binding.provider as string)
       if (binding.credentialClear === true) {
         const { credentialClear: _flag, credential: _cred, ...rest } = binding
         return rest
@@ -157,7 +176,7 @@ export class BalanceWebBackend {
     return this.snapshot()
   }
 
-  async handle(req, res) {
+  async handle(req: IncomingMessage, res: ServerResponse): Promise<void> {
     if (req.method === 'GET') {
       try {
         responseJson(res, 200, { ok: true, value: await this.snapshot() })
@@ -172,7 +191,7 @@ export class BalanceWebBackend {
       requestError(res, 405, 'method-not-allowed', 'Use GET or POST')
       return
     }
-    let parsed
+    let parsed: SaveRequest
     try {
       parsed = parseRequest(await readJson(req))
     } catch (error) {
@@ -189,13 +208,13 @@ export class BalanceWebBackend {
 }
 
 /** Attach the optional Web Settings route whenever a webServer service is present. */
-export function installBalanceWeb(ctx, backend) {
+export function installBalanceWeb(ctx: Context, backend: BalanceWebBackend): void {
   ctx.inject(['webServer'], (webCtx) => {
     webCtx.effect(() => {
       const dispose = webCtx.webServer.register({
         kind: 'exact',
         path: SETTINGS_ROUTE,
-        handler: (req, res) => backend.handle(req, res),
+        handler: (req, res) => { void backend.handle(req, res) },
       })
       return () => dispose()
     }, 'balance: settings web route')

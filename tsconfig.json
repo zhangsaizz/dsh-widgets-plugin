@@ -1,0 +1,26 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "jsx": "react-jsx",
+    "strict": true,
+    "noEmit": true,
+    "allowImportingTsExtensions": true,
+    "isolatedModules": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true,
+    "paths": {
+      // The pure-client workspace packages ship no declaration files (their
+      // bundles are esbuild output); local typecheck resolves the subpath
+      // imports to their sources instead.
+      "@dsh-plugins/client-ui-widget-manager/client": ["./packages/dsh-client-ui-widget-manager/src/client/index.ts"],
+      "@dsh-plugins/balance": ["./packages/dsh-balance/src/index.ts"],
+      "@dsh-plugins/balance/types": ["./packages/dsh-balance/src/types.ts"],
+      "@dsh-plugins/balance/client": ["./packages/dsh-balance/src/client/index.ts"]
+    }
+  },
+  "include": ["packages/*/src/**/*.ts", "packages/*/src/**/*.tsx"]
+}

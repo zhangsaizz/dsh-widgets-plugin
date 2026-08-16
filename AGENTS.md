@@ -47,11 +47,15 @@ scripts/
 ```sh
 pnpm install                 # 安装（workspace 依赖用 workspace:*）
 pnpm build                   # 构建全部包产物到 lib/（node scripts/build.mjs）
+pnpm typecheck               # 类型检查（tsc --noEmit，根 tsconfig.json，CI 也会跑）
 pnpm -r pack                 # 打包校验（可加 --dry-run）
 pnpm run publish:all         # pnpm -r publish --no-git-checks
 ```
 
-没有测试套件：CI 的校验是「install → build → pack → git diff 干净」。
+没有测试套件：CI 的校验是「install → typecheck → build → pack → git diff 干净」。
+类型检查要点：esbuild 只转译不查类型（如运行时时序/引用顺序问题它拦不住），
+改 `src/**` 后本地先跑 `pnpm typecheck` 再提交；`keyof` 用在字符串字面量联合上
+得到的是 `keyof string` 而不是联合成员（widget-manager 曾踩过这个坑）。
 
 ## 关键约定（改代码前必读）
 

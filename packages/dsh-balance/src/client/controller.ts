@@ -177,7 +177,7 @@ export class BalanceController implements HostObservable<BalanceViewState> {
       provider,
       bound: false,
       account: {
-        vendor: '', label: '', currency: '', total: 0,
+        vendor: '', displayName: '', label: '', currency: '', total: 0,
         trend: 'unknown', delta: 0, updatedAt: Date.now(),
         status: 'error',
         errorCode: carried === null ? 'transport' : carried.error.code,

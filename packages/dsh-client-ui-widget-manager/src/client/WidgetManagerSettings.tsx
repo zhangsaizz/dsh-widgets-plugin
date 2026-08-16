@@ -133,7 +133,7 @@ function statusClass(row: WidgetRow): 'enabled' | 'disabled' | 'notInstalled' {
 }
 
 /** Badge copy key for one row's status. */
-function statusLabel(row: WidgetRow): keyof WidgetManagerLocaleKey {
+function statusLabel(row: WidgetRow): WidgetManagerLocaleKey {
   if (!row.registered) return 'notInstalled'
   return row.enabled ? 'enabled' : 'disabled'
 }

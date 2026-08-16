@@ -25,7 +25,7 @@ import type {
 } from '@deepseek-ai/dsh-client-ui-slots'
 import type { SessionListState, SessionSummary } from '@deepseek-ai/dsh-client-runtime/client'
 import {
-  MAX_SCALE, MIN_SCALE, SETTINGS_CHANGED_EVENT, clampToViewport, loadLastActive,
+  MAX_SCALE, MIN_SCALE, SETTINGS_CHANGED_EVENT, SETTINGS_KEY, clampToViewport, loadLastActive,
   loadPos, loadScale, loadSettings, playChime, saveLastActive, savePos, saveScale,
 } from './settings.ts'
 import type { MonitorSettings } from './settings.ts'
@@ -299,7 +299,7 @@ export function SessionMonitorWidget(props: SessionMonitorWidgetProps) {
   // first snapshot as "everything was disposed".
   useEffect(() => {
     const prev = prevIdsRef.current
-    const next = new Set(sessions.ids)
+    const next = new Set<string>(sessions.ids)
     prevIdsRef.current = next
     if (prev.size === 0) return
     const removed: string[] = []
@@ -540,11 +540,14 @@ export function SessionMonitorWidget(props: SessionMonitorWidgetProps) {
       const row = sessions.byId[id]
       if (!row || row.origin !== 'subagent' || !row.running || !row.parentId) continue
       const seen = new Set<string>()
+      // byId is keyed by SessionId (a branded string); the ancestor chain walks
+      // parentId strings, so index through a plain-string view.
+      const byId = sessions.byId as Readonly<Record<string, SessionSummary>>
       let pid: string | undefined = row.parentId
       while (pid !== undefined && !seen.has(pid)) {
         seen.add(pid)
         map.set(pid, (map.get(pid) ?? 0) + 1)
-        pid = sessions.byId[pid]?.parentId
+        pid = byId[pid]?.parentId
       }
     }
     return map

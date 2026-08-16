@@ -25,6 +25,8 @@ export interface FxFloat {
 
 interface FloatState {
   kind: 'in' | 'out'
+  /** Big crit — larger glyph, tighter tilt, hotter core color. */
+  big: boolean
   x: number
   y: number
   /** Thrown arc as a quadratic bezier (relative to x/y): the float curves
@@ -326,6 +328,7 @@ export class TokenCritFx {
     const endY = -rand(30, 55)
     const cand: FloatState = {
       kind: f.kind,
+      big: f.big,
       x: 0,
       y: 0,
       endX,

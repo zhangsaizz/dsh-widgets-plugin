@@ -12,6 +12,8 @@
  */
 
 import type { Context } from '@deepseek-ai/cordis'
+// Type-only: pulls the `webServer` service merge onto Context (dsh-host-webserver).
+import type {} from '@deepseek-ai/dsh-host-webserver'
 
 /** One remembered `turn/end` fact for a session. */
 export interface TurnEndRecord {

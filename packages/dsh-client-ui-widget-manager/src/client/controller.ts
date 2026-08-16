@@ -25,6 +25,7 @@ import type { ClientContext } from '@deepseek-ai/dsh-client-runtime/client'
 import type { HostObservable, StoredEntry } from '@deepseek-ai/dsh-client-ui-slots'
 import { WIDGET_CATALOG } from './widgets.ts'
 import type { WidgetDescriptor } from './widgets.ts'
+import type { WidgetManagerLocaleKey } from './locales.ts'
 
 /** Shadow entries win at this priority (widgets register at the default 0). */
 export const SHADOW_PRIORITY = -1
@@ -40,9 +41,9 @@ export interface WidgetRow {
   /** Shipping package name; undefined for widgets outside the catalog. */
   packageName: string | undefined
   /** Catalog display-name key; undefined for widgets outside the catalog. */
-  nameKey: string | undefined
+  nameKey: WidgetManagerLocaleKey | undefined
   /** Catalog description key; undefined for widgets outside the catalog. */
-  descriptionKey: string | undefined
+  descriptionKey: WidgetManagerLocaleKey | undefined
   /** Whether the widget contributed a config panel into `widgets.config`. */
   hasConfig: boolean
   /** Whether the widget plugin currently has an entry in the overlay. */

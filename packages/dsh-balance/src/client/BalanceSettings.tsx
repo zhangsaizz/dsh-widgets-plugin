@@ -40,8 +40,17 @@ const SETTINGS_ROUTE = '/_dsh/balance/settings'
 /** One binding as returned by the redacted snapshot (inline credential hidden). */
 type BindingRow = BalanceBindingConfig & { credentialConfigured?: boolean }
 
-/** A binding as built by the form: may carry the server-side "clear key" flag. */
-type SaveBinding = BalanceBindingConfig & { credentialClear?: boolean }
+/** A binding as built by the form: provider + vendor, then the optional
+ *  mutable fields (BalanceBindingConfig itself is readonly + fully required,
+ *  while this payload is built incrementally). */
+type SaveBinding = {
+  provider: string
+  vendor: string
+  credentialRef?: string
+  credential?: string
+  baseURL?: string
+  credentialClear?: boolean
+}
 
 /** Which credential source the form is editing. */
 type CredMode = 'ref' | 'key'

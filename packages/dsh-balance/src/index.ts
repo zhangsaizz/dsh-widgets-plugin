@@ -55,7 +55,7 @@ export interface Config {
   /** New API instance base URL (default http://localhost:3000). */
   readonly newApiBaseURL?: string
   /** Static user-managed bindings applied at boot — fill credentials directly here. */
-  readonly bindings?: readonly BalanceBindingConfig[]
+  bindings?: BalanceBindingConfig[]
 }
 
 export const Config: z<Config> = z.object({

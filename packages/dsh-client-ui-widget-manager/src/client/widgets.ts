@@ -17,9 +17,9 @@ export interface WidgetDescriptor {
   /** The npm package that ships the widget. */
   packageName: string
   /** Locale key of the widget's display name. */
-  nameKey: keyof WidgetManagerLocaleKey
+  nameKey: WidgetManagerLocaleKey
   /** Locale key of the widget's one-line description. */
-  descriptionKey: keyof WidgetManagerLocaleKey
+  descriptionKey: WidgetManagerLocaleKey
 }
 
 /** Every widget this project ships, in display order. */
