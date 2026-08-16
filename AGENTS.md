@@ -11,25 +11,27 @@
 
 | 小组件 | 包 |
 |---|---|
-| 余额看板 | `@dsh-plugins/client-ui-balance` |
+| 余额看板 | `@dsh-plugins/balance` |
 | Token 暴击挂件 | `@dsh-plugins/client-ui-token-crit` |
 
-其余包是支撑：`@dsh-plugins/balance`（Host 能力缝隙）、`@dsh-plugins/balance-vendors`
-（厂商 Provider）、`@dsh-plugins/balance-bundle`（可安装 bundle，一层挂载全部插件）。
+其余包是支撑：`@dsh-plugins/client-ui-widget-manager`（小组件管理设置页）、
+`@dsh-plugins/balance-bundle`（可安装 bundle，一层挂载全部插件）。
+余额链路已合并为**单包单插件**（`@dsh-plugins/balance` = 能力缝隙 + 厂商 Provider +
+Web 看板），不再拆包。
 
 ## 工作区结构
 
 ```
 packages/
-  dsh-balance/                 Host seam：ctx.balance + balance/query、balance/list Remote
-  dsh-balance-vendors/         厂商 Provider（deepseek/moonshot/openrouter/siliconflow/new-api）
-  dsh-client-ui-balance/       Web 余额看板 + 「余额供应商」设置页（浏览器端）
-  dsh-client-ui-token-crit/    Web token 暴击挂件（纯 UI，浏览器端）
+  dsh-balance/                合并后的余额插件：Host 缝隙（ctx.balance + balance/query、
+                             balance/list Remote）+ 厂商 Provider + 设置/Web 路由 +
+                             浏览器看板挂件 + 供应商配置面板（单插件行）
+  dsh-client-ui-token-crit/   Web token 暴击挂件（纯 UI，浏览器端）
+  dsh-client-ui-widget-manager/ 小组件管理设置页（声明 widgets.config 子槽）
 bundles/
-  dsh-balance-bundle/          可安装 bundle：cordis.patch.yml 插入 4 个插件
+  dsh-balance-bundle/         可安装 bundle：cordis.patch.yml 插入 3 个插件
 scripts/
-  build.mjs                    用 esbuild 构建全部 Host + 浏览器产物到各包 lib/
-  sync.mjs                     从 deepseek-harness 同步 3 个 balance 包源码（不含 token-crit）
+  build.mjs                   用 esbuild 构建全部 Host + 浏览器产物到各包 lib/
 .github/workflows/             ci.yml（PR/推送校验）+ publish.yml（v* tag 发布 npm）
 ```
 
@@ -41,7 +43,6 @@ scripts/
 ```sh
 pnpm install                 # 安装（workspace 依赖用 workspace:*）
 pnpm build                   # 构建全部包产物到 lib/（node scripts/build.mjs）
-pnpm sync                    # 从 harness 同步源码（HARNESS_DIR 可覆盖路径）
 pnpm -r pack                 # 打包校验（可加 --dry-run）
 pnpm run publish:all         # pnpm -r publish --no-git-checks
 ```
@@ -72,7 +73,7 @@ pnpm run publish:all         # pnpm -r publish --no-git-checks
   `@deepseek-ai/*`）。
 - 包间依赖用 `workspace:*`（**禁止** `link:` 相对路径——发布时不会改写，会产出坏链接）。
 - 所有包带 `"publishConfig": { "access": "public" }`（scoped 包默认 private，会发布失败）。
-- 版本号 5 个包保持一致（当前 0.1.0），升级时同步升。
+- 版本号各包保持一致（当前 0.1.0），升级时同步升。
 
 ### 3. 构建产物与 git
 
@@ -80,6 +81,9 @@ pnpm run publish:all         # pnpm -r publish --no-git-checks
 - 改 `src/**` 后运行 `pnpm build` 让 `lib/` 产物跟上（发布需要最新产物；
   CI 会跑 build 并断言 git 干净，所以不要把产物差异提交进仓库）。
 - 行尾由 `.gitattributes` 规范（文本 LF，ps1 CRLF）。
+- **`@dsh-plugins/balance` 的 `lib/typert.*` 是 typert codegen 产物**，`pnpm build`
+  不重建（build.mjs 顶部有注释）；它们随 `files: ["lib"]` 发布，改 Remote 线协议时
+  需要重新生成，不要手工编辑。
 
 ### 4. 新增小组件
 
@@ -96,16 +100,20 @@ pnpm run publish:all         # pnpm -r publish --no-git-checks
 - 若随 bundle 分发，加进 `bundles/dsh-balance-bundle/` 的依赖与 `cordis.patch.yml`。
 - 补双语 README + `README.i18n.yaml`。
 
-### 5. 同步自 harness（sync.mjs）
+### 5. 余额插件是单包结构
 
-- 只同步 **3 个 balance 包**（`dsh-balance`、`dsh-balance-vendors`、
-  `dsh-client-ui-balance`）；token-crit 是独立维护的，不在同步列表。
-- 同步会复制 `src` + `lib` 并把 `@deepseek-ai/dsh-balance*` 改写为 `@dsh-plugins/*`。
-- **`dsh-client-ui-balance` 有一处本地改动**：余额供应商配置面板注册进
-  `widgets.config` 槽（小组件管理 `client-ui-widget-manager` 声明的子槽，在管理页
-  「配置」弹窗中渲染），不再占用 Web 设置的菜单页。同步会覆盖该改动（代码与 README
-  均有标注），同步后必须重新应用。
-- 同步后重跑 `pnpm build` 与 `pnpm -r publish`。
+- `@dsh-plugins/balance` 是**一个包、一个插件行**：Host 半在 `src/index.ts` 的
+  `apply()` 里依次「构造 `BalanceRuntime`（自注册 `ctx.balance`）→ 注册厂商与静态
+  bindings → 监听 `balance` 设置分区 → 挂 `/_dsh/balance/settings` Web 路由」；
+  浏览器半在 `src/client/index.ts` 里先 `await ctx.remote.$mount(TYPERT_REMOTE)`
+  再注册看板挂件与 `widgets.config` 配置面板（`remote.balance` 由本插件自己提供，
+  **不进 inject 列表**——cordis 的声明式 inject 沿 fiber 父链解析，`$mount` 的贡献在
+  旁支 fiber，声明会卡死插件；挂载后经 `ctx.get('remote.balance')` 按 store 直读）。
+- 已**废弃对 deepseek-harness 的同步**（sync.mjs 已删除）：上游结构已重构，余额源码
+  从此手工维护。上游 3 个包若再有改动，需要人工搬移并做「三合一」适配。
+- 包内跨模块一律相对 import；`@dsh-plugins/balance/types` 等子路径保留给外部类型消费者。
+- 小组件管理页的目录（`dsh-client-ui-widget-manager/src/client/widgets.ts`）把余额看板
+  的 `packageName` 标为 `@dsh-plugins/balance`——新增/重命名包时同步更新。
 
 ## 发布流程
 
@@ -123,3 +131,7 @@ pnpm run publish:all         # pnpm -r publish --no-git-checks
 - 根 README 重写为「小组件集合」定位；各包 README 补齐双语「使用方式」。
 - 已 `git init` 并完成首次提交与文档提交（身份为 GitHub <noreply@github.com>，
   仅本地仓库配置）。
+- **余额三包合一**：`balance` + `balance-vendors` + `client-ui-balance` 合并为
+  `@dsh-plugins/balance` 单包单插件行；删除 `scripts/sync.mjs`（废弃 harness 同步）；
+  bundle 的 `cordis.patch.yml` 从 5 行减为 3 行；widget-manager 目录的余额
+  `packageName` 改为 `@dsh-plugins/balance`。

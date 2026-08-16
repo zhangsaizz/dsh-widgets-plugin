@@ -87,7 +87,7 @@ export function ClockWidget({ t }: ClockWidgetProps) {
 }
 ```
 
-`locales.ts` 声明字典键并给出 zh/en 文案（照抄 `client-ui-balance/src/client/locales.ts` 的结构）。
+`locales.ts` 声明字典键并给出 zh/en 文案（照抄 `dsh-balance/src/client/locales.ts` 的结构）。
 
 ### 1.3 package.json 要点
 
@@ -336,7 +336,7 @@ export const en: Record<ClockKey, string> = { title: 'Clock', secondsLabel: 'Sho
 - [ ] 目录登记（`widgets.ts` + `locales.ts` 键）+ `COMPONENTS.md` 各表更新
 - [ ] 双语 README + `README.i18n.yaml` hash 已更新
 - [ ] bundle 分发：`cordis.patch.yml` 插入行 + bundle 依赖
-- [ ] 若改动同步自 harness 的包：标注「本地改动」，`pnpm sync` 后重新应用
+- [ ] 若改动 `@dsh-plugins/balance` 的 Remote 线协议：重新生成 `lib/typert.*`（typert codegen）
 
 ## 5. 常见问题
 
@@ -347,4 +347,5 @@ export const en: Record<ClockKey, string> = { title: 'Clock', secondsLabel: 'Sho
   管理器未安装、或槽声明与注册时机/`id` 不一致）。
 - **弹窗样式和主题不一致？** 用 `--dsw-alias-*` 语义令牌（面板弹窗：
   `--dsw-alias-bg-layer-2` + `--dsw-shadow-lv3` + `--dsw-alias-bg-mask-1`）。
-- **改了 harness 同步包的代码？** `pnpm sync` 会覆盖，务必在代码/README 标注并同步后重打补丁。
+- **改了余额插件的 Remote 线协议？** `lib/typert.*` 是 typert codegen 产物，`pnpm build`
+  不重建，需要重新生成（不要手工编辑）。

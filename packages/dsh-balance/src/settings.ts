@@ -2,7 +2,7 @@
  * Balance settings vocabulary shared by the plugin body and the optional Web
  * settings route: the binding schema, the settings-section schema, and the
  * namespace identity.
- * @module @dsh-plugins/balance-vendors/settings
+ * @module @dsh-plugins/balance/settings
  */
 
 import z from '@deepseek-ai/schemastery'

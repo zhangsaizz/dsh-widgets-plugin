@@ -21,3 +21,6 @@ Thumbs.db
 
 # --- pack / publish artifacts ---
 *.tgz
+
+# --- local desktop integration metadata ---
+.reasonix/

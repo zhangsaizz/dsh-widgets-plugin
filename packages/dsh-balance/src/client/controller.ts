@@ -5,7 +5,7 @@
  * `balance/query`; this controller only decides WHEN to ask and WHERE the
  * answer lands.
  *
- * @module @dsh-plugins/client-ui-balance/client/controller
+ * @module @dsh-plugins/balance/client/controller
  */
 
 import type {
@@ -15,7 +15,7 @@ import type { ISessions, SnapshotStore } from '@deepseek-ai/dsh-client-runtime/c
 import { createSnapshotStore } from '@deepseek-ai/dsh-client-runtime/client'
 import type { HostObservable } from '@deepseek-ai/dsh-client-ui-slots'
 import type { RemoteResult } from '@deepseek-ai/dsh-typert-protocol'
-import type { BalanceListEntry, BalanceListResult, BalanceQueryResult } from '@dsh-plugins/balance/types'
+import type { BalanceListEntry, BalanceListResult, BalanceQueryResult } from '../types.ts'
 
 /** The narrow generated-Remote face this controller reads. */
 export interface BalanceRemote {

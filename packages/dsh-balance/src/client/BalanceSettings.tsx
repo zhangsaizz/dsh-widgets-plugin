@@ -6,7 +6,7 @@
  */
 
 import { useCallback, useEffect, useState } from 'react'
-import type { BalanceBindingConfig } from '@dsh-plugins/balance/types'
+import type { BalanceBindingConfig } from '../types.ts'
 import type { TranslateNS } from '@deepseek-ai/dsh-client-ui-slots'
 import css from './BalanceSettings.module.css'
 
@@ -18,7 +18,7 @@ export interface BalanceSettingsInjected {
 /** The vendor types the settings page offers for a manual binding. */
 const VENDOR_TYPES: readonly string[] = ['new-api', 'deepseek', 'moonshot', 'openrouter', 'siliconflow']
 
-/** Same-origin Web route served by the balance-vendors plugin. */
+/** Same-origin Web route served by the balance plugin. */
 const SETTINGS_ROUTE = '/_dsh/balance/settings'
 
 /** One binding as returned by the redacted snapshot (inline credential hidden). */

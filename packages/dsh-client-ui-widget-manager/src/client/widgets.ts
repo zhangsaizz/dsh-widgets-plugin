@@ -26,7 +26,7 @@ export interface WidgetDescriptor {
 export const WIDGET_CATALOG: readonly WidgetDescriptor[] = [
   {
     id: 'balance',
-    packageName: '@dsh-plugins/client-ui-balance',
+    packageName: '@dsh-plugins/balance',
     nameKey: 'balanceName',
     descriptionKey: 'balanceDescription',
   },

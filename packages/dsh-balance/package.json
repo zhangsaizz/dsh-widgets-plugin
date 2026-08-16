@@ -1,6 +1,6 @@
 {
   "name": "@dsh-plugins/balance",
-  "description": "Balance capability seam (host): provider-bound model-account balance over the balance/query + balance/list Remotes",
+  "description": "The balance plugin in one package: ctx.balance capability seam (balance/query + balance/list Remotes), shipped vendor providers, provider-bindings settings + Web route, and the floating Web balance dashboard",
   "version": "0.1.0",
   "license": "MIT",
   "publishConfig": {
@@ -15,12 +15,17 @@
     "./types": { "types": "./lib/types/types.d.ts", "default": "./lib/types/types.js" },
     "./typert": { "types": "./lib/typert.host.d.ts", "default": "./lib/typert.host.js" },
     "./remote": { "types": "./lib/typert.remote-client.d.ts", "default": "./lib/typert.remote-client.js" },
-    "./client": { "default": "./lib/client.js" },
+    "./client": { "types": "./lib/types/client/index.d.ts", "default": "./lib/client.js" },
     "./package.json": "./package.json"
   },
   "dsh": {
     "client": {
-      "inject": ["@deepseek-ai/dsh-api-remotes"],
+      "inject": [
+        "@deepseek-ai/dsh-client-runtime",
+        "@deepseek-ai/dsh-api-remotes",
+        "@deepseek-ai/dsh-client-locale",
+        "@deepseek-ai/dsh-client-ui-layout"
+      ],
       "platform": "web"
     }
   },
@@ -28,13 +33,21 @@
     "lib"
   ],
   "dependencies": {
+    "@deepseek-ai/dsh-settings": "^0.1.0-rc.5",
     "@deepseek-ai/schemastery": "^3.18.1",
     "zod": "^4.4.3"
   },
   "peerDependencies": {
+    "@dsh-plugins/client-ui-widget-manager": "workspace:*",
     "@deepseek-ai/cordis": "^4.0.1",
+    "@deepseek-ai/dsh-api-remotes": "^0.1.0-rc.5",
+    "@deepseek-ai/dsh-client-locale": "^0.1.0-rc.5",
+    "@deepseek-ai/dsh-client-runtime": "^0.1.0-rc.5",
+    "@deepseek-ai/dsh-client-ui-layout": "^0.1.0-rc.5",
+    "@deepseek-ai/dsh-client-ui-slots": "^0.1.0-rc.5",
     "@deepseek-ai/dsh-credentials": "^0.1.0-rc.5",
     "@deepseek-ai/dsh-invariants": "^0.1.0-rc.5",
-    "@deepseek-ai/dsh-typert-protocol": "^0.1.0-rc.5"
+    "@deepseek-ai/dsh-typert-protocol": "^0.1.0-rc.5",
+    "react": "^18.2.0"
   }
 }

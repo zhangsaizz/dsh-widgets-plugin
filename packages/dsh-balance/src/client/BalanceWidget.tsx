@@ -11,7 +11,7 @@ import type { CSSProperties, PointerEvent as ReactPointerEvent } from 'react'
 import type {
   InjectFace, PropsLocale, PropsRuntime, PropsStore, TranslateNS,
 } from '@deepseek-ai/dsh-client-ui-slots'
-import type { BalanceAccount, BalanceListEntry, BalanceQueryResult, BalanceTrend } from '@dsh-plugins/balance/types'
+import type { BalanceAccount, BalanceListEntry, BalanceQueryResult, BalanceTrend } from '../types.ts'
 import type { BalanceController, BalanceViewState } from './controller.ts'
 import { MAX_SCALE, MIN_SCALE } from './store.ts'
 import type { createBalanceViewStore } from './store.ts'

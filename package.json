@@ -3,12 +3,11 @@
   "private": true,
   "version": "0.1.0",
   "type": "module",
-  "description": "A collection of small DeepSeek Harness widgets (挂件): balance dashboard, token crit meter, their host seam / vendors, and an installable bundle",
+  "description": "A collection of small DeepSeek Harness widgets (挂件): the merged balance plugin (seam + vendors + dashboard), token crit meter, the widgets manager, and an installable bundle",
   "license": "MIT",
   "files": [],
   "scripts": {
     "build": "node scripts/build.mjs",
-    "sync": "node scripts/sync.mjs",
     "publish:all": "pnpm -r publish --no-git-checks"
   },
   "devDependencies": {

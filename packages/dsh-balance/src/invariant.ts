@@ -15,10 +15,12 @@ export const inject = ['invariants']
  * No runtime invariant: the balance registry has one private writer
  * ({@link BalanceRuntime.register}/{@link BalanceRuntime.query}), route
  * uniqueness and provider metadata are enforced all-or-nothing at
- * registration, and the credential value never crosses a log or wire surface,
- * so no second authority exists to check at runtime.
+ * registration, the credential value never crosses a log or wire surface, and
+ * the widget's slot registration, controller (timer and subscriptions) and
+ * config panel are all released by the owning fiber's effect disposers, so no
+ * second authority exists to check at runtime.
  */
-const install: InvariantInstaller = Object.assign(() => {}, { inject: ['balance'] })
+const install: InvariantInstaller = () => {}
 
 /**
  * Register this package's invariant companion.

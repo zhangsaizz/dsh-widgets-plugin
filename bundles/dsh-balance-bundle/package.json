@@ -1,6 +1,6 @@
 {
   "name": "@dsh-plugins/balance-bundle",
-  "description": "Installable dsh bundle: mounts the balance seam, its vendors, the web balance dashboard, and the token-crit widget in one layer",
+  "description": "Installable dsh bundle: mounts the one balance plugin (seam + vendors + web dashboard), the token-crit widget, and the widgets manager in one layer",
   "version": "0.1.0",
   "license": "MIT",
   "publishConfig": {
@@ -21,8 +21,6 @@
   ],
   "dependencies": {
     "@dsh-plugins/balance": "workspace:*",
-    "@dsh-plugins/balance-vendors": "workspace:*",
-    "@dsh-plugins/client-ui-balance": "workspace:*",
     "@dsh-plugins/client-ui-token-crit": "workspace:*",
     "@dsh-plugins/client-ui-widget-manager": "workspace:*"
   }

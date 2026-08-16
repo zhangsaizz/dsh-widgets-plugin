@@ -3,7 +3,7 @@
  * GET returns a redacted snapshot (inline credential values never reach the
  * browser); POST persists the bindings through the settings seam directly,
  * bypassing the host-apiproxy configuration allowlist.
- * @module @dsh-plugins/balance-vendors/web
+ * @module @dsh-plugins/balance/web
  */
 
 import { BALANCE_SETTINGS_NS } from './settings.ts'
@@ -162,6 +162,6 @@ export function installBalanceWeb(ctx, backend) {
         handler: (req, res) => backend.handle(req, res),
       })
       return () => dispose()
-    }, 'balance-vendors: settings web route')
+    }, 'balance: settings web route')
   })
 }

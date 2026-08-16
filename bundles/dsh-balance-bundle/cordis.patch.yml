@@ -1,17 +1,12 @@
-# The widgets bundle layer: inserts the host balance seam, the shipped
-# vendors (with user-managed bindings from the `balance` settings section),
-# the web balance dashboard (its provider bindings configured from the
-# Widgets manager's Configure dialog), the floating token-crit meter, and
-# the Widgets manager settings page.
+# The widgets bundle layer: inserts the one balance plugin (host balance seam
+# + shipped vendors + web balance dashboard + its provider-bindings config
+# panel, configured from the Widgets manager's Configure dialog), the floating
+# token-crit meter, and the Widgets manager settings page.
 - insert:
     - id: balance
       name: '@dsh-plugins/balance'
       config:
         requestTimeoutMs: 10000
-
-    - id: balance-vendors
-      name: '@dsh-plugins/balance-vendors'
-      config:
         # New API is self-hosted; point the /api/user/self balance query at the instance.
         newApiBaseURL: http://localhost:3000
         # Fill credentials directly here. Each entry answers one provider route;
@@ -27,9 +22,6 @@
         #   - provider: deepseek-official
         #     vendor: deepseek
         #     credentialRef: DEEPSEEK_API_KEY
-
-    - id: ui-balance
-      name: '@dsh-plugins/client-ui-balance'
 
     - id: ui-token-crit
       name: '@dsh-plugins/client-ui-token-crit'

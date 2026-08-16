@@ -4,7 +4,7 @@
  * inject hooks compartment; this store carries only what the widget itself
  * chooses (and persists across reloads).
  *
- * @module @dsh-plugins/client-ui-balance/client/store
+ * @module @dsh-plugins/balance/client/store
  */
 
 import { defineStore, type EngineStoreHandle } from '@deepseek-ai/dsh-client-runtime/client'

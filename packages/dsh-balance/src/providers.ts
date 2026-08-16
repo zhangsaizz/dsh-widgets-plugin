@@ -9,11 +9,11 @@
  * response it normalizes into {@link BalanceAccountData}. The credential value
  * never enters an error message or log.
  *
- * @module @dsh-plugins/balance-vendors
+ * @module @dsh-plugins/balance
  */
 
-import { BalanceProvider } from '@dsh-plugins/balance'
-import type { BalanceAccountData, BalanceProviderInfo } from '@dsh-plugins/balance'
+import { BalanceProvider } from './provider.ts'
+import type { BalanceAccountData, BalanceProviderInfo } from './provider.ts'
 
 /** Fetch one JSON document with a Bearer key, translating transport failure to a bounded message. */
 async function getJson(url: string, credential: string, signal: AbortSignal | undefined): Promise<unknown> {
