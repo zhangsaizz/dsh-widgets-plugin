@@ -7,10 +7,20 @@
  * floating input/output damage numbers, particles, a combo counter, edge
  * flash and an optional sound — whenever usage grows. All tuning lives in a
  * small hover-revealed settings panel.
+ *
+ * Rendering split (hybrid):
+ *  - the badge text (number/label), drag/resize handles and the settings
+ *    panel stay in DOM/CSS — crisp text, theming variables, accessibility;
+ *  - the transient effects (floating numbers, tags, burst particles, ambient
+ *    embers, combo pop) are drawn imperatively on a <canvas> overlay by the
+ *    TokenCritFx engine, fully outside React's render cycle;
+ *  - the number roll writes the badge text directly via a ref (textContent)
+ *    instead of re-rendering the component every frame.
  */
 
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { CSSProperties, PointerEvent as ReactPointerEvent } from 'react'
+import { TokenCritFx, fmt } from './TokenCritFx'
 import css from './TokenCritWidget.module.css'
 
 /** Cumulative token-usage projection value (from the token-meter). */
@@ -19,37 +29,6 @@ interface TokenUsage {
   outputTokens?: number
   cacheReadTokens?: number
   cacheWriteTokens?: number
-}
-
-/** One floating damage number. */
-interface CritItem {
-  id: string
-  kind: 'in' | 'out'
-  delta: number
-  hue: number
-  size: number
-  big: boolean
-}
-
-/** One burst particle. */
-interface Particle {
-  id: string
-  dx: number
-  dy: number
-  hue: number
-  size: number
-}
-
-/** Ambient ember spec. */
-interface AmbientSpec {
-  left: number
-  top: number
-  size: string
-  hue: number
-  dx: number
-  dy: number
-  dur: string
-  delay: string
 }
 
 /** Pointer-drag state. */
@@ -63,11 +42,6 @@ interface DragState {
   startScale: number
 }
 
-function fmt(n: number): string {
-  const v = Math.round(Number(n) || 0)
-  return String(v).replace(/\B(?=(\d{3})+(?!\d))/g, ',')
-}
-
 function compact(n: number): string {
   if (n >= 1e9) return (n / 1e9).toFixed(1).replace(/\.0$/, '') + 'B'
   if (n >= 1e6) return (n / 1e6).toFixed(1).replace(/\.0$/, '') + 'M'
@@ -77,31 +51,6 @@ function compact(n: number): string {
 
 function clamp(v: number, lo: number, hi: number): number {
   return v < lo ? lo : v > hi ? hi : v
-}
-
-function hueRange(color: string): [number, number] {
-  if (color === 'cyan') return [180, 210]
-  if (color === 'purple') return [260, 290]
-  if (color === 'multi') return [0, 360]
-  return [28, 62]
-}
-
-function makeAmbient(count: number, color: string): AmbientSpec[] {
-  const r = hueRange(color)
-  const arr: AmbientSpec[] = []
-  for (let i = 0; i < count; i++) {
-    arr.push({
-      left: Math.round(10 + Math.random() * 80),
-      top: Math.round(35 + Math.random() * 55),
-      size: (1.5 + Math.random() * 2.5).toFixed(1),
-      hue: Math.round(r[0] + Math.random() * (r[1] - r[0])),
-      dx: Math.round((Math.random() * 2 - 1) * 16),
-      dy: Math.round(-(26 + Math.random() * 28)),
-      dur: (2.6 + Math.random() * 2.4).toFixed(2),
-      delay: (Math.random() * 4).toFixed(2),
-    })
-  }
-  return arr
 }
 
 function selectUsage(s: any): TokenUsage | undefined {
@@ -128,6 +77,162 @@ function loadScale(): number {
   }
 }
 
+/** Keep the widget's top-left inside the viewport (with a small margin). */
+function clampToViewport(x: number, y: number, w: number, h: number): { x: number; y: number } {
+  const m = 6
+  return {
+    x: Math.round(clamp(x, m, Math.max(m, window.innerWidth - w - m))),
+    y: Math.round(clamp(y, m, Math.max(m, window.innerHeight - h - m))),
+  }
+}
+
+/**
+ * Position the settings panel: attach it to the widget (aligned to its left,
+ * just below it), then clamp both axes to the viewport using the panel's own
+ * width/height so it never overflows the screen edge.
+ */
+function computePanelPos(rect: DOMRect, panelW: number, panelH: number): { x: number; y: number } {
+  const m = 8
+  return {
+    x: Math.round(clamp(Math.round(rect.left), m, Math.max(m, window.innerWidth - panelW - m))),
+    y: Math.round(clamp(Math.round(rect.bottom + 10), m, Math.max(m, window.innerHeight - panelH - m))),
+  }
+}
+
+/** Every panel option, persisted to localStorage as one JSON blob. */
+interface WidgetSettings {
+  critAbs: number
+  critRatio: number
+  lang: string
+  showTags: boolean
+  soundOn: boolean
+  edgeOn: boolean
+  ambientOn: boolean
+  ambientCount: number
+  particleColor: string
+  numSize: number
+  numFormat: string
+  comboOn: boolean
+  /** Background adaptation: auto-detect, or force light/dark. */
+  themeMode: 'auto' | 'light' | 'dark'
+  /** Neon flicker intensity: off / low / med / high. */
+  flickerLevel: 'off' | 'low' | 'med' | 'high'
+  /** Glitch (random chars) intensity: off / low / med / high. */
+  glitchLevel: 'off' | 'low' | 'med' | 'high'
+}
+
+const DEFAULT_SETTINGS: WidgetSettings = {
+  critAbs: 4000,
+  critRatio: 0.12,
+  lang: 'zh',
+  showTags: true,
+  soundOn: false,
+  edgeOn: true,
+  ambientOn: true,
+  ambientCount: 7,
+  particleColor: 'cyan',
+  numSize: 14,
+  numFormat: 'full',
+  comboOn: true,
+  themeMode: 'auto',
+  flickerLevel: 'med',
+  glitchLevel: 'med',
+}
+
+/** Read persisted settings, validating types and clamping ranges. */
+function loadSettings(): WidgetSettings {
+  try {
+    const raw = window.localStorage.getItem('dsh.tcrit.settings')
+    if (!raw) return DEFAULT_SETTINGS
+    const s: any = JSON.parse(raw)
+    if (!s || typeof s !== 'object') return DEFAULT_SETTINGS
+    const out: WidgetSettings = { ...DEFAULT_SETTINGS }
+    if (typeof s.critAbs === 'number') out.critAbs = clamp(Math.round(s.critAbs), 500, 20000)
+    if (typeof s.critRatio === 'number') out.critRatio = clamp(s.critRatio, 0.02, 0.3)
+    if (s.lang === 'zh' || s.lang === 'en') out.lang = s.lang
+    if (typeof s.showTags === 'boolean') out.showTags = s.showTags
+    if (typeof s.soundOn === 'boolean') out.soundOn = s.soundOn
+    if (typeof s.edgeOn === 'boolean') out.edgeOn = s.edgeOn
+    if (typeof s.ambientOn === 'boolean') out.ambientOn = s.ambientOn
+    if (typeof s.ambientCount === 'number') out.ambientCount = clamp(Math.round(s.ambientCount), 3, 16)
+    if (['gold', 'cyan', 'purple', 'multi'].includes(s.particleColor)) out.particleColor = s.particleColor
+    if (typeof s.numSize === 'number') out.numSize = clamp(Math.round(s.numSize), 10, 22)
+    if (s.numFormat === 'full' || s.numFormat === 'compact') out.numFormat = s.numFormat
+    if (typeof s.comboOn === 'boolean') out.comboOn = s.comboOn
+    if (s.themeMode === 'auto' || s.themeMode === 'light' || s.themeMode === 'dark') out.themeMode = s.themeMode
+    if (s.flickerLevel === 'off' || s.flickerLevel === 'low' || s.flickerLevel === 'med' || s.flickerLevel === 'high') out.flickerLevel = s.flickerLevel
+    if (s.glitchLevel === 'off' || s.glitchLevel === 'low' || s.glitchLevel === 'med' || s.glitchLevel === 'high') out.glitchLevel = s.glitchLevel
+    return out
+  } catch {
+    return DEFAULT_SETTINGS
+  }
+}
+
+/** Approximate relative luminance (0..1) of a hex/rgb() color string. */
+function parseColorLuminance(color: string): number | null {
+  const hex = color.trim().match(/^#([0-9a-f]{3}|[0-9a-f]{6})$/i)
+  if (hex) {
+    let h = hex[1]
+    if (h.length === 3) h = h.split('').map((c) => c + c).join('')
+    const r = parseInt(h.slice(0, 2), 16) / 255
+    const g = parseInt(h.slice(2, 4), 16) / 255
+    const b = parseInt(h.slice(4, 6), 16) / 255
+    return 0.2126 * r + 0.7152 * g + 0.0722 * b
+  }
+  const rgb = color.trim().match(/^rgba?\(\s*(\d+)[,\s]+(\d+)[,\s]+(\d+)/i)
+  if (rgb) {
+    const r = Number(rgb[1]) / 255
+    const g = Number(rgb[2]) / 255
+    const b = Number(rgb[3]) / 255
+    return 0.2126 * r + 0.7152 * g + 0.0722 * b
+  }
+  return null
+}
+
+/**
+ * Detect whether the widget sits on a light background. The host theme's
+ * surface variables may live on an app container rather than <html>, so we
+ * climb from the widget's anchor element through its ancestors: first any
+ * theme surface variable, then the first real (non-transparent) background
+ * color. Falls back to the OS color-scheme preference.
+ */
+function detectLightTheme(anchorEl: HTMLElement | null): boolean {
+  try {
+    let el: HTMLElement | null = anchorEl
+    while (el) {
+      const cs = getComputedStyle(el)
+      for (const prop of ['--dsw-alias-bg-overlay', '--dsw-alias-bg-layer-2', '--dsw-alias-bg-layer-1']) {
+        const lum = parseColorLuminance(cs.getPropertyValue(prop))
+        if (lum !== null) return lum > 0.6
+      }
+      const bgLum = parseColorLuminance(cs.backgroundColor)
+      if (bgLum !== null && bgLum > 0) return bgLum > 0.6
+      el = el.parentElement
+    }
+  } catch { /* ignore */ }
+  return window.matchMedia('(prefers-color-scheme: light)').matches
+}
+
+/** Map the panel's flicker level to engine timings. */
+function flickerLevelConfig(level: string) {
+  switch (level) {
+    case 'off': return { flickerOn: false, flickerMin: 1, flickerMax: 1, dipMin: 1, dipMax: 1 }
+    case 'low': return { flickerOn: true, flickerMin: 3000, flickerMax: 6000, dipMin: 0.55, dipMax: 0.75 }
+    case 'high': return { flickerOn: true, flickerMin: 800, flickerMax: 2500, dipMin: 0.35, dipMax: 0.65 }
+    default: return { flickerOn: true, flickerMin: 1400, flickerMax: 4200, dipMin: 0.45, dipMax: 0.72 }
+  }
+}
+
+/** Map the panel's glitch level to engine probabilities. */
+function glitchLevelConfig(level: string) {
+  switch (level) {
+    case 'off': return { glitchOn: false, glitchChance: 0, glitchMaxBursts: 0, glitchRatio: 0 }
+    case 'low': return { glitchOn: true, glitchChance: 0.03, glitchMaxBursts: 1, glitchRatio: 0.35 }
+    case 'high': return { glitchOn: true, glitchChance: 0.12, glitchMaxBursts: 3, glitchRatio: 0.75 }
+    default: return { glitchOn: true, glitchChance: 0.06, glitchMaxBursts: 2, glitchRatio: 0.55 }
+  }
+}
+
 export function TokenCritWidget(props: { useSessions: (sel: (s: any) => any) => any }) {
   const usage = props.useSessions(selectUsage)
 
@@ -138,47 +243,164 @@ export function TokenCritWidget(props: { useSessions: (sel: (s: any) => any) => 
   const total = input + output
 
   const anchorRef = useRef<HTMLDivElement | null>(null)
+  const canvasRef = useRef<HTMLCanvasElement | null>(null)
+  const numRef = useRef<HTMLSpanElement | null>(null)
+  const labelRef = useRef<HTMLSpanElement | null>(null)
+  const panelRef = useRef<HTMLDivElement | null>(null)
+  const fxRef = useRef<TokenCritFx | null>(null)
   const dragRef = useRef<DragState | null>(null)
   const movedRef = useRef(false)
   const shownRef = useRef(0)
+  const numFormatRef = useRef('full')
   const prevRef = useRef({ input: 0, output: 0, seen: false })
   const lastGrowthRef = useRef(0)
   const comboTimerRef = useRef<number | null>(null)
-  const boostTimerRef = useRef<number | null>(null)
   const audioRef = useRef<any>(null)
 
   const [pos, setPos] = useState<{ x: number; y: number } | null>(loadPos)
   const [scale, setScale] = useState(loadScale)
   const [dragging, setDragging] = useState(false)
   const [collapsed, setCollapsed] = useState(false)
+  const [dotText, setDotText] = useState('0')
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [panelPos, setPanelPos] = useState<{ x: number; y: number } | null>(null)
-  const [shown, setShown] = useState(0)
-  const [crits, setCrits] = useState<CritItem[]>([])
-  const [particles, setParticles] = useState<Particle[]>([])
   const [critKey, setCritKey] = useState(0)
   const [combo, setCombo] = useState(0)
-  const [comboKey, setComboKey] = useState(0)
   const [edgeKey, setEdgeKey] = useState(0)
-  const [boost, setBoost] = useState(false)
 
-  const [critAbs, setCritAbs] = useState(4000)
-  const [critRatio, setCritRatio] = useState(0.12)
-  const [lang, setLang] = useState('zh')
-  const [showTags, setShowTags] = useState(true)
-  const [soundOn, setSoundOn] = useState(false)
-  const [edgeOn, setEdgeOn] = useState(true)
-  const [ambientOn, setAmbientOn] = useState(true)
-  const [ambientCount, setAmbientCount] = useState(7)
-  const [particleColor, setParticleColor] = useState('gold')
-  const [numSize, setNumSize] = useState(14)
-  const [numFormat, setNumFormat] = useState('full')
-  const [comboOn, setComboOn] = useState(true)
+  // Settings load from localStorage once per mount (validated by loadSettings).
+  const initial = useMemo(loadSettings, [])
 
-  const ambientParts = useMemo(
-    () => (ambientOn ? makeAmbient(ambientCount, particleColor) : []),
-    [ambientOn, ambientCount, particleColor],
-  )
+  const [critAbs, setCritAbs] = useState(initial.critAbs)
+  const [critRatio, setCritRatio] = useState(initial.critRatio)
+  const [lang, setLang] = useState(initial.lang)
+  const [showTags, setShowTags] = useState(initial.showTags)
+  const [soundOn, setSoundOn] = useState(initial.soundOn)
+  const [edgeOn, setEdgeOn] = useState(initial.edgeOn)
+  const [ambientOn, setAmbientOn] = useState(initial.ambientOn)
+  const [ambientCount, setAmbientCount] = useState(initial.ambientCount)
+  const [particleColor, setParticleColor] = useState(initial.particleColor)
+  const [numSize, setNumSize] = useState(initial.numSize)
+  const [numFormat, setNumFormat] = useState(initial.numFormat)
+  const [comboOn, setComboOn] = useState(initial.comboOn)
+  const [themeMode, setThemeMode] = useState<'auto' | 'light' | 'dark'>(initial.themeMode)
+  const [flickerLevel, setFlickerLevel] = useState<'off' | 'low' | 'med' | 'high'>(initial.flickerLevel)
+  const [glitchLevel, setGlitchLevel] = useState<'off' | 'low' | 'med' | 'high'>(initial.glitchLevel)
+
+  // Effective light-background mode: manual override, else auto-detect by
+  // climbing the anchor's ancestor chain for the host theme's surfaces.
+  // Initial detection falls back to prefers-color-scheme (the anchor ref is
+  // not mounted yet); re-detect once the anchor exists after mount.
+  const [detectedLight, setDetectedLight] = useState(() => detectLightTheme(null))
+  useEffect(() => {
+    setDetectedLight(detectLightTheme(anchorRef.current))
+  }, [])
+  const light = themeMode === 'light' ? true : themeMode === 'dark' ? false : detectedLight
+
+  // Canvas effects engine lifecycle: attach to the overlay canvas, keep the
+  // badge size cache in sync (the badge width changes while the number rolls).
+  useEffect(() => {
+    const fx = (fxRef.current ??= new TokenCritFx())
+    const canvas = canvasRef.current
+    if (!canvas) return
+    fx.attach(canvas)
+    const el = anchorRef.current
+    let size = { w: 0, h: 0 }
+    const measure = () => {
+      if (!el) return
+      const w = el.offsetWidth
+      const h = el.offsetHeight
+      if (w !== size.w || h !== size.h) {
+        size = { w, h }
+        fx.setBadgeSize(w, h)
+      }
+    }
+    measure()
+    if (typeof ResizeObserver === 'undefined') return () => fx.detach()
+    const ro = new ResizeObserver(measure)
+    if (el) ro.observe(el)
+    return () => {
+      ro.disconnect()
+      fx.detach()
+    }
+  }, [])
+
+  // Keep the canvas backing store matched to the widget scale, so the bitmap
+  // is never sampled at a non-1:1 ratio (blurry canvas text).
+  useEffect(() => {
+    fxRef.current?.setResolution(scale)
+  }, [scale])
+
+  // Pause the effect layer while collapsed into the dot.
+  useEffect(() => {
+    const fx = fxRef.current
+    if (!fx) return
+    if (collapsed) fx.hide()
+    else fx.show()
+  }, [collapsed])
+
+  // Drive the neon flicker: attach the number + label elements to the engine,
+  // re-attaching whenever the badge remounts (every usage growth bumps the
+  // badge key) and detaching while collapsed into the dot.
+  useEffect(() => {
+    const fx = fxRef.current
+    if (!fx) return
+    fx.attachNeon(collapsed ? null : numRef.current, collapsed ? null : labelRef.current)
+    return () => fx.attachNeon(null, null)
+  }, [collapsed, critKey])
+
+  // Keep the engine's light/dark palette in sync with the theme.
+  useEffect(() => {
+    fxRef.current?.setLight(light)
+  }, [light])
+
+  // Push the neon flicker / glitch tuning to the engine.
+  useEffect(() => {
+    fxRef.current?.setNeonFx({ ...flickerLevelConfig(flickerLevel), ...glitchLevelConfig(glitchLevel) })
+  }, [flickerLevel, glitchLevel])
+
+  // The settings panel snaps to the widget: reposition it whenever the widget
+  // moves/resizes while open, and clamp to the viewport using the panel's
+  // real size (re-run after the panel mounts so its measured height applies).
+  useEffect(() => {
+    if (!settingsOpen) return
+    const rect = anchorRef.current?.getBoundingClientRect()
+    if (!rect) return
+    const w = panelRef.current?.offsetWidth ?? 264
+    const h = panelRef.current?.offsetHeight ?? 320
+    const next = computePanelPos(rect, w, h)
+    setPanelPos((prev) => (prev && prev.x === next.x && prev.y === next.y ? prev : next))
+  }, [settingsOpen, pos, scale, panelPos, window.innerWidth, window.innerHeight])
+
+  // On expand, restore the badge number from the ref-tracked value.
+  useEffect(() => {
+    if (collapsed) return
+    if (numRef.current) {
+      numRef.current.textContent = numFormatRef.current === 'compact' ? compact(shownRef.current) : fmt(shownRef.current)
+    }
+  }, [collapsed])
+
+  // Keep the format in sync and rewrite the badge text when it changes.
+  useEffect(() => {
+    numFormatRef.current = numFormat
+    if (numRef.current) {
+      numRef.current.textContent = numFormat === 'compact' ? compact(shownRef.current) : fmt(shownRef.current)
+    }
+  }, [numFormat])
+
+  // (Re)seed the ambient embers on the canvas.
+  useEffect(() => {
+    const fx = fxRef.current
+    if (!fx) return
+    fx.setAmbient(ambientOn ? ambientCount : 0, particleColor)
+  }, [ambientOn, ambientCount, particleColor])
+
+  // Combo pop goes to the canvas too.
+  useEffect(() => {
+    const fx = fxRef.current
+    if (!fx || !comboOn || combo < 2) return
+    fx.setCombo(lang === 'zh' ? `×${combo} 连击` : `×${combo} COMBO`)
+  }, [combo, comboOn, lang])
 
   useEffect(() => {
     try {
@@ -186,15 +408,35 @@ export function TokenCritWidget(props: { useSessions: (sel: (s: any) => any) => 
     } catch { /* storage unavailable */ }
   }, [pos])
 
+  // Pull a stored position back into the viewport if the window changed
+  // since the last session, and re-clamp whenever the window resizes.
+  useEffect(() => {
+    if (!pos) return
+    const rect = anchorRef.current?.getBoundingClientRect()
+    if (!rect) return
+    const p = clampToViewport(pos.x, pos.y, rect.width, rect.height)
+    if (p.x !== pos.x || p.y !== pos.y) setPos(p)
+  }, [pos, window.innerWidth, window.innerHeight])
+
   useEffect(() => {
     try {
       window.localStorage.setItem('dsh.tcrit.scale', String(scale))
     } catch { /* storage unavailable */ }
   }, [scale])
 
+  // Persist every panel option as one JSON blob (survives page reloads).
+  useEffect(() => {
+    try {
+      window.localStorage.setItem('dsh.tcrit.settings', JSON.stringify({
+        critAbs, critRatio, lang, showTags, soundOn, edgeOn, ambientOn,
+        ambientCount, particleColor, numSize, numFormat, comboOn, themeMode,
+        flickerLevel, glitchLevel,
+      }))
+    } catch { /* storage unavailable */ }
+  }, [critAbs, critRatio, lang, showTags, soundOn, edgeOn, ambientOn, ambientCount, particleColor, numSize, numFormat, comboOn, themeMode, flickerLevel, glitchLevel])
+
   useEffect(() => () => {
     if (comboTimerRef.current !== null) clearTimeout(comboTimerRef.current)
-    if (boostTimerRef.current !== null) clearTimeout(boostTimerRef.current)
   }, [])
 
   function playCritSound() {
@@ -219,40 +461,47 @@ export function TokenCritWidget(props: { useSessions: (sel: (s: any) => any) => 
     } catch { /* audio unavailable */ }
   }
 
-  function tagText(c: CritItem): string | null {
-    if (c.big) return lang === 'zh' ? '暴击!' : 'CRIT!'
-    if (!showTags) return null
-    return lang === 'zh' ? (c.kind === 'in' ? '输入' : '输出') : (c.kind === 'in' ? 'IN' : 'OUT')
-  }
-
-  function spawnPop(kind: 'in' | 'out', delta: number) {
-    const big = kind === 'out' && (delta >= critAbs || delta >= total * critRatio)
-    const hue = kind === 'out' ? (big ? 6 : 35) : 200
-    const size = kind === 'out' ? (big ? 20 + Math.random() * 8 : 15 + Math.random() * 8) : 13 + Math.random() * 6
-    const id = 'c' + Date.now().toString(36) + Math.random().toString(36).slice(2, 7)
-    setCrits((arr) => arr.concat({ id, kind, delta, hue, size, big }))
-    window.setTimeout(() => setCrits((arr) => arr.filter((c) => c.id !== id)), 1600)
-
+  function spawnPop(kind: 'in' | 'out', delta: number, forceBig = false) {
+    const fx = fxRef.current
+    if (!fx) return
+    const big = forceBig || (kind === 'out' && (delta >= critAbs || delta >= total * critRatio))
+    // Cyberpunk palette: input = cyan, output = magenta, big crit = hot pink.
+    const hue = kind === 'out' ? (big ? 325 : 305) : 185
+    const size = kind === 'out' ? (big ? 24 + Math.random() * 10 : 15 + Math.random() * 8) : 13 + Math.random() * 6
+    const tag = big
+      ? (lang === 'zh' ? '暴击!' : 'CRIT!')
+      : showTags
+        ? (lang === 'zh' ? (kind === 'in' ? '输入' : '输出') : (kind === 'in' ? 'IN' : 'OUT'))
+        : null
+    fx.spawnFloat({ kind, delta, hue, size, big, tag })
+    fx.spawnBurst(hue, big)
     if (big) {
       if (edgeOn) setEdgeKey((k) => k + 1)
       if (soundOn) playCritSound()
     }
+  }
 
-    const n = big ? 18 : 11 + Math.floor(Math.random() * 6)
-    const parts: Particle[] = []
-    for (let i = 0; i < n; i++) {
-      const angle = (Math.PI * 2 * i) / n + Math.random() * 0.7
-      const dist = 22 + Math.random() * (big ? 52 : 34)
-      parts.push({
-        id: id + '-p' + i,
-        dx: Math.round(Math.cos(angle) * dist),
-        dy: Math.round(Math.sin(angle) * dist),
-        hue: hue + Math.round(Math.random() * 30 - 15),
-        size: Math.round(3 + Math.random() * (big ? 7 : 5)),
-      })
-    }
-    setParticles((arr) => arr.concat(parts))
-    window.setTimeout(() => setParticles((arr) => arr.filter((p) => !p.id.startsWith(id))), 900)
+  /**
+   * Settings-panel demo trigger: replays a full crit sequence (big output
+   * crit → input hit → combo pop) without touching the real counter. Respects
+   * the sound / edge-glow / combo toggles.
+   */
+  function runTest() {
+    const fx = fxRef.current
+    if (!fx) return
+    const now = Date.now()
+    const last = lastGrowthRef.current
+    // Chain into the real combo counter so the demo integrates with the widget.
+    setCombo((c) => (now - last < 1600 ? c + 1 : 1))
+    lastGrowthRef.current = now
+    if (comboTimerRef.current !== null) clearTimeout(comboTimerRef.current)
+    comboTimerRef.current = window.setTimeout(() => setCombo(0), 1600)
+    fx.setBoost(true)
+    spawnPop('out', 8888, true)
+    window.setTimeout(() => {
+      spawnPop('in', 3456)
+      if (comboOn) fx.setCombo(lang === 'zh' ? '×2 连击' : '×2 COMBO')
+    }, 550)
   }
 
   useEffect(() => {
@@ -268,17 +517,15 @@ export function TokenCritWidget(props: { useSessions: (sel: (s: any) => any) => 
       const last = lastGrowthRef.current
       setCombo((c) => (now - last < 1600 ? c + 1 : 1))
       lastGrowthRef.current = now
-      setComboKey((k) => k + 1)
       if (comboTimerRef.current !== null) clearTimeout(comboTimerRef.current)
       comboTimerRef.current = window.setTimeout(() => setCombo(0), 1600)
 
-      setBoost(true)
-      if (boostTimerRef.current !== null) clearTimeout(boostTimerRef.current)
-      boostTimerRef.current = window.setTimeout(() => setBoost(false), 900)
+      fxRef.current?.setBoost(true)
     }
     if (outputDelta > 0) spawnPop('out', outputDelta)
     if (inputDelta > 0) spawnPop('in', inputDelta)
 
+    // Roll the displayed number; write straight to the span, no re-render.
     const from = shownRef.current
     if (total === from) return
     const start = performance.now()
@@ -289,7 +536,9 @@ export function TokenCritWidget(props: { useSessions: (sel: (s: any) => any) => 
       const eased = 1 - Math.pow(1 - t, 3)
       const val = Math.round(from + (total - from) * eased)
       shownRef.current = val
-      setShown(val)
+      if (numRef.current) {
+        numRef.current.textContent = numFormatRef.current === 'compact' ? compact(val) : fmt(val)
+      }
       if (t < 1) frame = requestAnimationFrame(tick)
     }
     frame = requestAnimationFrame(tick)
@@ -323,7 +572,15 @@ export function TokenCritWidget(props: { useSessions: (sel: (s: any) => any) => 
       const dx = e.clientX - d.startX
       const dy = e.clientY - d.startY
       if (Math.abs(dx) + Math.abs(dy) > 4) movedRef.current = true
-      setPos({ x: Math.round(d.originLeft + dx), y: Math.round(d.originTop + dy) })
+      // Clamp so the (scaled) badge can't be dragged off the viewport.
+      const rect = anchorRef.current?.getBoundingClientRect()
+      const p = clampToViewport(
+        d.originLeft + dx,
+        d.originTop + dy,
+        rect?.width ?? 0,
+        rect?.height ?? 0,
+      )
+      setPos(p)
     } else {
       const dx = e.clientX - d.startX
       const dy = e.clientY - d.startY
@@ -345,11 +602,18 @@ export function TokenCritWidget(props: { useSessions: (sel: (s: any) => any) => 
       setPanelPos(null)
       return
     }
+    // Initial position: attached to the widget, clamped to the viewport with
+    // an estimated height (the attach effect refines it once the panel lays out).
     const rect = anchorRef.current?.getBoundingClientRect() ?? null
-    const x = rect ? clamp(Math.round(rect.left), 8, Math.max(8, window.innerWidth - 280)) : 18
-    const y = rect ? Math.round(rect.bottom + 10) : 220
-    setPanelPos({ x, y })
+    if (rect) setPanelPos(computePanelPos(rect, 264, 320))
     setSettingsOpen(true)
+  }
+
+  function doCollapse() {
+    setSettingsOpen(false)
+    setPanelPos(null)
+    setDotText(compact(shownRef.current))
+    setCollapsed(true)
   }
 
   function resetPlacement() {
@@ -358,6 +622,28 @@ export function TokenCritWidget(props: { useSessions: (sel: (s: any) => any) => 
     try {
       window.localStorage.removeItem('dsh.tcrit.pos')
       window.localStorage.removeItem('dsh.tcrit.scale')
+    } catch { /* storage unavailable */ }
+  }
+
+  /** Restore every panel option to its factory default. */
+  function resetSettings() {
+    setCritAbs(DEFAULT_SETTINGS.critAbs)
+    setCritRatio(DEFAULT_SETTINGS.critRatio)
+    setLang(DEFAULT_SETTINGS.lang)
+    setShowTags(DEFAULT_SETTINGS.showTags)
+    setSoundOn(DEFAULT_SETTINGS.soundOn)
+    setEdgeOn(DEFAULT_SETTINGS.edgeOn)
+    setAmbientOn(DEFAULT_SETTINGS.ambientOn)
+    setAmbientCount(DEFAULT_SETTINGS.ambientCount)
+    setParticleColor(DEFAULT_SETTINGS.particleColor)
+    setNumSize(DEFAULT_SETTINGS.numSize)
+    setNumFormat(DEFAULT_SETTINGS.numFormat)
+    setComboOn(DEFAULT_SETTINGS.comboOn)
+    setThemeMode(DEFAULT_SETTINGS.themeMode)
+    setFlickerLevel(DEFAULT_SETTINGS.flickerLevel)
+    setGlitchLevel(DEFAULT_SETTINGS.glitchLevel)
+    try {
+      window.localStorage.removeItem('dsh.tcrit.settings')
     } catch { /* storage unavailable */ }
   }
 
@@ -385,27 +671,6 @@ export function TokenCritWidget(props: { useSessions: (sel: (s: any) => any) => 
       ? '尚未产生 token 用量'
       : 'No token usage yet'
 
-  const displayNum = numFormat === 'compact' ? compact(shown) : fmt(shown)
-
-  const ambientNodes = ambientParts.map((p, i) => (
-    <span
-      key={'amb' + i}
-      className={css.ambient}
-      style={{
-        left: p.left + '%',
-        top: p.top + '%',
-        width: p.size + 'px',
-        height: p.size + 'px',
-        background: `hsl(${p.hue},100%,66%)`,
-        boxShadow: `0 0 4px hsla(${p.hue},100%,60%,.85)`,
-        '--dx': p.dx + 'px',
-        '--dy': p.dy + 'px',
-        animationDuration: p.dur + 's',
-        animationDelay: '-' + p.delay + 's',
-      } as CSSProperties}
-    />
-  ))
-
   let main
   if (collapsed) {
     main = (
@@ -415,14 +680,13 @@ export function TokenCritWidget(props: { useSessions: (sel: (s: any) => any) => 
         title="点击展开 · 拖动移动"
         onPointerDown={(e) => startDrag(e, 'move')}
       >
-        {compact(shown)}
+        {dotText}
       </div>
     )
   } else {
     const badgeClass = [
       css.badge,
       dragging ? css.dragging : '',
-      boost ? css.boost : '',
       critKey > 0 ? css.burst : '',
     ].filter(Boolean).join(' ')
     main = (
@@ -431,63 +695,16 @@ export function TokenCritWidget(props: { useSessions: (sel: (s: any) => any) => 
         className={badgeClass}
         title="拖动移动 · 双击折叠 · 拖右下角缩放"
         onPointerDown={(e) => startDrag(e, 'move')}
-        onDoubleClick={() => { setSettingsOpen(false); setCollapsed(true) }}
+        onDoubleClick={doCollapse}
       >
-        {comboOn && combo >= 2
-          ? <span key={'combo' + comboKey} className={css.combo}>{lang === 'zh' ? `×${combo} 连击` : `×${combo} COMBO`}</span>
-          : null}
-        <span className={css.num} style={{ fontSize: numSize + 'px' }}>{displayNum}</span>
-        <span className={css.label} style={{ fontSize: Math.round(numSize * 0.62) + 'px' }}>{lang === 'zh' ? '词元' : 'TOKENS'}</span>
-        {ambientNodes}
-        {crits.map((c) => (
-          <span
-            key={c.id}
-            className={css.float}
-            style={{
-              color: `hsl(${c.hue},100%,${c.kind === 'in' ? '66%' : '62%'})`,
-              fontSize: c.size + 'px',
-              left: c.kind === 'in' ? '38%' : '62%',
-              top: '42%',
-              textShadow: `0 0 9px hsla(${c.hue},100%,55%,.9)`,
-            }}
-          >
-            {'+' + fmt(c.delta)}
-          </span>
-        ))}
-        {crits.map((c) => {
-          const tt = tagText(c)
-          return tt
-            ? (
-              <span
-                key={c.id + '-tag'}
-                className={css.critTag}
-                style={{
-                  color: `hsl(${c.hue},100%,${c.kind === 'in' ? '66%' : '62%'})`,
-                  fontSize: c.big ? '12px' : '9px',
-                  left: c.kind === 'in' ? '38%' : '62%',
-                  top: '6%',
-                  textShadow: `0 0 10px hsla(${c.hue},100%,55%,.9)`,
-                }}
-              >
-                {tt}
-              </span>
-              )
-            : null
-        })}
-        {particles.map((p) => (
-          <span
-            key={p.id}
-            className={css.particle}
-            style={{
-              background: `hsl(${p.hue},100%,60%)`,
-              width: p.size + 'px',
-              height: p.size + 'px',
-              boxShadow: `0 0 6px hsla(${p.hue},100%,55%,.9)`,
-              '--dx': p.dx + 'px',
-              '--dy': p.dy + 'px',
-            } as CSSProperties}
-          />
-        ))}
+        <span
+          ref={numRef}
+          className={css.num}
+          style={{ fontSize: numSize + 'px' }}
+        >
+          {numFormat === 'compact' ? compact(shownRef.current) : fmt(shownRef.current)}
+        </span>
+        <span ref={labelRef} className={css.label} style={{ fontSize: Math.round(numSize * 0.62) + 'px' }}>{lang === 'zh' ? '词元' : 'TOKENS'}</span>
         <div
           className={css.gear}
           title="设置"
@@ -503,7 +720,7 @@ export function TokenCritWidget(props: { useSessions: (sel: (s: any) => any) => 
   const anchor = (
     <div
       ref={anchorRef}
-      className={css.anchor}
+      className={[css.anchor, light ? css.light : ''].filter(Boolean).join(' ')}
       style={anchorStyle}
       onPointerMove={onPointerMove}
       onPointerUp={endDrag}
@@ -511,6 +728,7 @@ export function TokenCritWidget(props: { useSessions: (sel: (s: any) => any) => 
     >
       {main}
       {collapsed ? null : <div className={css.resize} onPointerDown={(e) => startDrag(e, 'resize')} />}
+      <canvas ref={canvasRef} className={css.fxcanvas} aria-hidden="true" />
     </div>
   )
 
@@ -519,7 +737,7 @@ export function TokenCritWidget(props: { useSessions: (sel: (s: any) => any) => 
       {anchor}
       {settingsOpen && panelPos
         ? (
-          <div className={css.panel} style={{ left: panelPos.x, top: panelPos.y }}>
+          <div ref={panelRef} className={css.panel} style={{ left: panelPos.x, top: panelPos.y }}>
             <div className={css.phead}>
               <span className={css.ptitle}>Token 挂件设置</span>
               <button className={css.pclose} onClick={() => { setSettingsOpen(false); setPanelPos(null) }}>✕</button>
@@ -532,6 +750,32 @@ export function TokenCritWidget(props: { useSessions: (sel: (s: any) => any) => 
               </select>
             </div>
             <div className={css.srow}>
+              <span className={css.slabel}>背景适配</span>
+              <select value={themeMode} onChange={(e) => setThemeMode(e.target.value as any)}>
+                <option value="auto">自动</option>
+                <option value="dark">深色</option>
+                <option value="light">浅色</option>
+              </select>
+            </div>
+            <div className={css.srow}>
+              <span className={css.slabel}>霓虹闪烁</span>
+              <select value={flickerLevel} onChange={(e) => setFlickerLevel(e.target.value as any)}>
+                <option value="off">关</option>
+                <option value="low">低</option>
+                <option value="med">中</option>
+                <option value="high">高</option>
+              </select>
+            </div>
+            <div className={css.srow}>
+              <span className={css.slabel}>乱码故障</span>
+              <select value={glitchLevel} onChange={(e) => setGlitchLevel(e.target.value as any)}>
+                <option value="off">关</option>
+                <option value="low">低</option>
+                <option value="med">中</option>
+                <option value="high">高</option>
+              </select>
+            </div>
+            <div className={css.srow}>
               <span className={css.slabel}>数字格式</span>
               <select value={numFormat} onChange={(e) => setNumFormat(e.target.value)}>
                 <option value="full">完整</option>
@@ -539,9 +783,14 @@ export function TokenCritWidget(props: { useSessions: (sel: (s: any) => any) => 
               </select>
             </div>
             <div className={css.srow}>
-              <span className={css.slabel}>数字字号</span>
+              <span className={css.slabel}>文字字号</span>
               <input type="range" min={10} max={22} step={1} value={numSize} onChange={(e) => setNumSize(Number(e.target.value) || 14)} />
               <span className={css.sval}>{numSize}px</span>
+            </div>
+            <div className={css.hint}>
+              {lang === 'zh'
+                ? '字号只改变文字大小；拖挂件右下角可整体缩放（含特效）。'
+                : 'Font size affects text only; drag the corner to zoom the whole widget (effects included).'}
             </div>
             <div className={css.srow}>
               <span className={css.slabel}>显示标签</span>
@@ -587,9 +836,19 @@ export function TokenCritWidget(props: { useSessions: (sel: (s: any) => any) => 
               <span className={css.slabel}>边缘泛光</span>
               <input type="checkbox" checked={edgeOn} onChange={(e) => setEdgeOn(e.target.checked)} />
             </div>
+            <div className={css.srow} style={{ justifyContent: 'flex-start' }}>
+              <button
+                className={css.pbtn + ' ' + css.testbtn}
+                title={lang === 'zh' ? '不改变计数，仅预览动效' : 'Plays the crit effects only — counter untouched'}
+                onClick={runTest}
+              >
+                ⚡ {lang === 'zh' ? '测试特效' : 'Test FX'}
+              </button>
+            </div>
             <div className={css.srow} style={{ justifyContent: 'flex-start', gap: 10 }}>
               <button className={css.pbtn} onClick={resetPlacement}>重置位置/缩放</button>
-              <button className={css.pbtn} onClick={() => { setSettingsOpen(false); setCollapsed(true) }}>折叠</button>
+              <button className={css.pbtn} onClick={resetSettings}>重置设置</button>
+              <button className={css.pbtn} onClick={doCollapse}>折叠</button>
             </div>
           </div>
           )

@@ -15,12 +15,28 @@ real time and triggers game-style crit animations as usage grows.
   reactive).
 - **Crit animations**: on growth — screen shake + flash + floating `+N` damage
   numbers split by input/output, particle bursts, combo counter; large deltas
-  trigger a red `暴击!` / `CRIT!`, edge glow, optional sound effects.
+  trigger a neon magenta `暴击!` / `CRIT!`, edge glow, optional sound effects.
+- **Cyberpunk HUD style**: neon cyan↔magenta gradient digits with
+  chromatic-aberration (RGB-split) glow, HUD corner brackets, and a unified
+  cyan/magenta crit palette (input = cyan, output = magenta, crit = hot pink).
+  The digits and label carry a failing-neon-tube flicker (random brightness
+  dips, driven from the animation loop so it survives badge remounts), with
+  brief random-character glitch bursts during the flicker (commas kept, so
+  the number still reads as itself while corrupting).
 - **Ambient particles**: ember particles slowly rising over a transparent
   background (count and color adjustable).
+- **Light-background adaptation**: the widget auto-detects the host theme
+  (falling back to the OS color-scheme) and switches to a deeper neon palette
+  with normal compositing so it stays readable on pale surfaces; override via
+  the settings panel (auto / light / dark).
 - **Configurable**: the ⚙ settings panel adjusts language (zh/en), number
   format / font size, label, combo, particles, crit threshold / ratio, sound,
-  edge glow in real time; position and zoom persist to `localStorage`.
+  edge glow, neon flicker and glitch intensity (off/low/med/high) in real
+  time; every panel option plus position/zoom persist to
+  `localStorage`. A ⚡
+  **Test FX** button in the panel replays the full crit sequence (damage
+  numbers, particles, combo, edge glow, sound) without changing the real
+  counter.
 
 ## Structure
 
@@ -28,6 +44,7 @@ real time and triggers game-style crit animations as usage grows.
 src/index.ts                  # Host empty apply (pure UI plugin)
 src/client/index.ts           # Browser apply + inject
 src/client/TokenCritWidget.tsx
+src/client/TokenCritFx.ts     # Canvas effects layer (particles / floats / combo)
 src/client/TokenCritWidget.module.css
 lib/index.js                  # Host build artifact (static)
 lib/client.js                 # Browser build artifact (ModuleLoader CJS bundle)
@@ -61,7 +78,10 @@ No configuration is needed after mounting — open any session to see the widget
    collapse button to shrink it to a compact pill.
 3. **Open settings** — click the ⚙ on the widget to adjust language (zh/en),
    number format / font size, label, combo, particle count and color, crit
-   threshold / ratio, sound, edge glow in real time; position and zoom are
-   persisted to `localStorage` automatically and survive a page reload.
+   threshold / ratio, sound, edge glow in real time; all settings (panel
+   options, position and zoom) are persisted to `localStorage` automatically
+   and survive a page reload. Hit the
+   ⚡ **Test FX** button to preview the crit effects without touching the real
+   counter.
 4. **Hide it** — the settings panel can hide the widget; re-enable it later via
    the host's web plugin table.

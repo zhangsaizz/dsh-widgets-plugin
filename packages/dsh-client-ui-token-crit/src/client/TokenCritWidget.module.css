@@ -6,13 +6,27 @@
   user-select: none;
 }
 
+/* Effects overlay canvas: larger than the badge, centered on it, so rising
+   floats/tags stay visible. Painted above the (transparent) badge text but
+   below the interactive gear/resize handles; never intercepts pointers. */
+.fxcanvas {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 340px;
+  height: 220px;
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+  z-index: 15;
+}
+
 .badge {
   position: relative;
   z-index: 1;
   display: inline-flex;
   align-items: baseline;
   gap: 6px;
-  padding: 4px 12px;
+  padding: 4px 14px;
   border-radius: 10px;
   cursor: grab;
   white-space: nowrap;
@@ -20,6 +34,36 @@
   border: 1px solid transparent;
   color: var(--dsw-alias-label-primary, #ececec);
   font-variant-numeric: tabular-nums;
+}
+
+/* Cyberpunk HUD corner brackets framing the badge: cyan top-left,
+   magenta bottom-right, echoing the number's neon gradient. */
+.badge::before,
+.badge::after {
+  content: '';
+  position: absolute;
+  width: 10px;
+  height: 10px;
+  border-width: 2px;
+  border-style: solid;
+  pointer-events: none;
+  z-index: 0;
+}
+
+.badge::before {
+  top: -4px;
+  left: -4px;
+  border-color: rgba(0, 229, 255, 0.55);
+  border-right: 0;
+  border-bottom: 0;
+}
+
+.badge::after {
+  bottom: -4px;
+  right: -4px;
+  border-color: rgba(255, 45, 160, 0.55);
+  border-left: 0;
+  border-top: 0;
 }
 
 .dragging {
@@ -31,9 +75,21 @@
   font-family: ui-monospace, 'SF Mono', 'Cascadia Code', Menlo, Consolas, monospace;
   font-size: 14px;
   font-weight: 800;
-  letter-spacing: 0.01em;
-  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.4);
-  animation: tokencrit-numpop 0.4s ease-out;
+  letter-spacing: 0.03em;
+  /* Cyberpunk digits: neon cyan→magenta gradient fill with a chroma-split
+     (RGB aberration) glow instead of the plain theme white. The engine adds
+     a neon-tube flicker via filter: brightness. */
+  background: linear-gradient(180deg, #c9f7ff 0%, #55e6ff 45%, #ff5ad2 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  text-shadow:
+    -1px 0 0 rgba(255, 60, 170, 0.4),
+    1px 0 0 rgba(0, 235, 255, 0.4),
+    0 0 8px rgba(0, 229, 255, 0.55),
+    0 0 20px rgba(0, 229, 255, 0.28);
+  animation:
+    tokencrit-numpop 0.4s ease-out;
 }
 
 @keyframes tokencrit-numpop {
@@ -45,10 +101,10 @@
 .label {
   font-size: 9px;
   font-weight: 700;
-  letter-spacing: 0.04em;
-  color: var(--dsw-alias-label-secondary, #9a9aa0);
-  opacity: 0.85;
-  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.4);
+  letter-spacing: 0.16em;
+  color: #4dd7ff;
+  opacity: 0.92;
+  text-shadow: 0 0 7px rgba(0, 229, 255, 0.65);
 }
 
 .gear {
@@ -122,11 +178,14 @@
   cursor: grab;
   background: transparent;
   border: 1px solid transparent;
-  color: var(--dsw-alias-label-primary, #ececec);
+  color: #6ff0ff;
   font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
   font-size: 12px;
   font-weight: 800;
-  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.4);
+  text-shadow:
+    0 0 8px rgba(0, 229, 255, 0.6),
+    -1px 0 0 rgba(255, 60, 170, 0.3),
+    1px 0 0 rgba(0, 235, 255, 0.3);
 }
 
 .burst {
@@ -147,111 +206,13 @@
 
 @keyframes tokencrit-flash {
   0% {
-    box-shadow: 0 0 0 0 rgba(255, 170, 40, 0.95), 0 0 26px 8px rgba(255, 110, 20, 0.55);
+    box-shadow: 0 0 0 0 rgba(255, 45, 160, 0.95), 0 0 26px 8px rgba(0, 229, 255, 0.5);
     filter: brightness(2) saturate(1.6);
   }
   100% {
-    box-shadow: 0 0 0 16px rgba(255, 170, 40, 0), 0 0 0 0 rgba(255, 110, 20, 0);
+    box-shadow: 0 0 0 16px rgba(255, 45, 160, 0), 0 0 0 0 rgba(0, 229, 255, 0);
     filter: brightness(1) saturate(1);
   }
-}
-
-.ambient {
-  position: absolute;
-  border-radius: 50%;
-  pointer-events: none;
-  z-index: 18;
-  opacity: 0;
-  animation-name: tokencrit-ambient-float;
-  animation-timing-function: ease-in-out;
-  animation-iteration-count: infinite;
-  transition: filter 0.15s ease;
-}
-
-.boost .ambient {
-  filter: brightness(1.9) saturate(1.3);
-}
-
-@keyframes tokencrit-ambient-float {
-  0% { transform: translate(-50%, -50%) scale(0); opacity: 0; }
-  25% { opacity: 0.9; }
-  60% { opacity: 0.45; }
-  100% { transform: translate(calc(-50% + var(--dx)), calc(-50% + var(--dy))) scale(1); opacity: 0; }
-}
-
-.float {
-  position: absolute;
-  top: 42%;
-  z-index: 20;
-  font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
-  font-weight: 900;
-  font-style: italic;
-  white-space: nowrap;
-  pointer-events: none;
-  animation: tokencrit-float 1.5s cubic-bezier(0.22, 0.61, 0.36, 1) forwards;
-}
-
-.critTag {
-  position: absolute;
-  top: 6%;
-  z-index: 21;
-  font-weight: 900;
-  font-style: italic;
-  white-space: nowrap;
-  pointer-events: none;
-  letter-spacing: 0.06em;
-  animation: tokencrit-tag 1.5s cubic-bezier(0.22, 0.61, 0.36, 1) forwards;
-}
-
-@keyframes tokencrit-float {
-  0% { transform: translate(-50%, -50%) scale(0.3) rotate(-6deg); opacity: 0; }
-  12% { transform: translate(-50%, -50%) scale(1.3) rotate(2deg); opacity: 1; }
-  55% { transform: translate(-50%, -170%) scale(1.05) rotate(-1deg); opacity: 1; }
-  100% { transform: translate(-50%, -320%) scale(0.9) rotate(0deg); opacity: 0; }
-}
-
-@keyframes tokencrit-tag {
-  0% { transform: translate(-50%, -50%) scale(0.2) rotate(-10deg); opacity: 0; }
-  14% { transform: translate(-50%, -50%) scale(1.5) rotate(3deg); opacity: 1; }
-  55% { transform: translate(-50%, -50%) scale(1.2) rotate(0deg); opacity: 1; }
-  100% { transform: translate(-50%, -240%) scale(0.85) rotate(0deg); opacity: 0; }
-}
-
-.combo {
-  position: absolute;
-  top: -24px;
-  left: 50%;
-  transform: translateX(-50%);
-  z-index: 25;
-  font-weight: 900;
-  font-style: italic;
-  font-size: 16px;
-  white-space: nowrap;
-  pointer-events: none;
-  color: hsl(45, 100%, 62%);
-  text-shadow: 0 0 10px hsla(45, 100%, 50%, 0.95);
-  animation: tokencrit-combopop 0.3s ease-out;
-}
-
-@keyframes tokencrit-combopop {
-  0% { transform: translateX(-50%) scale(0.4); opacity: 0; }
-  60% { transform: translateX(-50%) scale(1.4); opacity: 1; }
-  100% { transform: translateX(-50%) scale(1); opacity: 1; }
-}
-
-.particle {
-  position: absolute;
-  left: 50%;
-  top: 50%;
-  z-index: 19;
-  border-radius: 50%;
-  pointer-events: none;
-  animation: tokencrit-particle 0.9s ease-out forwards;
-}
-
-@keyframes tokencrit-particle {
-  0% { transform: translate(-50%, -50%) scale(1); opacity: 1; }
-  100% { transform: translate(calc(-50% + var(--dx)), calc(-50% + var(--dy))) scale(0); opacity: 0; }
 }
 
 .edge {
@@ -259,7 +220,7 @@
   inset: 0;
   z-index: 9998;
   pointer-events: none;
-  background: radial-gradient(ellipse at 50% 50%, transparent 55%, rgba(255, 120, 20, 0.4) 100%);
+  background: radial-gradient(ellipse at 50% 50%, transparent 55%, rgba(255, 45, 160, 0.38) 100%);
   animation: tokencrit-edgeflash 0.5s ease-out forwards;
 }
 
@@ -330,6 +291,14 @@
   color: var(--dsw-alias-label-primary, #ececec);
 }
 
+.hint {
+  color: var(--dsw-alias-label-secondary, #9a9aa0);
+  font-size: 10px;
+  line-height: 1.4;
+  margin: 0 0 8px;
+  opacity: 0.8;
+}
+
 .panel input[type='range'] {
   flex: 1;
   min-width: 0;
@@ -357,4 +326,49 @@
 
 .pbtn:hover {
   border-color: var(--dsw-alias-border-l2, #46464e);
+}
+
+/* Demo trigger: golden accent so it reads as a special control. */
+.testbtn {
+  border-color: hsla(45, 100%, 55%, 0.55);
+  color: hsl(45, 100%, 72%);
+}
+
+.testbtn:hover {
+  border-color: hsl(45, 100%, 60%);
+  background: hsla(45, 100%, 50%, 0.12);
+}
+
+/* Light-background adaptation: deeper, saturated neon for contrast on pale
+   surfaces (auto-detected from the host theme, or forced via settings). */
+.light .num {
+  /* background-image (NOT the background shorthand) — the shorthand would
+     reset background-clip: text and paint a solid box behind the digits. */
+  background-image: linear-gradient(180deg, #17b8e0 0%, #0e97cc 45%, #d6208f 100%);
+  text-shadow:
+    -1px 0 0 rgba(214, 32, 143, 0.4),
+    1px 0 0 rgba(14, 151, 204, 0.4),
+    0 0 8px rgba(14, 151, 204, 0.45),
+    0 0 16px rgba(14, 151, 204, 0.2);
+}
+
+.light .label {
+  color: #0e7490;
+  text-shadow: 0 0 6px rgba(14, 151, 204, 0.5);
+}
+
+.light .badge::before {
+  border-color: rgba(14, 151, 204, 0.6);
+}
+
+.light .badge::after {
+  border-color: rgba(214, 32, 143, 0.6);
+}
+
+.light .dot {
+  color: #0e97cc;
+  text-shadow:
+    0 0 8px rgba(14, 151, 204, 0.5),
+    -1px 0 0 rgba(214, 32, 143, 0.35),
+    1px 0 0 rgba(14, 151, 204, 0.35);
 }
