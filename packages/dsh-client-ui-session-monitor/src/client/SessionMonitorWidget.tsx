@@ -426,7 +426,10 @@ export function SessionMonitorWidget(props: SessionMonitorWidgetProps) {
     }
     for (const id of settled) pending.delete(id)
     if (emit.length === 0) return
-    if (cfg.sound) playChime()
+    // The chime is an audible alert for when the user is NOT looking at the
+    // page (a background tab can still play it); while they are present the
+    // visual toast is enough — same away-gate as the system notification.
+    if (cfg.sound && isUserAway()) playChime()
     if (cfg.notify) {
       setToasts((prevToasts) => {
         if (cfg.notifyMode === 'confirm') {
@@ -499,13 +502,25 @@ export function SessionMonitorWidget(props: SessionMonitorWidgetProps) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pos, window.innerWidth, window.innerHeight])
 
-  /** Running subagent count per parent session (shown as a 子×N badge on the parent row). */
+  /**
+   * Running subagent count per session (shown as a 子×N badge on the row).
+   * Aggregates the WHOLE descendant chain, not just direct children: every
+   * running subagent contributes +1 to each ancestor up its parent line, so a
+   * main session counts all nested subagents working under it (a nested
+   * subagent's own row, when visible, counts only what is under it).
+   */
   const runningSubagentsByParent = useMemo(() => {
     const map = new Map<string, number>()
     for (const id of sessions.ids) {
       const row = sessions.byId[id]
       if (!row || row.origin !== 'subagent' || !row.running || !row.parentId) continue
-      map.set(row.parentId, (map.get(row.parentId) ?? 0) + 1)
+      const seen = new Set<string>()
+      let pid: string | undefined = row.parentId
+      while (pid !== undefined && !seen.has(pid)) {
+        seen.add(pid)
+        map.set(pid, (map.get(pid) ?? 0) + 1)
+        pid = sessions.byId[pid]?.parentId
+      }
     }
     return map
   }, [sessions])
@@ -558,7 +573,8 @@ export function SessionMonitorWidget(props: SessionMonitorWidgetProps) {
     // "Busy" rows are still doing work even though the session itself is not
     // in a turn: it has subagents or background jobs executing. They are
     // treated like running rows — ranked on top and kept visible by the time
-    // window (runningOnly stays strict: only row.running counts there).
+    // window. The "busy only" filter keeps both running AND busy rows (hiding
+    // only genuinely idle ones), consistent with the busy-status labeling.
     const busyIds = new Set<string>()
     for (const row of live) {
       if (row.running) continue
@@ -577,9 +593,9 @@ export function SessionMonitorWidget(props: SessionMonitorWidgetProps) {
           return now - Math.max(row.updatedAt, lastActive[row.id] ?? 0) <= windowMs
         })
       : live
-    const visible = settings.runningOnly ? inWindow.filter((row) => row.running) : inWindow
+    const visible = settings.runningOnly ? inWindow.filter((row) => row.running || busyIds.has(row.id)) : inWindow
     // The "N older sessions hidden" hint is about the time window only: in
-    // running-only mode the idle rows are hidden by that switch, not by time,
+    // busy-only mode the idle rows are hidden by that switch, not by time,
     // so counting them here would mislead.
     const hiddenCount = settings.runningOnly ? 0 : live.length - visible.length
     return { rows: orderRows(visible, doneIds, busyIds), hiddenCount }
@@ -826,7 +842,10 @@ export function SessionMonitorWidget(props: SessionMonitorWidgetProps) {
                         {statusText}
                       </span>
                       {row.pendingInteraction ? <span className={css.status}>{t('pendingInput')}</span> : null}
-                      <span className={css.time}>{formatAgo(row.updatedAt, now, t)}</span>
+                      {/* Activity time: the newer of the host's updatedAt (prompt
+                          time) and the widget's last-observed activity, so a busy
+                          row whose updatedAt is stale still shows "recent". */}
+                      <span className={css.time}>{formatAgo(Math.max(row.updatedAt, lastActive[row.id] ?? 0), now, t)}</span>
                     </div>
                   </div>
                 </div>

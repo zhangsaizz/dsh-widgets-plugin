@@ -27,14 +27,16 @@ rounds. Without the host half the widget still works (base notification kinds).
   and a muted line reports how many older sessions were hidden. **Subagent
   sessions are filtered out by default** (the config panel can re-enable
   listing and notifying them), but a parent row shows a compact **子×N** badge
-  while it has N subagents running. Each row also shows a **后×N** badge — how
+  while it has N subagents running (all descendants, nested ones included).
+  Each row also shows a **后×N** badge — how
   many tasks that session currently has executing in the background (mirrored
   from `session/jobs`; only running/stopping tasks count, settled ones don't).
   When a session is not in a turn itself but still has subagents or background
   jobs executing, its status reads **子代理执行中** (subagents working, violet)
   or **后台执行中** (bg jobs running, cyan) instead of 空闲 — such rows rank
-  with the running ones and are never hidden by the time window; the "Running
-  only" switch stays strictly `running`. When such a row also carries a
+  with the running ones and are never hidden by the time window; the "Busy
+  only" filter keeps running AND busy rows, hiding only genuinely idle ones.
+  When such a row also carries a
   **本轮完成** mark, the busy label wins the status text (the dot keeps the
   done color); the header and collapsed-pill counts include these busy
   sessions ("N 个忙碌中").
@@ -46,7 +48,8 @@ rounds. Without the host half the widget still works (base notification kinds).
   **auto** (auto-dismiss after N seconds) and **confirm** (the toast stays
   until you acknowledge it — a session's newer round replaces its older toast,
   and unconfirmed toasts are never pushed out by new arrivals; a tall stack
-  scrolls). Optional chime sound. **Toasts are color-coded by state**: amber
+  scrolls). Optional chime sound (also only while you are away, like system
+  notifications). **Toasts are color-coded by state**: amber
   ✓ for a normal finished round, blue ✋ "Needs your attention" when a session
   stops waiting for your input/confirmation, violet ⇄ for a finished subagent
   (when subagents are shown), and — with the host half mounted — red ✕ for an
@@ -59,7 +62,10 @@ rounds. Without the host half the widget still works (base notification kinds).
   replace instead of stacking. The system notification is only sent while you
   are away from the page (tab hidden, window minimized, or unfocused) — while
   you are looking at it, the in-page toast is enough, so no OS-level popup
-  fires. **Cross-tab sync**: when the same session is open in several tabs,
+  fires. Rounds that finish while the page is fully CLOSED cannot notify — a
+  browser limitation (no JS runs when the page is gone); the system
+  notification only covers "page open but the user switched away". **Cross-tab
+  sync**: when the same session is open in several tabs,
   dismissing a toast (知道了), jumping/opening the session, or clearing the
   done marks in one tab mirrors to the others (BroadcastChannel), and setting
   changes propagate across tabs too; when a session is disposed/archived, its
@@ -78,8 +84,8 @@ rounds. Without the host half the widget still works (base notification kinds).
   round still notifies — the in-page toast waits for you and a system
   notification reaches you on the OS level when enabled (system notifications
   fire only while you are away from the page)), whether to
-  show subagent sessions (off by default), running-only listing, the recent
-  **time window** (all / 15 min … 24 h) and done marks; while "Running only"
+  show subagent sessions (off by default), busy-only listing, the recent
+  **time window** (all / 15 min … 24 h) and done marks; while "Busy only"
   is on the time-window control is visually dimmed with a hint that it applies
   once that switch is off (its value is still pre-configurable); all settings
   and the panel position persist to `localStorage`.
@@ -140,4 +146,4 @@ No configuration is needed after mounting:
 5. **Configure** — open Web settings → Widgets → Session monitor → **Configure**
    to tune notifications (on/off, dismissal, seconds, sound, current-session
    scope), whether to show subagent sessions (off by default), and the list
-   (running-only, done marks).
+   (busy-only, done marks).
