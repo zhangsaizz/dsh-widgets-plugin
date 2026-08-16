@@ -34,9 +34,12 @@
   | New API | `GET /api/user/self`（quota ÷ 500000 = USD） | `new-api` | `NEW_API_KEY` | USD |
 
 - **用户自管绑定** — `balance` 设置分区（`bindings[]`：`provider` + `vendor` +
-  `credentialRef` 或 `credential` + 可选 `baseURL`）注册进 `settings` 缝隙并在变更时
-  实时对账；同源 Web 路由（`/_dsh/balance/settings`）提供脱敏 GET 快照与 POST 保存
-  （留空凭据 = 保留原值）。这是为自托管或自定义路由配置余额查询而无需改代码的方式。
+  `credentialRef` 或 `credential` + 可选 `baseURL`）注册进
+  `settings` 缝隙并在变更时实时对账；同源 Web 路由（`/_dsh/balance/settings`）
+  提供脱敏 GET 快照与 POST 保存（留空凭据 = 保留原值；`credentialClear` 标记 =
+  显式清除）。小组件管理「配置」弹窗里的供应商配置面板支持添加、就地编辑（提供商
+  路由 / 厂商 / 凭据来源 / Base URL）与两步删除。这是为自托管或自定义
+  路由配置余额查询而无需改代码的方式。
 - **Web 看板** — 浏览器半（`exports["./client"]`，经 `dsh.client` 声明被发现）先把
   balance Remote 挂进 `ctx.remote`，再注册浮动 `BalanceWidget` 到 `shell.overlay`
   （id `balance`，order 100）并安置视图设置 store（缩放/吸附/折叠，持久化于
@@ -77,7 +80,10 @@ npm install @dsh-plugins/dsh-widgets-plugin
 凭据引用即可（DeepSeek → `DEEPSEEK_API_KEY`、Moonshot → `MOONSHOT_API_KEY`、
 OpenRouter → `OPENROUTER_API_KEY`、SiliconFlow → `SILICONFLOW_API_KEY`、
 New API → `NEW_API_KEY`）。要查询额外或自托管路由，在 Web 设置 → 「小组件管理」
-→ 余额看板 → **配置**（弹窗）中添加绑定并存入令牌，下一次看板刷新即生效，无需重启。
+→ 余额看板 → **配置**（弹窗）中添加绑定并存入令牌（提供商路由的下拉候选与
+模型列表一致——只含有模型的提供商，也可直接输入自定义路由），下一次看板刷新即生效，无需重启。
+绑定支持就地编辑与两步删除；要清除已保存的 Key，编辑该绑定后点「清除已保存的 Key」
+并保存即可（留空 Key 则保留原值）。
 
 ## Model Experience
 

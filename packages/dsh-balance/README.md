@@ -41,11 +41,14 @@ hover tooltip / loading states, light & dark themes](../../docs/previews/balance
   | New API | `GET /api/user/self` (quota ÷ 500000 = USD) | `new-api` | `NEW_API_KEY` | USD |
 
 - **User-managed bindings** — the `balance` settings section (`bindings[]`:
-  `provider` + `vendor` + `credentialRef` or `credential` + optional `baseURL`)
-  is registered on the `settings` seam and reconciled live on change; a
-  same-origin Web route (`/_dsh/balance/settings`) serves a redacted GET
-  snapshot and POST save (blank credential keeps the stored value). This is
-  how self-hosted or custom routes get balance queries without code changes.
+  `provider` + `vendor` + `credentialRef` or `credential` + optional
+  `baseURL`) is registered on the `settings` seam and reconciled
+  live on change; a same-origin Web route (`/_dsh/balance/settings`) serves a
+  redacted GET snapshot and POST save (blank credential keeps the stored value;
+  a `credentialClear` flag removes it explicitly). The config panel in the
+  widget manager's "Configure" dialog supports add, inline edit (provider route,
+  vendor, credential source, base URL) and two-step delete. This
+  is how self-hosted or custom routes get balance queries without code changes.
 - **Web dashboard** — the browser half (`exports["./client"]`, discovered
   through `dsh.client`) mounts the balance Remote into `ctx.remote`, then
   registers the floating `BalanceWidget` into `shell.overlay` (id `balance`,
@@ -91,8 +94,12 @@ the credential reference (DeepSeek → `DEEPSEEK_API_KEY`, Moonshot →
 `MOONSHOT_API_KEY`, OpenRouter → `OPENROUTER_API_KEY`, SiliconFlow →
 `SILICONFLOW_API_KEY`, New API → `NEW_API_KEY`). To query additional or
 self-hosted routes, add a binding in Web settings → Widgets manager →
-Balance → **Configure** (dialog) and store the token; the next dashboard
-refresh picks it up without a restart.
+Balance → **Configure** (dialog) and store the token (the provider route
+dropdown mirrors the model list — only providers that expose models — or the
+route can be typed freely); the next dashboard refresh picks it up without a
+restart. Bindings can be edited in place and removed with a two-step confirm;
+to drop a stored key, edit the binding and click **Clear stored key** before
+saving (leaving the key blank keeps it).
 
 ## Model Experience
 

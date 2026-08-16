@@ -85,6 +85,33 @@ export class BalanceWebBackend {
     return descriptor
   }
 
+  /**
+   * The providers that appear in the host's model catalog (the same "model
+   * list" the settings models view renders): every registered provider that
+   * exposes at least one model, replicating the harness's buildModelCatalog
+   * semantics — providers that fail to enumerate or advertise nothing are NOT
+   * part of the model list and are not offered here either. The panel's free
+   * input still accepts any other route.
+   */
+  async configuredProviders() {
+    const llm = this.ctx.get('llm')
+    if (llm === undefined || typeof llm.listProviders !== 'function' || typeof llm.listModels !== 'function') return []
+    const settled = await Promise.all(llm.listProviders().map(async (provider) => {
+      if (!isRecord(provider) || typeof provider.id !== 'string' || provider.id.length === 0) return null
+      try {
+        const models = await llm.listModels(provider.id)
+        if (!Array.isArray(models) || models.length === 0) return null
+        return {
+          provider: provider.id,
+          ...(typeof provider.name === 'string' && provider.name.length > 0 ? { displayName: provider.name } : {}),
+        }
+      } catch {
+        return null
+      }
+    }))
+    return settled.filter((entry) => entry !== null)
+  }
+
   async snapshot() {
     const descriptor = this.descriptor()
     const raw = descriptor.value
@@ -92,6 +119,7 @@ export class BalanceWebBackend {
     return {
       schemaVersion: 1,
       writable: this.settingsSeam().writable,
+      providers: await this.configuredProviders(),
       settings: {
         bindings: bindings.map(redactBinding),
         revision: descriptor.revision,
@@ -106,16 +134,24 @@ export class BalanceWebBackend {
     const previous = this.descriptor().value
     const oldBindings = isRecord(previous) && Array.isArray(previous.bindings) ? previous.bindings : []
     const oldByProvider = new Map(oldBindings.filter(isRecord).map((binding) => [binding.provider, binding]))
-    // An inline credential left blank on save means "keep the stored one".
+    // An inline credential left blank on save means "keep the stored one";
+    // `credentialClear: true` is the explicit "remove the stored one" (the
+    // panel uses it when the user switches a key-bearing binding to env-var
+    // reference, or clicks "clear stored key").
     const merged = request.bindings.filter(isRecord).map((binding) => {
       const previousBinding = oldByProvider.get(binding.provider)
+      if (binding.credentialClear === true) {
+        const { credentialClear: _flag, credential: _cred, ...rest } = binding
+        return rest
+      }
+      const { credentialClear: _flag, ...rest } = binding
       if ((binding.credential === undefined || binding.credential === '')
         && previousBinding !== undefined
         && typeof previousBinding.credential === 'string'
         && previousBinding.credential.length > 0) {
-        return { ...binding, credential: previousBinding.credential }
+        return { ...rest, credential: previousBinding.credential }
       }
-      return binding
+      return rest
     })
     await settings.replace(BALANCE_SETTINGS_NS, { bindings: merged }, request.expectedRevision)
     return this.snapshot()
