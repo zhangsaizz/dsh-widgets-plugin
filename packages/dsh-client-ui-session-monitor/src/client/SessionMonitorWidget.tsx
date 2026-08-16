@@ -118,6 +118,17 @@ const DEFAULT_RIGHT = 16
 const DEFAULT_BOTTOM = 150
 /** Panel width used to clamp dragging; matches the CSS width. */
 const PANEL_W = 268
+/** BroadcastChannel name for cross-tab acknowledgment sync. */
+const SYNC_CHANNEL = 'dsh-smon-sync'
+
+/** Cross-tab sync message: one tab acknowledged a completion; the others
+ *  mirror the cleanup so a reminder acknowledged anywhere stops nagging
+ *  everywhere. */
+type SyncMessage =
+  | { type: 'opened'; sessionId: string }
+  | { type: 'toast-dismissed'; sessionId: string }
+  | { type: 'done-cleared-all' }
+
 /** Pointer-drag state for the panel. */
 interface DragState {
   /** 'move' drags the panel; 'resize' drags the bottom-right zoom handle. */
@@ -205,6 +216,10 @@ export function SessionMonitorWidget(props: SessionMonitorWidgetProps) {
   const hostStatusRef = useRef<'unknown' | 'up' | 'down'>('unknown')
   /** Finished rounds waiting for their Host reason before the toast is emitted. */
   const pendingRef = useRef<Map<string, PendingAlert>>(new Map())
+  /** Live BroadcastChannel for cross-tab acknowledgment sync (null when unavailable). */
+  const syncChannelRef = useRef<BroadcastChannel | null>(null)
+  /** Last-observed session-id set; shrinking ids = disposed sessions. */
+  const prevIdsRef = useRef<ReadonlySet<string>>(new Set())
 
   useEffect(() => { settingsRef.current = settings }, [settings])
   useEffect(() => { doneIdsRef.current = doneIds }, [doneIds])
@@ -218,6 +233,79 @@ export function SessionMonitorWidget(props: SessionMonitorWidgetProps) {
     window.addEventListener(SETTINGS_CHANGED_EVENT, handler)
     return () => window.removeEventListener(SETTINGS_CHANGED_EVENT, handler)
   }, [])
+
+  // Cross-tab acknowledgment sync: when one tab dismisses a toast, opens a
+  // session, or clears the done marks, the other tabs' widgets mirror it, so a
+  // completion acknowledged anywhere stops nagging everywhere. BroadcastChannel
+  // never echoes to the sender, and absence degrades to per-tab behavior.
+  useEffect(() => {
+    let channel: BroadcastChannel | null = null
+    try {
+      if (typeof BroadcastChannel !== 'undefined') channel = new BroadcastChannel(SYNC_CHANNEL)
+    } catch { /* BroadcastChannel unavailable */ }
+    if (!channel) return
+    syncChannelRef.current = channel
+    channel.onmessage = (ev: MessageEvent) => {
+      const msg = ev.data as SyncMessage | undefined
+      if (!msg || typeof msg !== 'object') return
+      if (msg.type === 'opened' || msg.type === 'toast-dismissed') {
+        setToasts((prev) => prev.filter((t) => t.sessionId !== msg.sessionId))
+      }
+      if (msg.type === 'opened') {
+        // The session was opened in another tab — acknowledge the completion
+        // here too: clear its done mark and close any live system notification.
+        setDoneIds((ds) => {
+          if (!ds.has(msg.sessionId)) return ds
+          const next = new Set(ds)
+          next.delete(msg.sessionId)
+          return next
+        })
+        closeBrowserNotify(msg.sessionId)
+      } else if (msg.type === 'done-cleared-all') {
+        setDoneIds(new Set())
+      }
+    }
+    return () => {
+      syncChannelRef.current = null
+      channel?.close()
+    }
+  }, [])
+
+  // Settings saved in another tab (the config panel writes localStorage): the
+  // `storage` event fires only in the other tabs, so re-read there.
+  useEffect(() => {
+    const onStorage = (e: StorageEvent): void => {
+      if (e.key !== SETTINGS_KEY) return
+      setSettings(loadSettings())
+    }
+    window.addEventListener('storage', onStorage)
+    return () => window.removeEventListener('storage', onStorage)
+  }, [])
+
+  // Session disposal cleanup: once a session leaves the list, drop its pending
+  // alerts, toasts, done marks and system notifications — a reminder for a
+  // vanished session is just noise. The empty-start guard avoids treating the
+  // first snapshot as "everything was disposed".
+  useEffect(() => {
+    const prev = prevIdsRef.current
+    const next = new Set(sessions.ids)
+    prevIdsRef.current = next
+    if (prev.size === 0) return
+    const removed: string[] = []
+    for (const id of prev) if (!next.has(id)) removed.push(id)
+    if (removed.length === 0) return
+    for (const id of removed) {
+      pendingRef.current.delete(id)
+      closeBrowserNotify(id)
+    }
+    setToasts((ts) => ts.filter((t) => !removed.includes(t.sessionId)))
+    setDoneIds((ds) => {
+      let changed = false
+      const nextDs = new Set(ds)
+      for (const id of removed) if (nextDs.delete(id)) changed = true
+      return changed ? nextDs : ds
+    })
+  }, [sessions.ids])
 
   // Tick "now" so the time-window filter and relative timestamps age sessions
   // out while the page stays open without any session-list mutation.
@@ -505,6 +593,13 @@ export function SessionMonitorWidget(props: SessionMonitorWidgetProps) {
     try { inst.close() } catch { /* notification already gone */ }
   }
 
+  /** Send a cross-tab sync message (no-op when the channel is unavailable). */
+  function broadcastSync(msg: SyncMessage): void {
+    try {
+      syncChannelRef.current?.postMessage(msg)
+    } catch { /* channel unavailable */ }
+  }
+
   function handleOpen(sessionId: string): void {
     const next = new Set(doneIdsRef.current)
     next.delete(sessionId)
@@ -513,6 +608,8 @@ export function SessionMonitorWidget(props: SessionMonitorWidgetProps) {
     // notification still showing for it too (cross-channel link).
     closeBrowserNotify(sessionId)
     open(sessionId)
+    // A completion acknowledged here is acknowledged everywhere (other tabs).
+    broadcastSync({ type: 'opened', sessionId })
   }
 
   /**
@@ -549,8 +646,11 @@ export function SessionMonitorWidget(props: SessionMonitorWidgetProps) {
     } catch { /* notification unavailable */ }
   }
 
-  function dismissToast(key: number): void {
+  function dismissToast(key: number, sessionId?: string): void {
     setToasts((prev) => prev.filter((toast) => toast.key !== key))
+    // An explicit dismissal acknowledges the round — sync it across tabs
+    // (auto-dismissals stay local: the other tab's toast may still be unseen).
+    if (sessionId !== undefined) broadcastSync({ type: 'toast-dismissed', sessionId })
   }
 
   /** Dismiss every in-page toast belonging to one session — the finished round
@@ -561,6 +661,7 @@ export function SessionMonitorWidget(props: SessionMonitorWidgetProps) {
 
   function clearDone(): void {
     setDoneIds(new Set())
+    broadcastSync({ type: 'done-cleared-all' })
   }
 
   function startDrag(e: ReactPointerEvent<HTMLDivElement>, mode: 'move' | 'resize'): void {
@@ -803,7 +904,7 @@ export function SessionMonitorWidget(props: SessionMonitorWidgetProps) {
                     </button>
                     <button
                       className={css.dismissBtn}
-                      onClick={() => { dismissToast(toast.key); closeBrowserNotify(toast.sessionId) }}
+                      onClick={() => { dismissToast(toast.key, toast.sessionId); closeBrowserNotify(toast.sessionId) }}
                     >
                       {t('dismiss')}
                     </button>

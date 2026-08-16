@@ -59,7 +59,11 @@ rounds. Without the host half the widget still works (base notification kinds).
   replace instead of stacking. The system notification is only sent while you
   are away from the page (tab hidden, window minimized, or unfocused) — while
   you are looking at it, the in-page toast is enough, so no OS-level popup
-  fires.
+  fires. **Cross-tab sync**: when the same session is open in several tabs,
+  dismissing a toast (知道了), jumping/opening the session, or clearing the
+  done marks in one tab mirrors to the others (BroadcastChannel), and setting
+  changes propagate across tabs too; when a session is disposed/archived, its
+  pending and already-shown reminders are dropped automatically.
 - **Jump to session**: clicking any row — or a toast's 跳转 button — switches
   the app to that session immediately (`ctx.sessions.open`).
 - **Done marks**: sessions that finished a round while the widget was open get
