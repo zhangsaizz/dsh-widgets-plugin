@@ -13,14 +13,17 @@ import { createRequire } from 'node:module'
 import { existsSync, readFileSync, writeFileSync, rmSync, readdirSync } from 'node:fs'
 import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { buildSync } from 'esbuild'
 import { build as viteBuild } from 'vite'
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..')
 
-// Resolve esbuild's platform-independent CLI entry and run it through node,
-// so the script works on any platform (no hardcoded win32 binary path).
+// esbuild is driven through its JavaScript API instead of its CLI bin:
+// on non-Windows installs esbuild's postinstall replaces bin/esbuild with
+// the raw native binary, so `node bin/esbuild` crashes with a SyntaxError
+// on Linux CI. The API resolves the platform binary from @esbuild/<platform>
+// itself and works identically on every platform.
 const require = createRequire(import.meta.url)
-const esbuildCli = require.resolve('esbuild/bin/esbuild')
 const EXTERNAL = ['@deepseek-ai/*', '@dsh-plugins/*', 'zod', 'react', 'react/*']
 // Client bundles run inside the browser ModuleLoader, whose module table has
 // no factory for `zod` (it is neither a platform seed word nor an injected
@@ -28,10 +31,6 @@ const EXTERNAL = ['@deepseek-ai/*', '@dsh-plugins/*', 'zod', 'react', 'react/*']
 // must inline it instead of leaving the require external; host bundles keep it
 // external and resolve it from node_modules at runtime.
 const EXTERNAL_CLIENT = EXTERNAL.filter((entry) => entry !== 'zod')
-
-function run(pkg, args) {
-  execFileSync(process.execPath, [esbuildCli, ...args], { cwd: join(root, pkg), stdio: 'inherit' })
-}
 
 // Host bundles (ESM, packages external) — the merged balance plugin plus the
 // surface-plugin stubs, so a fresh clone + `pnpm build` reproduces every lib/.
@@ -41,12 +40,17 @@ for (const pkg of [
   'packages/dsh-client-ui-session-monitor',
   'packages/dsh-client-ui-widget-manager',
 ]) {
-  run(pkg, [
-    'src/index.ts',
-    '--bundle', '--format=esm', '--platform=node', '--target=es2022',
-    ...EXTERNAL.flatMap((e) => ['--external:' + e]),
-    '--outfile=lib/index.js', '--log-level=warning',
-  ])
+  buildSync({
+    entryPoints: ['src/index.ts'],
+    bundle: true,
+    format: 'esm',
+    platform: 'node',
+    target: 'es2022',
+    external: EXTERNAL,
+    outfile: 'lib/index.js',
+    logLevel: 'warning',
+    absWorkingDir: join(root, pkg),
+  })
   console.log('built ' + pkg + '/lib/index.js')
 }
 

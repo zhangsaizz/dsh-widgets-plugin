@@ -175,8 +175,10 @@ pnpm 版本由 root `package.json` 的 `packageManager` 固定（当前 `pnpm@11
   `peerDependencyRules`、`allowBuilds`、`patchedDependencies`）；新增
   `patches/` 目录；5 个可发布包补 `repository` 字段。版本维持 0.1.0。
 - bundle 依赖从 `link:` 改为 `workspace:*`，junction 重新指向正确路径。
-- 删除重复脚本 `build-client.mjs`；`build.mjs` 的 esbuild 查找已跨平台
-  （`require.resolve('esbuild/bin/esbuild')`，不再硬编码 win32）。
+- 删除重复脚本 `build-client.mjs`；`build.mjs` 的 esbuild 改用 **JS API（buildSync）**，
+  不再 shell 调用 `bin/esbuild`——非 Windows 上 esbuild 的 postinstall 会把
+  `bin/esbuild` 硬链接替换成原生二进制，`node bin/esbuild` 在 Linux CI 上会直接
+  SyntaxError（CI 踩过这个坑，见下方「修复 CI」条目）。
 - 根 README 重写为「小组件集合」定位；各包 README 补齐双语「使用方式」。
 - 已 `git init` 并完成首次提交与文档提交（身份为 GitHub <noreply@github.com>，
   仅本地仓库配置）。
@@ -206,3 +208,9 @@ pnpm 版本由 root `package.json` 的 `packageManager` 固定（当前 `pnpm@11
 - **安装 bundle 更名**：`@dsh-plugins/balance-bundle`（`bundles/dsh-balance-bundle`）
   更名为 `@dsh-plugins/dsh-widgets-plugin`（`bundles/dsh-widgets-plugin`）；目录用
   `git mv` 迁移、锁文件 importer 同步改名、全部文档引用与双语 README 已更新。
+- **修复 CI（Linux）构建失败**：`build.mjs` 的 Host 半构建从
+  `node <esbuild/bin/esbuild>` 改为 esbuild **JS API（buildSync）**——esbuild 的
+  postinstall 在非 Windows 平台会把 `bin/esbuild` 硬链接替换为原生 ELF 二进制，
+  `node` 执行报 `SyntaxError: Invalid or unexpected token`（CI 的 `pnpm build`
+  步骤因此失败，Windows 本机不受影响）；JS API 自行解析
+  `@esbuild/<platform>` 平台包，全平台行为一致。
