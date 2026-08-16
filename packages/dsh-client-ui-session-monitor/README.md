@@ -30,6 +30,11 @@ rounds. Without the host half the widget still works (base notification kinds).
   while it has N subagents running. Each row also shows a **后×N** badge — how
   many tasks that session currently has executing in the background (mirrored
   from `session/jobs`; only running/stopping tasks count, settled ones don't).
+  When a session is not in a turn itself but still has subagents or background
+  jobs executing, its status reads **子代理执行中** (subagents working, violet)
+  or **后台执行中** (bg jobs running, cyan) instead of 空闲 — such rows rank
+  with the running ones and are never hidden by the time window; the "Running
+  only" switch stays strictly `running`.
 - **Round-completion notifications**: watches `running` true→false edges (one
   edge = one finished round, goal rounds included), and pops a toast
   `「title」已完成一轮` with **跳转** (jump) and **知道了** (dismiss) actions.

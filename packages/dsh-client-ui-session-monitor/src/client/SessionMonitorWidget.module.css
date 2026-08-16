@@ -230,6 +230,17 @@
   color: var(--dsw-alias-label-secondary, rgba(232, 234, 240, 0.72));
 }
 
+/* Busy-not-running status tints: the session itself is idle but its
+   subagents (violet) or background jobs (cyan) are still executing — same
+   accents as the 子×N / 后×N badges, so the row reads as "still working". */
+.statusSub {
+  color: #b388ff;
+}
+
+.statusJobs {
+  color: #4dd0e1;
+}
+
 .time {
   font-size: 11px;
   color: var(--dsw-alias-label-tertiary, rgba(232, 234, 240, 0.4));

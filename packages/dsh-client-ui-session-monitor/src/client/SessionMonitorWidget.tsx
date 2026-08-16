@@ -139,12 +139,16 @@ function formatAgo(ts: number, now: number, t: TranslateNS<'session-monitor'>): 
   return t('hoursAgo', { n: String(Math.floor(minutes / 60)) })
 }
 
-/** Order the visible rows: running first, then round-done, then idle; each group newest first. */
-function orderRows(list: readonly SessionSummary[], doneIds: ReadonlySet<string>): SessionSummary[] {
+/**
+ * Order the visible rows: busy first (running, or not running but still doing
+ * work — running subagents or background jobs), then round-done, then idle;
+ * each group newest first.
+ */
+function orderRows(list: readonly SessionSummary[], doneIds: ReadonlySet<string>, busyIds: ReadonlySet<string>): SessionSummary[] {
   const rows = list.slice()
   rows.sort((a, b) => {
-    const rankA = a.running ? 0 : doneIds.has(a.id) ? 1 : 2
-    const rankB = b.running ? 0 : doneIds.has(b.id) ? 1 : 2
+    const rankA = a.running || busyIds.has(a.id) ? 0 : doneIds.has(a.id) ? 1 : 2
+    const rankB = b.running || busyIds.has(b.id) ? 0 : doneIds.has(b.id) ? 1 : 2
     if (rankA !== rankB) return rankA - rankB
     return b.updatedAt - a.updatedAt
   })
@@ -386,11 +390,22 @@ export function SessionMonitorWidget(props: SessionMonitorWidgetProps) {
       .map((id) => sessions.byId[id])
       .filter((row): row is SessionSummary =>
         !!row && !row.blank && (settings.showSubagents || row.origin !== 'subagent'))
+    // "Busy" rows are still doing work even though the session itself is not
+    // in a turn: it has subagents or background jobs executing. They are
+    // treated like running rows — ranked on top and kept visible by the time
+    // window (runningOnly stays strict: only row.running counts there).
+    const busyIds = new Set<string>()
+    for (const row of live) {
+      if (row.running) continue
+      if ((runningSubagentsByParent.get(row.id) ?? 0) > 0 || (runningJobsBySession.get(row.id) ?? 0) > 0) {
+        busyIds.add(row.id)
+      }
+    }
     const windowMs = settings.timeWindowMin * 60_000
     const inWindow = windowMs > 0
       ? live.filter((row) => {
-          // Running sessions are always recent — never hide them.
-          if (row.running) return true
+          // Running and busy sessions are always recent — never hide them.
+          if (row.running || busyIds.has(row.id)) return true
           // The current session is always visible too — never hide what the
           // user is actively using, even when its updatedAt is old.
           if (row.id === sessions.current) return true
@@ -402,8 +417,8 @@ export function SessionMonitorWidget(props: SessionMonitorWidgetProps) {
     // running-only mode the idle rows are hidden by that switch, not by time,
     // so counting them here would mislead.
     const hiddenCount = settings.runningOnly ? 0 : live.length - visible.length
-    return { rows: orderRows(visible, doneIds), hiddenCount }
-  }, [sessions, settings.runningOnly, settings.timeWindowMin, settings.showSubagents, lastActive, now, doneIds])
+    return { rows: orderRows(visible, doneIds, busyIds), hiddenCount }
+  }, [sessions, settings.runningOnly, settings.timeWindowMin, settings.showSubagents, lastActive, now, doneIds, runningSubagentsByParent, runningJobsBySession])
 
   const runningCount = useMemo(
     () => sessions.ids.reduce((n, id) => {
@@ -629,6 +644,21 @@ export function SessionMonitorWidget(props: SessionMonitorWidgetProps) {
               const done = doneIds.has(row.id)
               const subRunning = runningSubagentsByParent.get(row.id) ?? 0
               const jobsRunning = runningJobsBySession.get(row.id) ?? 0
+              // A session that is not in a turn but still has subagents (or
+              // background jobs) executing is "busy", not idle: label it so
+              // instead of showing 空闲 next to a 子×N / 后×N badge.
+              const busySub = !row.running && subRunning > 0
+              const busyJobs = !row.running && subRunning === 0 && jobsRunning > 0
+              const statusText = row.running
+                ? t('running')
+                : busySub
+                  ? t('subagentsActive')
+                  : busyJobs
+                    ? t('jobsActive')
+                    : done && settings.showDone
+                      ? t('roundDone')
+                      : t('idle')
+              const statusCls = busySub ? css.statusSub : busyJobs ? css.statusJobs : undefined
               return (
                 <div
                   key={row.id}
@@ -654,12 +684,8 @@ export function SessionMonitorWidget(props: SessionMonitorWidgetProps) {
                       {jobsRunning > 0
                         ? <span className={[css.badge, css.jobsBadge].filter(Boolean).join(' ')}>{t('jobsRunning', { n: String(jobsRunning) })}</span>
                         : null}
-                      <span className={css.status}>
-                        {row.running
-                          ? t('running')
-                          : done && settings.showDone
-                            ? t('roundDone')
-                            : t('idle')}
+                      <span className={[css.status, statusCls ?? ''].filter(Boolean).join(' ')}>
+                        {statusText}
                       </span>
                       {row.pendingInteraction ? <span className={css.status}>{t('pendingInput')}</span> : null}
                       <span className={css.time}>{formatAgo(row.updatedAt, now, t)}</span>
