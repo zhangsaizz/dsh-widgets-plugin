@@ -53,11 +53,18 @@ rounds. Without the host half the widget still works (base notification kinds).
   and unconfirmed toasts are never pushed out by new arrivals; a tall stack
   scrolls). Optional chime sound (also only while you are away, like system
   notifications). **Toasts are color-coded by state**: amber
-  ✓ for a normal finished round, blue ✋ "Needs your attention" when a session
-  stops waiting for your input/confirmation, violet ⇄ for a finished subagent
+  ✓ for a normal finished round, blue ❓ "Needs your input" when a session stops
+  to ask you a question (`question`), orange ⏳ "Approval needed" when it waits
+  for your approval (`approval`), violet 📋 "Plan review" when it waits for
+  plan review (`plan-review`), violet ⇄ for a finished subagent
   (when subagents are shown), and — with the host half mounted — red ✕ for an
   **error**, grey ■ for an **abort**, orange ⚠ for a **blocked** turn and ⇥ for
-  a **token-limit** stop. With **browser notification** enabled, a system
+  a **token-limit** stop. **Mid-turn pauses notify immediately**: an approval
+  request, a question, or plan review happen while the session is still in its
+  turn (`running` does not flip), so the widget watches `pendingInteraction`
+  appearance and pops the matching toast right away (待审核 / 需要你处理 /
+  计划待评审) instead of waiting for the round to end. With **browser
+  notification** enabled, a system
   notification is also sent (same per-state titles), permission is requested
   when you turn it on; clicking the notification jumps to the session and
   dismisses the matching in-page toasts (that round is acknowledged — the

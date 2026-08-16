@@ -26,8 +26,12 @@ export type SessionMonitorKey =
   | 'clearDone'
   | 'toastTitle'
   | 'toastBody'
-  | 'interactionTitle'
-  | 'interactionBody'
+  | 'approvalTitle'
+  | 'approvalBody'
+  | 'questionTitle'
+  | 'questionBody'
+  | 'planReviewTitle'
+  | 'planReviewBody'
   | 'subagentTitle'
   | 'errorTitle'
   | 'errorBody'
@@ -99,8 +103,12 @@ export const zh: Record<SessionMonitorKey, string> = {
   clearDone: '清除完成标记',
   toastTitle: '会话完成',
   toastBody: '「{title}」已完成第 {round} 轮',
-  interactionTitle: '需要你处理',
-  interactionBody: '「{title}」正在等待你的输入或确认',
+  approvalTitle: '待审核',
+  approvalBody: '「{title}」正在等待你的审批',
+  questionTitle: '需要你处理',
+  questionBody: '「{title}」正在等待你的回答',
+  planReviewTitle: '计划待评审',
+  planReviewBody: '「{title}」正在等待计划评审',
   subagentTitle: '子代理完成',
   errorTitle: '出错了',
   errorBody: '「{title}」执行出错',
@@ -173,8 +181,12 @@ export const en: Record<SessionMonitorKey, string> = {
   clearDone: 'Clear done marks',
   toastTitle: 'Session finished',
   toastBody: '"{title}" finished round {round}',
-  interactionTitle: 'Needs your attention',
-  interactionBody: '"{title}" is waiting for your input or confirmation',
+  approvalTitle: 'Approval needed',
+  approvalBody: '"{title}" is waiting for your approval',
+  questionTitle: 'Needs your input',
+  questionBody: '"{title}" is waiting for your answer',
+  planReviewTitle: 'Plan review',
+  planReviewBody: '"{title}" is waiting for plan review',
   subagentTitle: 'Subagent finished',
   errorTitle: 'Error',
   errorBody: '"{title}" errored',

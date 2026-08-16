@@ -340,7 +340,7 @@
 
 .toast {
   pointer-events: auto;
-  /* Per-kind accent: set by the toastDone / toastInteraction / toastSubagent
+  /* Per-kind accent: set by the toastDone / toastQuestion / toastSubagent
      variants below and consumed by the accent bar and the title color. */
   --toast-accent: var(--dsw-alias-state-warning, #f5b544);
   border: 1px solid var(--dsw-alias-border-l2, rgba(255, 255, 255, 0.16));
@@ -374,9 +374,20 @@
   --toast-accent: var(--dsw-alias-state-warning, #f5b544);
 }
 
-/* The session stopped and is waiting for the user — blue, needs attention. */
-.toastInteraction {
+/* The session is waiting for the user's input/confirmation — blue, needs attention. */
+.toastQuestion {
   --toast-accent: var(--dsw-alias-state-business-primary, #4f8cff);
+}
+
+/* The session is waiting for the user's approval — orange, needs a decision
+   (distinct from the amber of a plain round completion). */
+.toastApproval {
+  --toast-accent: #ff9f43;
+}
+
+/* The session is waiting for plan review — violet. */
+.toastPlanReview {
+  --toast-accent: #b388ff;
 }
 
 /* A subagent session finished — violet. */
@@ -481,7 +492,8 @@
 
 /* Passive states (plain done, subagent, aborted, interrupted) don't demand an
    action — downgrade their jump button to a neutral secondary so the cards
-   that DO need attention (interaction / error / blocked / token-limit) keep
+   that DO need attention (approval / question / plan-review / error / blocked
+   / token-limit) keep
    the strong primary button. */
 .toastDone .jumpBtn,
 .toastSubagent .jumpBtn,

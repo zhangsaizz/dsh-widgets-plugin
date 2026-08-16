@@ -23,7 +23,9 @@ import type { CSSProperties, PointerEvent as ReactPointerEvent } from 'react'
 import type {
   InjectFace, PropsLocale, PropsRuntime, TranslateNS,
 } from '@deepseek-ai/dsh-client-ui-slots'
-import type { SessionListState, SessionSummary } from '@deepseek-ai/dsh-client-runtime/client'
+import type {
+  PendingInteractionStatus, SessionListState, SessionSummary,
+} from '@deepseek-ai/dsh-client-runtime/client'
 import {
   MAX_SCALE, MIN_SCALE, SETTINGS_CHANGED_EVENT, SETTINGS_KEY, clampToViewport, loadLastActive,
   loadPos, loadScale, loadSettings, playChime, saveLastActive, savePos, saveScale,
@@ -45,7 +47,9 @@ export type SessionMonitorWidgetProps =
 /** What a round-completion toast represents; each kind gets a distinct accent. */
 type ToastKind =
   | 'done'
-  | 'interaction'
+  | 'approval'
+  | 'plan-review'
+  | 'question'
   | 'subagent'
   | 'error'
   | 'aborted'
@@ -72,6 +76,9 @@ interface PendingAlert {
   sessionId: string
   /** Round number as observed by this widget (Host cumulative count may replace it). */
   round: number
+  /** Emit without waiting for the Host turn-end reason (interaction pauses
+   *  have no turn/end record to wait for — the kind is known immediately). */
+  immediate?: boolean
 }
 
 /** Turn-end reasons that deserve their own notification kind (vs plain done). */
@@ -84,10 +91,19 @@ function mapReasonKind(reason: string | undefined, base: ToastKind): ToastKind {
   return reason !== undefined && REASON_KINDS.has(reason) ? reason as ToastKind : base
 }
 
+/** Map a session's pending-interaction status onto its notification kind. */
+function interactionKind(status: PendingInteractionStatus | undefined): ToastKind {
+  if (status === 'approval') return 'approval'
+  if (status === 'plan-review') return 'plan-review'
+  return 'question'
+}
+
 /** Per-kind notification copy (title + body builder), shared by toasts and system notifications. */
 function toastCopy(t: TranslateNS<'session-monitor'>, kind: ToastKind): { title: string; body: (title: string, round?: number) => string } {
   switch (kind) {
-    case 'interaction': return { title: t('interactionTitle'), body: (title) => t('interactionBody', { title }) }
+    case 'approval': return { title: t('approvalTitle'), body: (title) => t('approvalBody', { title }) }
+    case 'plan-review': return { title: t('planReviewTitle'), body: (title) => t('planReviewBody', { title }) }
+    case 'question': return { title: t('questionTitle'), body: (title) => t('questionBody', { title }) }
     case 'subagent': return { title: t('subagentTitle'), body: (title, round) => t('toastBody', { title, round }) }
     case 'error': return { title: t('errorTitle'), body: (title) => t('errorBody', { title }) }
     case 'aborted': return { title: t('abortedTitle'), body: (title) => t('abortedBody', { title }) }
@@ -101,7 +117,9 @@ function toastCopy(t: TranslateNS<'session-monitor'>, kind: ToastKind): { title:
 /** Per-kind icon glyph shown next to the toast title (geometric text glyphs). */
 function toastIcon(kind: ToastKind): string {
   switch (kind) {
-    case 'interaction': return '⏳'
+    case 'approval': return '⏳'
+    case 'plan-review': return '📋'
+    case 'question': return '❓'
     case 'subagent': return '⇄'
     case 'error': return '✕'
     case 'aborted': return '⏹'
@@ -223,6 +241,8 @@ export function SessionMonitorWidget(props: SessionMonitorWidgetProps) {
   /** Per-session finished-round counter observed by THIS widget (fallback when
    *  the Host is absent; the Host's cumulative count is preferred when fresh). */
   const roundsRef = useRef<Map<string, number>>(new Map())
+  /** Last-observed pending-interaction presence per session (appearance edges). */
+  const prevInteractionRef = useRef<Map<string, boolean>>(new Map())
   /** Live BroadcastChannel for cross-tab acknowledgment sync (null when unavailable). */
   const syncChannelRef = useRef<BroadcastChannel | null>(null)
   /** Last-observed session-id set; shrinking ids = disposed sessions. */
@@ -308,6 +328,7 @@ export function SessionMonitorWidget(props: SessionMonitorWidgetProps) {
     for (const id of removed) {
       pendingRef.current.delete(id)
       roundsRef.current.delete(id)
+      prevInteractionRef.current.delete(id)
       closeBrowserNotify(id)
     }
     setToasts((ts) => ts.filter((t) => !removed.includes(t.sessionId)))
@@ -388,7 +409,7 @@ export function SessionMonitorWidget(props: SessionMonitorWidgetProps) {
       // Base kind from what the client alone can observe; the Host reason may
       // refine it to error / aborted / blocked / max-tokens / interrupted.
       const baseKind: ToastKind = row.pendingInteraction
-        ? 'interaction'
+        ? interactionKind(row.pendingInteraction)
         : row.origin === 'subagent'
           ? 'subagent'
           : 'done'
@@ -402,6 +423,39 @@ export function SessionMonitorWidget(props: SessionMonitorWidgetProps) {
         title: row.displayTitle || row.id,
         sessionId: row.id,
         round: roundsRef.current.get(row.id) ?? 1,
+      })
+    }
+    // Interaction pauses (approval / plan-review / question): a session that
+    // stops to wait for the user mid-turn does NOT flip `running`, so the
+    // round-edge loop above never fires for it. Watch pendingInteraction
+    // APPEARANCE instead. Rows that finished a round in the same run were
+    // already queued above (their base kind reflects the interaction); the
+    // `tracked` guard skips pre-existing pending states on first mount, so
+    // only pauses that happen while the widget is open notify.
+    const finishedIds = new Set<string>(finished.map((row) => row.id))
+    // byId is keyed by SessionId (a branded string); index through a plain view.
+    const byId = sessions.byId as Readonly<Record<string, SessionSummary>>
+    for (const id of next.keys()) {
+      const row = byId[id]
+      if (!row) continue
+      const nowPending = row.pendingInteraction !== undefined
+      const tracked = prevInteractionRef.current.has(id)
+      const wasPending = prevInteractionRef.current.get(id) ?? false
+      prevInteractionRef.current.set(id, nowPending)
+      if (!tracked || !nowPending || wasPending) continue
+      if (finishedIds.has(id)) continue
+      if (row.origin === 'subagent' && !cfg.showSubagents) continue
+      // Interaction toasts are exempt from the current-session suppression —
+      // "your turn" must not be missed even while looking at the page (same
+      // rule as the round-edge path). Emitted immediately: no turn/end record
+      // exists to wait for.
+      pendingRef.current.set(row.id, {
+        at: now,
+        baseKind: interactionKind(row.pendingInteraction),
+        title: row.displayTitle || row.id,
+        sessionId: row.id,
+        round: roundsRef.current.get(row.id) ?? 1,
+        immediate: true,
       })
     }
     if (newDone.size !== doneIdsRef.current.size) setDoneIds(newDone)
@@ -430,7 +484,10 @@ export function SessionMonitorWidget(props: SessionMonitorWidgetProps) {
       const recFresh = rec !== undefined && rec.at >= alert.at
       const stale = now - alert.at > 12_000
       let kind: ToastKind
-      if (host === 'down' || stale) {
+      if (alert.immediate === true) {
+        // Interaction pauses carry no turn/end record — the kind is known now.
+        kind = alert.baseKind
+      } else if (host === 'down' || stale) {
         kind = alert.baseKind
       } else if (recFresh) {
         kind = mapReasonKind(rec.reason, alert.baseKind)
@@ -927,14 +984,16 @@ export function SessionMonitorWidget(props: SessionMonitorWidgetProps) {
         ? (
           <div className={css.toasts}>
             {toasts.map((toast) => {
-              const kindCls = toast.kind === 'interaction' ? css.toastInteraction
-                : toast.kind === 'subagent' ? css.toastSubagent
-                  : toast.kind === 'error' ? css.toastError
-                    : toast.kind === 'aborted' ? css.toastAborted
-                      : toast.kind === 'blocked' ? css.toastBlocked
-                        : toast.kind === 'max-tokens' ? css.toastMaxTokens
-                          : toast.kind === 'interrupted' ? css.toastInterrupted
-                            : css.toastDone
+              const kindCls = toast.kind === 'approval' ? css.toastApproval
+                : toast.kind === 'plan-review' ? css.toastPlanReview
+                  : toast.kind === 'question' ? css.toastQuestion
+                    : toast.kind === 'subagent' ? css.toastSubagent
+                      : toast.kind === 'error' ? css.toastError
+                        : toast.kind === 'aborted' ? css.toastAborted
+                          : toast.kind === 'blocked' ? css.toastBlocked
+                            : toast.kind === 'max-tokens' ? css.toastMaxTokens
+                              : toast.kind === 'interrupted' ? css.toastInterrupted
+                                : css.toastDone
               const copy = toastCopy(t, toast.kind)
               return (
                 <div key={toast.key} className={[css.toast, kindCls].filter(Boolean).join(' ')}>
