@@ -385,41 +385,6 @@ export function SessionMonitorWidget(props: SessionMonitorWidgetProps) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pos, window.innerWidth, window.innerHeight])
 
-  const { rows, hiddenCount } = useMemo(() => {
-    const live = sessions.ids
-      .map((id) => sessions.byId[id])
-      .filter((row): row is SessionSummary =>
-        !!row && !row.blank && (settings.showSubagents || row.origin !== 'subagent'))
-    // "Busy" rows are still doing work even though the session itself is not
-    // in a turn: it has subagents or background jobs executing. They are
-    // treated like running rows — ranked on top and kept visible by the time
-    // window (runningOnly stays strict: only row.running counts there).
-    const busyIds = new Set<string>()
-    for (const row of live) {
-      if (row.running) continue
-      if ((runningSubagentsByParent.get(row.id) ?? 0) > 0 || (runningJobsBySession.get(row.id) ?? 0) > 0) {
-        busyIds.add(row.id)
-      }
-    }
-    const windowMs = settings.timeWindowMin * 60_000
-    const inWindow = windowMs > 0
-      ? live.filter((row) => {
-          // Running and busy sessions are always recent — never hide them.
-          if (row.running || busyIds.has(row.id)) return true
-          // The current session is always visible too — never hide what the
-          // user is actively using, even when its updatedAt is old.
-          if (row.id === sessions.current) return true
-          return now - Math.max(row.updatedAt, lastActive[row.id] ?? 0) <= windowMs
-        })
-      : live
-    const visible = settings.runningOnly ? inWindow.filter((row) => row.running) : inWindow
-    // The "N older sessions hidden" hint is about the time window only: in
-    // running-only mode the idle rows are hidden by that switch, not by time,
-    // so counting them here would mislead.
-    const hiddenCount = settings.runningOnly ? 0 : live.length - visible.length
-    return { rows: orderRows(visible, doneIds, busyIds), hiddenCount }
-  }, [sessions, settings.runningOnly, settings.timeWindowMin, settings.showSubagents, lastActive, now, doneIds, runningSubagentsByParent, runningJobsBySession])
-
   const runningCount = useMemo(
     () => sessions.ids.reduce((n, id) => {
       const row = sessions.byId[id]
@@ -461,6 +426,44 @@ export function SessionMonitorWidget(props: SessionMonitorWidgetProps) {
     }
     return map
   }, [sessions])
+
+  // The visible rows projection. Deliberately placed after the two busyness
+  // sources above: it reads runningSubagentsByParent / runningJobsBySession,
+  // and JavaScript's temporal dead zone would throw if it ran before them.
+  const { rows, hiddenCount } = useMemo(() => {
+    const live = sessions.ids
+      .map((id) => sessions.byId[id])
+      .filter((row): row is SessionSummary =>
+        !!row && !row.blank && (settings.showSubagents || row.origin !== 'subagent'))
+    // "Busy" rows are still doing work even though the session itself is not
+    // in a turn: it has subagents or background jobs executing. They are
+    // treated like running rows — ranked on top and kept visible by the time
+    // window (runningOnly stays strict: only row.running counts there).
+    const busyIds = new Set<string>()
+    for (const row of live) {
+      if (row.running) continue
+      if ((runningSubagentsByParent.get(row.id) ?? 0) > 0 || (runningJobsBySession.get(row.id) ?? 0) > 0) {
+        busyIds.add(row.id)
+      }
+    }
+    const windowMs = settings.timeWindowMin * 60_000
+    const inWindow = windowMs > 0
+      ? live.filter((row) => {
+          // Running and busy sessions are always recent — never hide them.
+          if (row.running || busyIds.has(row.id)) return true
+          // The current session is always visible too — never hide what the
+          // user is actively using, even when its updatedAt is old.
+          if (row.id === sessions.current) return true
+          return now - Math.max(row.updatedAt, lastActive[row.id] ?? 0) <= windowMs
+        })
+      : live
+    const visible = settings.runningOnly ? inWindow.filter((row) => row.running) : inWindow
+    // The "N older sessions hidden" hint is about the time window only: in
+    // running-only mode the idle rows are hidden by that switch, not by time,
+    // so counting them here would mislead.
+    const hiddenCount = settings.runningOnly ? 0 : live.length - visible.length
+    return { rows: orderRows(visible, doneIds, busyIds), hiddenCount }
+  }, [sessions, settings.runningOnly, settings.timeWindowMin, settings.showSubagents, lastActive, now, doneIds, runningSubagentsByParent, runningJobsBySession])
 
   /** Close the live system notification for one session (no-op when none is showing). */
   function closeBrowserNotify(sessionId: string): void {
