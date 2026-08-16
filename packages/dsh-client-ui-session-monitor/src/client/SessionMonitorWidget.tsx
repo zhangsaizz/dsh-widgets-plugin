@@ -230,6 +230,14 @@ export function SessionMonitorWidget(props: SessionMonitorWidgetProps) {
 
     const cfg = settingsRef.current
     const now = Date.now()
+    // Whether the user is actually looking at this page. The current-session
+    // suppression below assumes exactly that: if they switched away (another
+    // tab, a minimized window, or the browser window simply lost focus), a
+    // finished round of the *current* session still deserves a notification —
+    // the in-page toast waits for them on return, and the system notification
+    // (when enabled) reaches them on the OS level.
+    const userAway = typeof document !== 'undefined'
+      && (document.visibilityState === 'hidden' || !document.hasFocus())
     // Record the moment a session starts or finishes a round as its last
     // activity (feeds the recent-window filter; updatedAt only tracks prompts).
     // The `prev.has(id)` guard is load-bearing: `prev` starts empty on mount,
@@ -260,7 +268,9 @@ export function SessionMonitorWidget(props: SessionMonitorWidgetProps) {
       // Subagents are filtered out by default — skip them entirely unless
       // "show subagents" is enabled (then they show up and notify too).
       if (row.origin === 'subagent' && !cfg.showSubagents) continue
-      if (row.id === sessions.current && !cfg.notifyCurrent) continue
+      // Current session: skip only while the user is looking at it AND has not
+      // opted in; once they are away, the round still notifies.
+      if (row.id === sessions.current && !cfg.notifyCurrent && !userAway) continue
       newDone.add(row.id)
       // Base kind from what the client alone can observe; the Host reason may
       // refine it to error / aborted / blocked / max-tokens / interrupted.
