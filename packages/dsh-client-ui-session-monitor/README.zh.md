@@ -9,6 +9,10 @@
 「正常完成」与「**出错 / 中止 / 阻塞 / 超出 token 上限**」；没有 Host 半时挂件
 仍可用（退回基础通知状态）。
 
+## 预览
+
+![会话监控看板预览：会话列表 / 完成提醒（按状态配色）/ 收起胶囊](../../docs/previews/session-monitor-widget.png)
+
 ## 特性
 
 - **实时会话列表**：投影标准 `useSessions` 会话列表 store（**无 Host RPC、无

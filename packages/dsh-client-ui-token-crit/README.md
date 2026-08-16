@@ -7,6 +7,10 @@ registers a draggable, resizable, collapsible transparent widget in
 `shell.overlay` that shows the current session's cumulative token usage in
 real time and triggers game-style crit animations as usage grows.
 
+## Preview
+
+![Token crit widget preview: real-time usage counter with crit animations](../../docs/previews/token-crit-widget.png)
+
 ## Features
 
 - **Real-time cumulative usage**: reads the `tokenUsage` session projection

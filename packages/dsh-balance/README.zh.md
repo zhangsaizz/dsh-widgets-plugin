@@ -7,6 +7,10 @@
 原先拆成三个包（`balance` 缝隙、`balance-vendors` 厂商、`client-ui-balance` 看板），
 现已合并为**一个插件行**，一次安装即可挂载整条余额链路。
 
+## 预览
+
+![余额看板预览：展开 / 多账户 / 收起胶囊 / 悬停提示 / 加载中（浅色与深色主题）](../../docs/previews/balance-widget.png)
+
 ## 内部组成
 
 - **能力缝隙** — `ctx.balance`（`BalanceRuntime`）把 LLM 提供商路由绑定到厂商余额

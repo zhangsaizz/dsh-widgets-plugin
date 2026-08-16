@@ -11,6 +11,10 @@ reasons and serves them over a same-origin route, so notifications can tell
 "finished normally" apart from **errored / aborted / blocked / token-limit**
 rounds. Without the host half the widget still works (base notification kinds).
 
+## Preview
+
+![Session monitor preview: live session list, round-done toasts (status-colored), collapsed capsule](../../docs/previews/session-monitor-widget.png)
+
 ## Features
 
 - **Live session list**: projects the standard `useSessions` session-list store

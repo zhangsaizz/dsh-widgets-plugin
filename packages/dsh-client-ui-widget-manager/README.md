@@ -6,6 +6,10 @@ A web settings page plugin: adds a "Widgets" page to the web settings that
 lists this project's widgets and lets you **Add (enable)** or **Close
 (disable)** each one at runtime.
 
+## Preview
+
+![Widget manager settings page: widget list with Add / Disable / Configure](../../docs/previews/widget-manager-settings.png)
+
 ## Features
 
 - **Widget list**: the page live-projects the `shell.overlay` registration

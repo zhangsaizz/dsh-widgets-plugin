@@ -9,6 +9,11 @@ dashboard. Formerly three packages (`balance` seam, `balance-vendors`,
 `client-ui-balance`); merged into one plugin row so a single install mounts
 the whole balance line.
 
+## Preview
+
+![Balance dashboard preview: expanded / multi-account / collapsed pill /
+hover tooltip / loading states, light & dark themes](../../docs/previews/balance-widget.png)
+
 ## What's inside
 
 - **Capability seam** — `ctx.balance` (`BalanceRuntime`) binds LLM provider

@@ -11,6 +11,19 @@
 | Token 暴击挂件 | `@dsh-plugins/client-ui-token-crit` | 浮动的 token 用量计量挂件；实时显示当前会话累计 token 用量，增长时触发网游风格暴击动效，附带可配置面板 |
 | 会话监控看板 | `@dsh-plugins/client-ui-session-monitor` | 浮动的会话监控面板；列出正在执行的会话与运行状态，会话完成一轮时主动弹提醒（可自动消失或需确认），点击任意会话一键跳转 |
 
+## 预览
+
+| 余额看板 | Token 暴击挂件 | 会话监控看板 |
+| :---: | :---: | :---: |
+| ![余额看板：展开 / 多账户 / 收起胶囊 / 悬停提示 / 加载中（浅色与深色主题）](docs/previews/balance-widget.png) | ![Token 暴击挂件：实时用量计数与暴击动效](docs/previews/token-crit-widget.png) | ![会话监控看板：会话列表 / 完成提醒（按状态配色）/ 收起胶囊](docs/previews/session-monitor-widget.png) |
+
+| 小组件管理设置页 |
+| :---: |
+| ![小组件管理设置页：添加 / 关闭 / 配置弹窗](docs/previews/widget-manager-settings.png) |
+
+> 前三张为挂件的静态状态预览；实际挂件可拖动、缩放、折叠，动效与完整交互见
+> [使用](#使用) 及各子包 README。最后一张是 Web 设置里的「小组件管理」设置页。
+
 ## 结构
 
 | 包 | 角色 |

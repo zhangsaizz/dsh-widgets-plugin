@@ -6,6 +6,10 @@
 `shell.overlay` 里注册一个可拖动、可缩放、可折叠的透明挂件，实时显示当前
 会话累计 token 用量，并在用量增长时触发网游风格的暴击动效。
 
+## 预览
+
+![Token 暴击挂件预览：实时用量计数与暴击动效](../../docs/previews/token-crit-widget.png)
+
 ## 特性
 
 - **实时累计用量**：通过标准 `useSessions` prop 读取 `tokenUsage` 会话投影

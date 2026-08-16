@@ -2,5 +2,5 @@
 # side as of the last confirmed-consistent state. Both languages carry equal authority;
 # after editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write packages/dsh-client-ui-token-crit/README.md
-README.md: bc31fff59af9fcf574e817bc2052143f8a48d2d8
-README.zh.md: 89015149160b817268cabd0b6bf1d8350823c94d
+README.md: 3f060f1cfbe33cc5aedf82c3d7a7be8d73d719d4
+README.zh.md: 54e2df6a75de0d49d64dfbd561e40d37d7113d1b
