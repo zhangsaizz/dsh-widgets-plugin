@@ -27,7 +27,9 @@ rounds. Without the host half the widget still works (base notification kinds).
   and a muted line reports how many older sessions were hidden. **Subagent
   sessions are filtered out by default** (the config panel can re-enable
   listing and notifying them), but a parent row shows a compact **子×N** badge
-  while it has N subagents running.
+  while it has N subagents running. Each row also shows a **后×N** badge — how
+  many tasks that session currently has executing in the background (mirrored
+  from `session/jobs`; only running/stopping tasks count, settled ones don't).
 - **Round-completion notifications**: watches `running` true→false edges (one
   edge = one finished round, goal rounds included), and pops a toast
   `「title」已完成一轮` with **跳转** (jump) and **知道了** (dismiss) actions.
@@ -43,7 +45,10 @@ rounds. Without the host half the widget still works (base notification kinds).
   **error**, grey ■ for an **abort**, orange ⚠ for a **blocked** turn and ⇥ for
   a **token-limit** stop. With **browser notification** enabled, a system
   notification is also sent (same per-state titles), permission is requested
-  when you turn it on; clicking the notification jumps to the session;
+  when you turn it on; clicking the notification jumps to the session and
+  dismisses the matching in-page toasts (that round is acknowledged — the
+  page toast's own buttons would be redundant); same-session notifications
+  replace instead of stacking.
   same-session notifications replace instead of stacking.
 - **Jump to session**: clicking any row — or a toast's 跳转 button — switches
   the app to that session immediately (`ctx.sessions.open`).
@@ -100,8 +105,8 @@ web profile restart is required for the host half to be picked up.
 No configuration is needed after mounting:
 
 1. **Watch** — the panel lists the live (non-subagent) sessions; running
-   sessions sit on top with a pulsing dot and the header shows the running
-   count.
+   sessions sit on top with a pulsing dot, the header shows the running count,
+   and each row carries a **后×N** badge with its background-task count.
 2. **Jump** — click any row to switch the app to that session.
 3. **Shrink / zoom** — click the **—** button in the header to collapse the
    panel into a compact pill (tap the pill to expand it again); drag the

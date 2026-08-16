@@ -16,6 +16,7 @@ export type SessionMonitorKey =
   | 'pendingInput'
   | 'subagent'
   | 'subagentsRunning'
+  | 'jobsRunning'
   | 'current'
   | 'collapse'
   | 'expand'
@@ -86,6 +87,7 @@ export const zh: Record<SessionMonitorKey, string> = {
   pendingInput: '等待输入',
   subagent: '子代理',
   subagentsRunning: '子×{n}',
+  jobsRunning: '后×{n}',
   current: '当前',
   collapse: '收起',
   expand: '点击展开',
@@ -157,6 +159,7 @@ export const en: Record<SessionMonitorKey, string> = {
   pendingInput: 'Waiting for input',
   subagent: 'Subagent',
   subagentsRunning: 'sub×{n}',
+  jobsRunning: 'bg×{n}',
   current: 'Current',
   collapse: 'Collapse',
   expand: 'Click to expand',

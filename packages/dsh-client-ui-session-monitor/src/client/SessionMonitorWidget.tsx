@@ -426,6 +426,27 @@ export function SessionMonitorWidget(props: SessionMonitorWidgetProps) {
     return map
   }, [sessions])
 
+  /**
+   * Live background-job count per session (shown as a 后×N badge on the row),
+   * mirrored from the runtime's `session/jobs` mirror (`jobsBySession`). Only
+   * still-executing jobs (`running` / `stopping`) count: settled jobs
+   * (`completed` / `killed` / `failed`) linger in the registry until the owner
+   * session is disposed, so including them would show stale totals.
+   */
+  const runningJobsBySession = useMemo(() => {
+    const map = new Map<string, number>()
+    for (const id of sessions.ids) {
+      const jobs = sessions.jobsBySession[id]
+      if (!jobs || jobs.length === 0) continue
+      let n = 0
+      for (const job of jobs) {
+        if (job.status === 'running' || job.status === 'stopping') n++
+      }
+      if (n > 0) map.set(id, n)
+    }
+    return map
+  }, [sessions])
+
   /** Close the live system notification for one session (no-op when none is showing). */
   function closeBrowserNotify(sessionId: string): void {
     const inst = notifyInstRef.current.get(sessionId)
@@ -449,7 +470,8 @@ export function SessionMonitorWidget(props: SessionMonitorWidgetProps) {
    * the in-widget toast: only fires when the Notification API exists and the
    * permission is granted. Same-session notifications share a `tag`, so the
    * browser replaces the older one instead of stacking. Clicking the
-   * notification jumps to the session (and focuses the window).
+   * notification focuses the window, jumps to the session, and dismisses the
+   * matching in-page toasts — the click acknowledges that finished round.
    */
   function sendBrowserNotify(title: string, body: string, sessionId: string): void {
     try {
@@ -464,18 +486,27 @@ export function SessionMonitorWidget(props: SessionMonitorWidgetProps) {
       n.onclose = () => { notifyInstRef.current.delete(sessionId) }
       n.onclick = () => {
         // Clicking the notification: focus the window, jump to the session
-        // (which also clears its "round done" mark), and always dismiss the
-        // notification itself — `close()` runs even if the jump throws.
+        // (which also clears its "round done" mark and closes the notification
+        // itself — `close()` runs even if the jump throws), then drop the
+        // matching in-page toasts: the click acknowledges that finished round,
+        // so the toast's own 跳转/知道了 would be redundant.
         try { window.focus() } catch { /* focus unavailable */ }
         try { handleOpen(sessionId) } finally {
           try { n.close() } catch { /* notification already gone */ }
         }
+        dismissSessionToasts(sessionId)
       }
     } catch { /* notification unavailable */ }
   }
 
   function dismissToast(key: number): void {
     setToasts((prev) => prev.filter((toast) => toast.key !== key))
+  }
+
+  /** Dismiss every in-page toast belonging to one session — the finished round
+   *  was acknowledged elsewhere (currently: the system notification's click). */
+  function dismissSessionToasts(sessionId: string): void {
+    setToasts((prev) => prev.filter((toast) => toast.sessionId !== sessionId))
   }
 
   function clearDone(): void {
@@ -597,6 +628,7 @@ export function SessionMonitorWidget(props: SessionMonitorWidgetProps) {
               const isCurrent = row.id === currentId
               const done = doneIds.has(row.id)
               const subRunning = runningSubagentsByParent.get(row.id) ?? 0
+              const jobsRunning = runningJobsBySession.get(row.id) ?? 0
               return (
                 <div
                   key={row.id}
@@ -618,6 +650,9 @@ export function SessionMonitorWidget(props: SessionMonitorWidgetProps) {
                       {isCurrent ? <span className={css.badge}>{t('current')}</span> : null}
                       {subRunning > 0
                         ? <span className={[css.badge, css.subBadge].filter(Boolean).join(' ')}>{t('subagentsRunning', { n: String(subRunning) })}</span>
+                        : null}
+                      {jobsRunning > 0
+                        ? <span className={[css.badge, css.jobsBadge].filter(Boolean).join(' ')}>{t('jobsRunning', { n: String(jobsRunning) })}</span>
                         : null}
                       <span className={css.status}>
                         {row.running

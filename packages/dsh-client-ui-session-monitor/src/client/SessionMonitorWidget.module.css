@@ -217,6 +217,14 @@
   font-weight: 600;
 }
 
+/* "后×N" badge: how many background tasks this session still has executing.
+   Cyan echoes the background-work accent — informational, never a status color. */
+.jobsBadge {
+  background: color-mix(in srgb, #4dd0e1 14%, transparent);
+  color: #4dd0e1;
+  font-weight: 600;
+}
+
 .status {
   font-size: 11px;
   color: var(--dsw-alias-label-secondary, rgba(232, 234, 240, 0.72));
