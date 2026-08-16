@@ -72,7 +72,12 @@ rounds. Without the host half the widget still works (base notification kinds).
   replace instead of stacking. The system notification is only sent while you
   are away from the page (tab hidden, window minimized, or unfocused) — while
   you are looking at it, the in-page toast is enough, so no OS-level popup
-  fires. Rounds that finish while the page is fully CLOSED cannot notify — a
+  fires. **Auto-cleanup on return**: once the system notification has called
+  you back — when the browser window regains focus or the tab becomes visible
+  again — the current session's system notification is closed automatically
+  and its "本轮完成" badge cleared (the in-page toasts stay: they are the
+  in-page notification now; other sessions' completions are left alone, they
+  still await your attention). Rounds that finish while the page is fully CLOSED cannot notify — a
   browser limitation (no JS runs when the page is gone); the system
   notification only covers "page open but the user switched away". **Cross-tab
   sync**: when the same session is open in several tabs,

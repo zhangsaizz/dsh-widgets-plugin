@@ -272,10 +272,13 @@ export function SessionMonitorWidget(props: SessionMonitorWidgetProps) {
    *  instead of writing localStorage on every pointermove (sync writes jank). */
   const posRef = useRef<{ x: number; y: number } | null>(null)
   const scaleRef = useRef(scale)
+  /** Latest current-session id for the return-cleanup listener (below). */
+  const currentIdRef = useRef<string | undefined>(sessions.current)
 
   useEffect(() => { settingsRef.current = settings }, [settings])
   useEffect(() => { doneIdsRef.current = doneIds }, [doneIds])
   useEffect(() => { lastActiveRef.current = lastActive }, [lastActive])
+  useEffect(() => { currentIdRef.current = sessions.current })
   // Re-point the flush ref every render: flushPending closes over the latest
   // `t`/settings, so the mount-time poll loop must not hold the first frame's.
   useEffect(() => { flushPendingRef.current = flushPending })
@@ -378,6 +381,46 @@ export function SessionMonitorWidget(props: SessionMonitorWidgetProps) {
   useEffect(() => {
     const id = window.setInterval(() => setNow(Date.now()), 30_000)
     return () => window.clearInterval(id)
+  }, [])
+
+  // "Returned to the page" cleanup: the system notification exists to reach
+  // the user while they are NOT looking at the page (tab hidden, window
+  // minimized, or the browser window simply lost focus — another program in
+  // front). Once they actually come back (window refocused / tab shown), the
+  // current session's notification has served its purpose — close it and
+  // clear that session's "round done" badge, so a stale OS popup does not
+  // linger after the user is already here. Scope: ONLY the current session
+  // (other sessions' completions still await the user's attention and must
+  // not be silently dropped), ONLY when a live system notification exists
+  // (with browserNotify off there is nothing to clean, and the badge stays
+  // as the only record of the finished round), and the in-page toasts are
+  // untouched (the toast is the in-page notification now). Each tab cleans
+  // its own notification instance — no cross-tab broadcast: another tab may
+  // have a different current session, and its own return event cleans its
+  // own instance.
+  useEffect(() => {
+    let prevAway = isUserAway()
+    const onReturn = (): void => {
+      const away = isUserAway()
+      const returned = prevAway && !away
+      prevAway = away
+      if (!returned) return
+      const id = currentIdRef.current
+      if (id === undefined || !notifyInstRef.current.has(id)) return
+      closeBrowserNotify(id)
+      setDoneIds((ds) => {
+        if (!ds.has(id)) return ds
+        const next = new Set(ds)
+        next.delete(id)
+        return next
+      })
+    }
+    document.addEventListener('visibilitychange', onReturn)
+    window.addEventListener('focus', onReturn)
+    return () => {
+      document.removeEventListener('visibilitychange', onReturn)
+      window.removeEventListener('focus', onReturn)
+    }
   }, [])
 
   // Round-completion detection: diff the running bits across snapshots.
