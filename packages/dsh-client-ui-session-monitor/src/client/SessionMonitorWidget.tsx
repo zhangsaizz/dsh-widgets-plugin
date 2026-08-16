@@ -220,6 +220,10 @@ export function SessionMonitorWidget(props: SessionMonitorWidgetProps) {
   const syncChannelRef = useRef<BroadcastChannel | null>(null)
   /** Last-observed session-id set; shrinking ids = disposed sessions. */
   const prevIdsRef = useRef<ReadonlySet<string>>(new Set())
+  /** Latest dragged position / scale, so drag-end can persist them once
+   *  instead of writing localStorage on every pointermove (sync writes jank). */
+  const posRef = useRef<{ x: number; y: number } | null>(null)
+  const scaleRef = useRef(scale)
 
   useEffect(() => { settingsRef.current = settings }, [settings])
   useEffect(() => { doneIdsRef.current = doneIds }, [doneIds])
@@ -498,7 +502,11 @@ export function SessionMonitorWidget(props: SessionMonitorWidgetProps) {
     const rect = anchorRef.current?.getBoundingClientRect()
     if (!rect) return
     const p = clampToViewport(pos.x, pos.y, rect.width, rect.height)
-    if (p.x !== pos.x || p.y !== pos.y) setPos(p)
+    if (p.x !== pos.x || p.y !== pos.y) {
+      posRef.current = p
+      setPos(p)
+      savePos(p)
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pos, window.innerWidth, window.innerHeight])
 
@@ -706,20 +714,25 @@ export function SessionMonitorWidget(props: SessionMonitorWidgetProps) {
     const dy = e.clientY - d.startY
     if (d.mode === 'resize') {
       if (Math.abs(dx) + Math.abs(dy) > 2) movedRef.current = true
-      setScale(Math.min(MAX_SCALE, Math.max(MIN_SCALE, d.startScale + (dx + dy) / 180)))
+      const nextScale = Math.min(MAX_SCALE, Math.max(MIN_SCALE, d.startScale + (dx + dy) / 180))
+      scaleRef.current = nextScale
+      setScale(nextScale)
       return
     }
     if (Math.abs(dx) + Math.abs(dy) > 4) movedRef.current = true
     const rect = anchorRef.current?.getBoundingClientRect()
-    // The anchor scales from its top-left corner: the pointer sees visual
-    // (scaled) positions, so convert the desired visual position back to the
-    // layout position by dividing by the scale.
+    // The anchor scales from its top-left corner, so the visual top-left
+    // corner sits EXACTLY on the layout corner — a drag tracks the cursor 1:1
+    // in visual pixels. No scale division: dividing made the panel drift at
+    // zoom ≠ 1 (it ran ahead at < 1×, lagged at > 1×). The clamp uses the
+    // visual (scaled) size to keep the whole rendered box inside the viewport.
     const p = clampToViewport(
-      (d.originLeft + dx) / scale,
-      (d.originTop + dy) / scale,
+      d.originLeft + dx,
+      d.originTop + dy,
       rect?.width ?? PANEL_W,
       rect?.height ?? 60,
     )
+    posRef.current = p
     setPos(p)
   }
 
@@ -730,16 +743,15 @@ export function SessionMonitorWidget(props: SessionMonitorWidgetProps) {
     const wasTap = d.mode === 'move' && !movedRef.current
     dragRef.current = null
     setDragging(false)
+    // Persist once at drag end instead of on every pointermove: synchronous
+    // localStorage writes per event were part of the drag jank.
+    if (d.mode === 'resize') {
+      saveScale(scaleRef.current)
+    } else if (posRef.current) {
+      savePos(posRef.current)
+    }
     if (wasTap && collapsed) setCollapsed(false)
   }
-
-  useEffect(() => {
-    savePos(pos)
-  }, [pos])
-
-  useEffect(() => {
-    saveScale(scale)
-  }, [scale])
 
   const anchorStyle: CSSProperties = {
     position: 'fixed',
