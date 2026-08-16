@@ -141,6 +141,12 @@ seconds). The reason-aware notification kinds need the host half; without it
 the browser falls back to its base kinds (done / interaction / subagent) — a
 web profile restart is required for the host half to be picked up.
 
+Installing `@dsh-plugins/dsh-widgets-plugin` (once published:
+`dsh plugin --profile <name> add @dsh-plugins/dsh-widgets-plugin`) mounts this
+dashboard together with every widget in one layer; for local development you
+can `link:` the bundle directory from this repo (see "安装" in the root
+README).
+
 ## Usage
 
 No configuration is needed after mounting:

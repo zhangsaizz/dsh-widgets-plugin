@@ -99,6 +99,10 @@ profile 上提供 `/_dsh/session-monitor/status` 路由）与**浏览器半**（
 区分「出错/中止/阻塞/token 上限」等通知状态需要 Host 半；没有它浏览器退回基础
 状态（完成 / 需要处理 / 子代理）。**Host 半需要重启 web 服务才能被加载**。
 
+推荐直接安装 `@dsh-plugins/dsh-widgets-plugin`（发布后
+`dsh plugin --profile <name> add @dsh-plugins/dsh-widgets-plugin`），一次挂载本看板与
+全部小组件；本地开发可直接 `link:` 本仓库 bundle（见根 README「安装」）。
+
 ## 使用
 
 挂载后无需配置即可使用：

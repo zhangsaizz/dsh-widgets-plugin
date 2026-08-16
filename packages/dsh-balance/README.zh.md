@@ -49,11 +49,15 @@
 
 ## 安装
 
-推荐安装 bundle——它会连同 Token 暴击挂件与小组件管理页一起挂载本插件：
+推荐安装 bundle——它会连同 Token 暴击挂件、会话监控看板与小组件管理页一起挂载本插件。
+发布到 npm 后，用官方 `dsh plugin` 命令装进目标 profile（自动安装依赖并追加
+`dsh.profile.bundles`）：
 
 ```sh
-npm install @dsh-plugins/dsh-widgets-plugin
+dsh plugin --profile <name> add @dsh-plugins/dsh-widgets-plugin
 ```
+
+本地开发时也可直接 `link:` 本仓库的 bundle 目录（见根 README「安装」）。
 
 或把插件行直接加进 profile 的 `cordis.patch.yml`：
 

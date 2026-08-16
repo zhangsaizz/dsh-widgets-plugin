@@ -57,7 +57,9 @@ pnpm build   # 等价于 node scripts/build.mjs
 这是一个纯客户端 surface 插件：把它（连同其 `dsh.client` 声明的依赖）加入
 部署的 web 插件表 / host `cordis.yml` 后，浏览器端通过
 `exports["./client"]` 加载 `lib/client.js` 并在 `shell.overlay` 中渲染挂件。
-推荐直接安装 `@dsh-plugins/dsh-widgets-plugin`，它会一次挂载本挂件与余额看板。
+推荐直接安装 `@dsh-plugins/dsh-widgets-plugin`（发布后
+`dsh plugin --profile <name> add @dsh-plugins/dsh-widgets-plugin`），一次挂载本挂件
+与余额看板等全部小组件；本地开发可直接 `link:` 本仓库 bundle（见根 README「安装」）。
 
 ## 使用
 

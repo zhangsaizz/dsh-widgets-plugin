@@ -70,8 +70,11 @@ This is a pure client-side surface plugin: once it (together with the
 dependencies declared in its `dsh.client`) is added to the deployed web plugin
 table / host `cordis.yml`, the browser loads `lib/client.js` through
 `exports["./client"]` and renders the widget in `shell.overlay`.
-Installing `@dsh-plugins/dsh-widgets-plugin` mounts this widget together with
-the balance dashboard.
+Installing `@dsh-plugins/dsh-widgets-plugin` (once published:
+`dsh plugin --profile <name> add @dsh-plugins/dsh-widgets-plugin`) mounts this
+widget together with the balance dashboard and the other widgets in one layer;
+for local development you can `link:` the bundle directory from this repo (see
+"安装" in the root README).
 
 ## Usage
 

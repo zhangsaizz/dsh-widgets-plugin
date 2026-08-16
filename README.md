@@ -79,17 +79,48 @@ pnpm -r publish --no-git-checks   # 等价于 npm run publish:all
 发布前可用 `pnpm pack`（在每个包目录）检查产物清单；bundle 的
 `workspace:*` 依赖会在打包时自动改写为实际版本号。
 
-## 安装（推荐：bundle）
+## 安装
 
-1. 在宿主环境安装 bundle 包：`npm install @dsh-plugins/dsh-widgets-plugin`。
-2. 把 `@dsh-plugins/dsh-widgets-plugin` 加进目标 profile 的 `dsh.profile.bundles`（profile 的 package.json），例如：
-   ```json
-   { "dsh": { "profile": { "bundles": ["@deepseek-ai/dsh-base", "@deepseek-ai/dsh-web-app", "@dsh-plugins/dsh-widgets-plugin"] } } }
-   ```
-3. 重启 `dsh web`。
+两种安装方式：**发布安装**（推荐——装的是预构建产物，安装端零构建授权）与**本地开发
+安装**（`link:` 直连本仓库，适合改代码调试）。手动 patch 见文末「安装（手动）」。
+
+### 方式一：发布安装（推荐）
+
+发布到 npm 后，用官方 `dsh plugin` 命令把它装进目标 profile——命令在 profile 目录内
+转发给 pnpm，自动安装依赖并把 bundle 追加进 `dsh.profile.bundles`：
+
+```sh
+dsh plugin --profile <name> add @dsh-plugins/dsh-widgets-plugin
+```
+
+验证与启动：
+
+```sh
+dsh --profile <name> --dump-config   # 应出现 "# == @dsh-plugins/dsh-widgets-plugin" 层
+dsh --profile <name>
+```
 
 bundle 的 `cordis.patch.yml` 会插入 `balance`、`ui-token-crit`、`ui-session-monitor`、
-`ui-widget-manager` 四行，一次挂载全部组件。
+`ui-widget-manager` 四行，一次挂载全部组件。发布物自带构建产物（`lib/`），安装端无需
+构建授权。
+
+### 方式二：本地开发安装（link 直连本仓库）
+
+开发 / 调试时直接把本仓库的 bundle 装进 profile，pnpm 以 `link:` 依赖链接
+（junction 直连，不拷贝）：
+
+```sh
+dsh plugin --profile <name> add F:/dsh-balance-plugin/bundles/dsh-widgets-plugin
+```
+
+首次使用会初始化 profile（`@deepseek-ai/dsh-base` 作为第一个 bundle）。改代码后先在
+仓库根 `pnpm build` 更新 `lib/` 产物，再重启 `dsh web`（Host 半改动）或刷新页面
+（浏览器半改动）。
+
+> **不支持 `github:` 直接安装**：git 安装拉取的是源码、不跑任何构建，且 bundle 的
+> `workspace:*` 依赖在 workspace 之外无法解析
+> （`ERR_PNPM_WORKSPACE_PKG_NOT_FOUND`）。给别人用请走方式一（npm 发布）或
+> `pnpm pack` 交付 tarball。
 
 ## 安装（手动）
 

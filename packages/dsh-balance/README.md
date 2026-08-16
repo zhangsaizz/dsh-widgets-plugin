@@ -61,11 +61,17 @@ hover tooltip / loading states, light & dark themes](../../docs/previews/balance
 ## Installation
 
 Recommended: install the bundle, which mounts this plugin together with the
-token-crit widget and the widgets manager page:
+token-crit widget, the session monitor dashboard and the widgets manager page.
+Once published to npm, install it into the target profile with the official
+`dsh plugin` command (it installs dependencies and appends the bundle to
+`dsh.profile.bundles`):
 
 ```sh
-npm install @dsh-plugins/dsh-widgets-plugin
+dsh plugin --profile <name> add @dsh-plugins/dsh-widgets-plugin
 ```
+
+For local development you can also `link:` the bundle directory from this repo
+(see "安装" in the root README).
 
 Or add the plugin row directly to the profile's `cordis.patch.yml`:
 

@@ -53,8 +53,9 @@ pnpm build   # 等价于 node scripts/build.mjs
 
 纯客户端 surface 插件：把它（连同其 `dsh.client` 声明的依赖）加入部署的 web
 插件表 / host `cordis.yml` 后，浏览器端通过 `exports["./client"]` 加载
-`lib/client.js`，Web 设置里即出现「小组件管理」页。推荐直接安装
-`@dsh-plugins/dsh-widgets-plugin`，它会一次挂载本页与全部小组件。
+`lib/client.js`，Web 设置里即出现「小组件管理」页。推荐直接安装 `@dsh-plugins/dsh-widgets-plugin`（发布后
+`dsh plugin --profile <name> add @dsh-plugins/dsh-widgets-plugin`），一次挂载本页与
+全部小组件；本地开发可直接 `link:` 本仓库 bundle（见根 README「安装」）。
 
 ## 使用
 

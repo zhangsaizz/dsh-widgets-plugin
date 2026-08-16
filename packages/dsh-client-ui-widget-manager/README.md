@@ -64,8 +64,10 @@ A pure client-side surface plugin: once it (together with the dependencies
 declared in its `dsh.client`) is added to the deployed web plugin table / host
 `cordis.yml`, the browser loads `lib/client.js` through
 `exports["./client"]` and the "Widgets" page appears in the web settings.
-Installing `@dsh-plugins/dsh-widgets-plugin` mounts this page together with every
-widget.
+Installing `@dsh-plugins/dsh-widgets-plugin` (once published:
+`dsh plugin --profile <name> add @dsh-plugins/dsh-widgets-plugin`) mounts this
+page together with every widget; for local development you can `link:` the
+bundle directory from this repo (see "安装" in the root README).
 
 ## Usage
 
