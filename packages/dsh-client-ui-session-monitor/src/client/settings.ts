@@ -186,6 +186,60 @@ export function saveLastActive(map: Record<string, number>): void {
   } catch { /* storage unavailable */ }
 }
 
+/** localStorage key persisting the per-session "round done" marks, so a reload
+ *  keeps the record of finished rounds (toasts and pending alerts stay
+ *  in-memory by design — the badge is the durable trace). */
+const DONE_KEY = 'dsh.smon.done'
+/** Entries older than this are stale after a reload (same horizon as activity). */
+const DONE_TTL_MS = 25 * 60 * 60_000
+
+/** Read the persisted session-id → round-done-ms map, pruning entries past the
+ *  TTL and sessions that no longer exist — a reload must not resurrect a mark
+ *  for a vanished or long-idle session. */
+export function loadDone(liveIds: ReadonlySet<string>): ReadonlySet<string> {
+  const out = new Set<string>()
+  try {
+    const raw = window.localStorage.getItem(DONE_KEY)
+    if (!raw) return out
+    const parsed: any = JSON.parse(raw)
+    if (!parsed || typeof parsed !== 'object') return out
+    const cutoff = Date.now() - DONE_TTL_MS
+    for (const [id, ts] of Object.entries(parsed)) {
+      if (typeof ts === 'number' && Number.isFinite(ts) && ts >= cutoff && liveIds.has(id)) out.add(id)
+    }
+    return out
+  } catch {
+    return out
+  }
+}
+
+/** Persist the round-done marks as { sessionId: set-time-ms }. Existing fresh
+ *  timestamps are preserved so repeated saves do not refresh the TTL. */
+export function saveDone(doneIds: ReadonlySet<string>): void {
+  try {
+    const now = Date.now()
+    const cutoff = now - DONE_TTL_MS
+    const existing: Record<string, number> = {}
+    try {
+      const raw = window.localStorage.getItem(DONE_KEY)
+      if (raw) {
+        const parsed: any = JSON.parse(raw)
+        if (parsed && typeof parsed === 'object') {
+          for (const [id, ts] of Object.entries(parsed)) {
+            if (typeof ts === 'number' && Number.isFinite(ts)) existing[id] = ts
+          }
+        }
+      }
+    } catch { /* storage unavailable */ }
+    const map: Record<string, number> = {}
+    for (const id of doneIds) {
+      const prev = existing[id]
+      map[id] = prev !== undefined && prev >= cutoff ? prev : now
+    }
+    window.localStorage.setItem(DONE_KEY, JSON.stringify(map))
+  } catch { /* storage unavailable */ }
+}
+
 /** Keep a fixed element fully inside the viewport with a small margin. */
 export function clampToViewport(x: number, y: number, w: number, h: number): { x: number; y: number } {
   const m = 6

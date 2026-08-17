@@ -39,6 +39,7 @@ for (const pkg of [
   'packages/dsh-client-ui-token-crit',
   'packages/dsh-client-ui-session-monitor',
   'packages/dsh-client-ui-widget-manager',
+  'packages/dsh-client-ui-card-container',
 ]) {
   buildSync({
     entryPoints: ['src/index.ts'],
@@ -94,6 +95,7 @@ const CLIENT_PACKAGES = [
   { pkg: 'packages/dsh-client-ui-token-crit', id: '@dsh-plugins/client-ui-token-crit' },
   { pkg: 'packages/dsh-client-ui-session-monitor', id: '@dsh-plugins/client-ui-session-monitor' },
   { pkg: 'packages/dsh-client-ui-widget-manager', id: '@dsh-plugins/client-ui-widget-manager' },
+  { pkg: 'packages/dsh-client-ui-card-container', id: '@dsh-plugins/client-ui-card-container' },
 ]
 
 /** Exact-glob matcher over the EXTERNAL_CLIENT list (function form, so Vite's
@@ -162,6 +164,7 @@ for (const entry of CLIENT_PACKAGES) {
     'packages/dsh-client-ui-token-crit',
     'packages/dsh-client-ui-session-monitor',
     'packages/dsh-client-ui-widget-manager',
+    'packages/dsh-client-ui-card-container',
     'bundles/dsh-widgets-plugin',
   ]
   const failures = []

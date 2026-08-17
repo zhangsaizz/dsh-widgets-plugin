@@ -1,0 +1,79 @@
+/* Card container configuration panel (widget-manager "Configure" dialog). */
+
+.panel {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 300px;
+  padding: 2px 0;
+  font-size: 13px;
+  color: var(--dsw-alias-label-primary, #e8eaf0);
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 8px 2px;
+  border-bottom: 1px solid var(--dsw-alias-border-l1, rgba(255, 255, 255, 0.06));
+}
+
+.row:last-of-type {
+  border-bottom: none;
+}
+
+.rowText {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.label {
+  font-weight: 500;
+}
+
+.hint {
+  font-size: 11.5px;
+  color: var(--dsw-alias-label-tertiary, rgba(232, 234, 240, 0.45));
+}
+
+.control {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.control select {
+  border: 1px solid var(--dsw-alias-border-l2, rgba(255, 255, 255, 0.14));
+  border-radius: 7px;
+  background: var(--dsw-alias-bg-layer-3, rgba(255, 255, 255, 0.08));
+  color: var(--dsw-alias-label-primary, #e8eaf0);
+  font-size: 12.5px;
+  padding: 4px 8px;
+  width: 96px;
+}
+
+.actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 10px;
+}
+
+.resetBtn {
+  border: 1px solid var(--dsw-alias-border-l2, rgba(255, 255, 255, 0.14));
+  border-radius: 7px;
+  background: transparent;
+  color: var(--dsw-alias-label-secondary, rgba(232, 234, 240, 0.62));
+  font-size: 12px;
+  padding: 5px 12px;
+  cursor: pointer;
+}
+
+.resetBtn:hover {
+  background: var(--dsw-alias-bg-hover, rgba(255, 255, 255, 0.08));
+  color: var(--dsw-alias-label-primary, #e8eaf0);
+}

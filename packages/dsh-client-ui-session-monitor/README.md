@@ -72,12 +72,13 @@ rounds. Without the host half the widget still works (base notification kinds).
   replace instead of stacking. The system notification is only sent while you
   are away from the page (tab hidden, window minimized, or unfocused) — while
   you are looking at it, the in-page toast is enough, so no OS-level popup
-  fires. **Auto-cleanup on return**: once the system notification has called
-  you back — when the browser window regains focus or the tab becomes visible
-  again — the current session's system notification is closed automatically
-  and its "本轮完成" badge cleared (the in-page toasts stay: they are the
-  in-page notification now; other sessions' completions are left alone, they
-  still await your attention). Rounds that finish while the page is fully CLOSED cannot notify — a
+  fires. **Auto-cleanup on return**: when the browser window regains focus or
+  the tab becomes visible again — whether or not a system notification was
+  delivered — the current session's completion notices reset: any live system
+  notification is closed, and its "本轮完成" badge and in-page toast are
+  cleared (you are back looking at that session, so the notices are stale;
+  other sessions' completions are left alone, they still await your
+  attention). Rounds that finish while the page is fully CLOSED cannot notify — a
   browser limitation (no JS runs when the page is gone); the system
   notification only covers "page open but the user switched away". **Cross-tab
   sync**: when the same session is open in several tabs,
@@ -88,8 +89,10 @@ rounds. Without the host half the widget still works (base notification kinds).
 - **Jump to session**: clicking any row — or a toast's 跳转 button — switches
   the app to that session immediately (`ctx.sessions.open`).
 - **Done marks**: sessions that finished a round while the widget was open get
-  a "本轮完成" badge in the list until visited (opened, or cleared via the
-  footer button).
+  a "本轮完成" badge in the list until visited (opening the session — via the
+  app's own sidebar or a widget row — clears the badge and its reminders; or
+  use the footer button). The badges persist to localStorage, so a reload
+  keeps them (toasts and pending alerts stay in-memory and clear on reload).
 - **Configurable**: the widget-manager "Configure" dialog toggles notifications
   on/off, dismissal mode + seconds, sound, **browser notifications** (with
   permission status), whether to notify for the current session (off by

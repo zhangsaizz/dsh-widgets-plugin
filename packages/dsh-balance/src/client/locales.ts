@@ -17,6 +17,7 @@ export type BalanceKey =
   | 'zoomOut'
   | 'resetZoom'
   | 'dock'
+  | 'dockToContainer'
   | 'collapse'
   | 'expand'
   | 'updatedAt'
@@ -71,6 +72,7 @@ export const zh: Record<BalanceKey, string> = {
   zoomOut: '缩小',
   resetZoom: '重置缩放',
   dock: '吸附',
+  dockToContainer: '放入卡片容器',
   collapse: '收起',
   expand: '展开',
   updatedAt: '更新于',
@@ -126,6 +128,7 @@ export const en: Record<BalanceKey, string> = {
   zoomOut: 'Zoom out',
   resetZoom: 'Reset zoom',
   dock: 'Dock',
+  dockToContainer: 'Dock into card container',
   collapse: 'Collapse',
   expand: 'Expand',
   updatedAt: 'Updated',

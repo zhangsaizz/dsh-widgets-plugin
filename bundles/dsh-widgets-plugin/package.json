@@ -1,6 +1,6 @@
 {
   "name": "@dsh-plugins/dsh-widgets-plugin",
-  "description": "Installable dsh bundle: mounts all widgets in one layer — the balance plugin (seam + vendors + web dashboard), the token-crit widget, the session monitor widget, and the widgets manager",
+  "description": "Installable dsh bundle: mounts all widgets in one layer — the balance plugin (seam + vendors + web dashboard), the token-crit widget, the session monitor widget, the card container widget, and the widgets manager",
   "version": "0.1.0",
   "license": "MIT",
   "repository": {
@@ -28,6 +28,7 @@
     "@dsh-plugins/balance": "workspace:*",
     "@dsh-plugins/client-ui-token-crit": "workspace:*",
     "@dsh-plugins/client-ui-session-monitor": "workspace:*",
-    "@dsh-plugins/client-ui-widget-manager": "workspace:*"
+    "@dsh-plugins/client-ui-widget-manager": "workspace:*",
+    "@dsh-plugins/client-ui-card-container": "workspace:*"
   }
 }

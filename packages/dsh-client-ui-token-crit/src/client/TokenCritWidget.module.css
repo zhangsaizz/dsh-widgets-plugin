@@ -135,6 +135,35 @@
   color: var(--dsw-alias-label-primary, #ececec);
 }
 
+/* Quick-dock button: mirrors the gear's hover-reveal behavior, positioned at
+   the badge's top-left (the gear owns top-right). Dispatches the card
+   container's dock-request event. */
+.dockBtn {
+  position: absolute;
+  top: -8px;
+  left: -8px;
+  width: 18px;
+  height: 18px;
+  z-index: 31;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  border-radius: 50%;
+  font-size: 11px;
+  line-height: 1;
+  background: var(--dsw-alias-bg-layer-2, #2a2a30);
+  border: 1px solid var(--dsw-alias-border-l2, #46464e);
+  color: var(--dsw-alias-label-secondary, #9a9aa0);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.15s ease;
+}
+
+.dockBtn:hover {
+  color: var(--dsw-alias-label-primary, #ececec);
+}
+
 .resize {
   position: absolute;
   right: -5px;
@@ -163,8 +192,10 @@
 
 .anchor:hover .gear,
 .anchor:hover .resize,
+.anchor:hover .dockBtn,
 .anchor:focus-within .gear,
-.anchor:focus-within .resize {
+.anchor:focus-within .resize,
+.anchor:focus-within .dockBtn {
   opacity: 1;
   pointer-events: auto;
 }
@@ -173,7 +204,8 @@
    and tappable, otherwise the settings panel and zoom are unreachable. */
 @media (hover: none) {
   .anchor .gear,
-  .anchor .resize {
+  .anchor .resize,
+  .anchor .dockBtn {
     opacity: 0.85;
     pointer-events: auto;
   }

@@ -15,6 +15,7 @@
 import { useEffect, useRef, useState } from 'react'
 import type { HostObservable, InjectFace, PropsLocale, PropsRenderSlots, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
 import type { WidgetRow } from './controller.ts'
+import { requestUndock } from './controller.ts'
 import type { WidgetManagerLocaleKey } from './locales.ts'
 import css from './WidgetManagerSettings.module.css'
 
@@ -49,9 +50,10 @@ export function WidgetManagerSettings({ t, useWidgets, toggle, renderSlot }: Wid
   }, [openConfig])
 
   // Close the dialog when its widget loses the config contribution or gets
-  // disabled/unregistered while open (otherwise the body would go empty).
+  // DISABLED / unregistered while open (otherwise the body would go empty).
+  // Docking is NOT a disable: a docked widget keeps its config reachable.
   useEffect(() => {
-    if (openConfig !== null && (configRow === undefined || !configRow.hasConfig || !configRow.enabled)) {
+    if (openConfig !== null && (configRow === undefined || !configRow.hasConfig || (!configRow.enabled && !configRow.docked))) {
       setOpenConfig(null)
     }
   }, [openConfig, configRow])
@@ -81,7 +83,9 @@ export function WidgetManagerSettings({ t, useWidgets, toggle, renderSlot }: Wid
             </div>
             <div className={css.actions}>
               <span className={css[statusView(row).cls]}>{t(statusView(row).key)}</span>
-              {row.enabled && row.hasConfig && (
+              {/* Configure stays reachable while DOCKED (a dock is not a
+                  disable) — only a real disable/unregister hides it. */}
+              {(row.enabled || row.docked) && row.hasConfig && (
                 <button type="button" className={css.configure} onClick={() => { setOpenConfig(row.id) }}>
                   {t('configure')}
                 </button>
@@ -90,10 +94,17 @@ export function WidgetManagerSettings({ t, useWidgets, toggle, renderSlot }: Wid
                 ? (
                   <button
                     type="button"
-                    className={row.enabled ? css.disable : css.enable}
-                    onClick={() => { toggle(row.id) }}
+                    className={row.docked ? css.enable : (row.enabled ? css.disable : css.enable)}
+                    onClick={() => {
+                      // A docked widget is hidden by the CARD CONTAINER, not
+                      // disabled here — the action is "undock" (the container
+                      // listens for the request and restores the floating
+                      // panel), never a local re-enable.
+                      if (row.docked) { requestUndock(row.id); return }
+                      toggle(row.id)
+                    }}
                   >
-                    {t(row.enabled ? 'close' : 'add')}
+                    {row.docked ? t('undock') : t(row.enabled ? 'close' : 'add')}
                   </button>
                 )
                 : (
@@ -137,8 +148,10 @@ export function WidgetManagerSettings({ t, useWidgets, toggle, renderSlot }: Wid
 
 /** One row's status badge: its style key and its localized copy key. A single
  *  projection avoids two parallel functions drifting apart when the status
- *  vocabulary grows. */
-function statusView(row: WidgetRow): { cls: 'enabled' | 'disabled' | 'notInstalled'; key: WidgetManagerLocaleKey } {
+ *  vocabulary grows. Docked wins over the generic disabled look — it IS
+ *  hidden, but by the card container, and the row action is "undock". */
+function statusView(row: WidgetRow): { cls: 'enabled' | 'disabled' | 'notInstalled' | 'docked'; key: WidgetManagerLocaleKey } {
+  if (row.docked) return { cls: 'docked', key: 'docked' }
   if (!row.registered) return { cls: 'notInstalled', key: 'notInstalled' }
   return row.enabled ? { cls: 'enabled', key: 'enabled' } : { cls: 'disabled', key: 'disabled' }
 }

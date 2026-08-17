@@ -42,4 +42,10 @@ export const WIDGET_CATALOG: readonly WidgetDescriptor[] = [
     nameKey: 'sessionMonitorName',
     descriptionKey: 'sessionMonitorDescription',
   },
+  {
+    id: 'card-container',
+    packageName: '@dsh-plugins/client-ui-card-container',
+    nameKey: 'cardContainerName',
+    descriptionKey: 'cardContainerDescription',
+  },
 ]

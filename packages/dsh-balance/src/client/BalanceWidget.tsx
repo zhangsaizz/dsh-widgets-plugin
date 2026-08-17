@@ -51,6 +51,15 @@ function trendGlyph(trend: BalanceTrend): string | null {
   return null
 }
 
+/** Request docking this widget into the card container: dispatches the
+ *  container's documented dock-request window event (decoupled — no runtime
+ *  dependency on the container package; a no-op when it is not mounted). */
+function requestDockToContainer(id: string): void {
+  try {
+    window.dispatchEvent(new CustomEvent('dsh.card-container.dock', { detail: id }))
+  } catch { /* events unavailable */ }
+}
+
 /** Narrow the view to the resolved ok account, or null. */
 function resolvedAccount(view: BalanceViewState): BalanceAccount | null {
   const account = view.result?.account
@@ -483,6 +492,7 @@ export function BalanceWidget(props: BalanceWidgetProps) {
       data-dock={settings.dock}
       data-collapsed={collapsed || undefined}
       data-balance-widget
+      data-widget-id="balance"
     >
       <div
         className={css.scaleBox}
@@ -520,6 +530,7 @@ export function BalanceWidget(props: BalanceWidgetProps) {
                 if (rect !== undefined) actions.setPosition(rect.left, rect.top)
                 actions.dockTo('free')
               }} aria-label={t('dock')} title={t('dock')} data-active={settings.dock !== 'free' || undefined}>⛶</button>
+              <button type="button" className={css.iconButton} onClick={() => { requestDockToContainer('balance') }} aria-label={t('dockToContainer')} title={t('dockToContainer')}>⤢</button>
               <button type="button" className={css.iconButton} onClick={() => { actions.setMode(settings.mode === 'current' ? 'all' : 'current') }} aria-label={settings.mode === 'current' ? t('showAll') : t('showCurrent')} title={settings.mode === 'current' ? t('showAll') : t('showCurrent')} data-active={settings.mode === 'all' || undefined}>▦</button>
               <button type="button" className={css.iconButton} onClick={() => { refresh() }} aria-label={t('refresh')} title={t('refresh')}>⟳</button>
               <button type="button" className={css.iconButton} onClick={() => { actions.toggleCollapsed() }} aria-label={t('collapse')} title={t('collapse')}>—</button>

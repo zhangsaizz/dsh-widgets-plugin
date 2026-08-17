@@ -63,6 +63,7 @@ export function apply(ctx: ClientContext): void {
     name: 'shell.overlay',
     id: 'session-monitor',
     order: 90,
+    label: () => t('title'),
     locale: NS,
     inject: (): SessionMonitorInject => ({
       open: (sessionId) => { ctx.sessions.open(sessionId as SessionId) },

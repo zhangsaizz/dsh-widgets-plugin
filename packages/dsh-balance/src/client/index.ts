@@ -98,6 +98,7 @@ export async function apply(ctx: ClientContext): Promise<void> {
       name: 'shell.overlay',
       id: 'balance',
       order: 100,
+      label: () => t('title'),
       store: createBalanceViewStore,
       locale: NS,
       inject: (): BalanceInject => ({

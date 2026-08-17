@@ -1,8 +1,8 @@
 # The widgets bundle layer: inserts the one balance plugin (host balance seam
 # + shipped vendors + web balance dashboard + its provider-bindings config
 # panel, configured from the Widgets manager's Configure dialog), the floating
-# token-crit meter, the session monitor dashboard, and the Widgets manager
-# settings page.
+# token-crit meter, the session monitor dashboard, the card container (docks
+# widgets into a tidy grid), and the Widgets manager settings page.
 - insert:
     - id: balance
       name: '@dsh-plugins/balance'
@@ -31,6 +31,9 @@
 
     - id: ui-session-monitor
       name: '@dsh-plugins/client-ui-session-monitor'
+
+    - id: ui-card-container
+      name: '@dsh-plugins/client-ui-card-container'
 
     - id: ui-widget-manager
       name: '@dsh-plugins/client-ui-widget-manager'

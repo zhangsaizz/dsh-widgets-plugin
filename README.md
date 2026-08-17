@@ -3,13 +3,14 @@
 一个面向 DeepSeek Harness 的小组件（挂件 / widgets）monorepo。这里主要制作一些
 「小组件」：每个组件都是可独立发布、可在任意 DeepSeek Harness 实例中安装的插件，
 浏览器端通常以 `shell.overlay` 浮动挂件或 Web 设置页的形式呈现，可拖动、可缩放、
-可折叠、可配置。当前仓库包含三个小组件：
+可折叠、可配置。当前仓库包含四个小组件：
 
 | 小组件 | 包 | 说明 |
 |---|---|---|
 | 余额看板 | `@dsh-plugins/balance` | 一个包 = `ctx.balance` 能力缝隙 + 5 个厂商 Provider + 用户绑定设置 + 浮动余额看板；支持单账户 / 多账户视图、趋势涨跌、动态滚动、缩放与角落吸附，供应商配置在小组件管理的「配置」弹窗中完成 |
 | Token 暴击挂件 | `@dsh-plugins/client-ui-token-crit` | 浮动的 token 用量计量挂件；实时显示当前会话累计 token 用量，增长时触发网游风格暴击动效，附带可配置面板 |
 | 会话监控看板 | `@dsh-plugins/client-ui-session-monitor` | 浮动的会话监控面板；列出正在执行的会话与运行状态，会话完成一轮时主动弹提醒（可自动消失或需确认），点击任意会话一键跳转 |
+| 卡片容器 | `@dsh-plugins/client-ui-card-container` | 浮动的卡片容器面板；开启后把其他小组件拖进一个整齐、等间距的卡片网格集中摆放（浮窗自动收起，可拖拽排序 / 移出） |
 
 ## 预览
 
@@ -31,6 +32,7 @@
 | `@dsh-plugins/balance` | 合并后的余额插件（Host 缝隙 + 厂商 + Web 看板，单插件行）：`ctx.balance` 绑定提供商路由并应答 `balance/query` / `balance/list` Remote；5 个厂商 Provider + 设置驱动的用户绑定 + `/_dsh/balance/settings` Web 路由；浏览器半挂载 Remote 并注册看板挂件与配置面板 |
 | `@dsh-plugins/client-ui-token-crit` | Token 暴击挂件（浏览器端，纯 UI） |
 | `@dsh-plugins/client-ui-session-monitor` | 会话监控看板（双半：Host 半 turn/end 原因跟踪 + 状态路由；浏览器端列出运行中会话、按状态提醒、点击跳转） |
+| `@dsh-plugins/client-ui-card-container` | 卡片容器（浏览器端，纯 UI）：声明 `widgets.card` 子槽并渲染停靠卡片，用影子条目隐藏已停靠挂件的浮窗，自带 token-crit / session-monitor / balance 的紧凑卡片视图 |
 | `@dsh-plugins/client-ui-widget-manager` | 小组件管理设置页（浏览器端）：列出小组件并支持「添加 / 关闭」，为带配置的挂件提供「配置」弹窗 |
 | `@dsh-plugins/dsh-widgets-plugin` | 可安装 bundle：一层挂载以上全部插件 |
 
@@ -101,8 +103,8 @@ dsh --profile <name>
 ```
 
 bundle 的 `cordis.patch.yml` 会插入 `balance`、`ui-token-crit`、`ui-session-monitor`、
-`ui-widget-manager` 四行，一次挂载全部组件。发布物自带构建产物（`lib/`），安装端无需
-构建授权。
+`ui-card-container`、`ui-widget-manager` 五行，一次挂载全部组件。发布物自带构建产物
+（`lib/`），安装端无需构建授权。
 
 ### 方式二：本地开发安装（link 直连本仓库）
 
@@ -138,6 +140,8 @@ dsh plugin --profile <name> add F:/dsh-balance-plugin/bundles/dsh-widgets-plugin
       name: '@dsh-plugins/client-ui-token-crit'
     - id: ui-session-monitor
       name: '@dsh-plugins/client-ui-session-monitor'
+    - id: ui-card-container
+      name: '@dsh-plugins/client-ui-card-container'
     - id: ui-widget-manager
       name: '@dsh-plugins/client-ui-widget-manager'
 ```
@@ -149,6 +153,7 @@ dsh plugin --profile <name> add F:/dsh-balance-plugin/bundles/dsh-widgets-plugin
 - **余额插件**（[`balance/README.zh.md`](packages/dsh-balance/README.zh.md)）——厂商清单、凭据、自定义绑定、看板操作
 - **Token 暴击挂件**（[`client-ui-token-crit/README.zh.md`](packages/dsh-client-ui-token-crit/README.zh.md)）——查看用量、调整形态、设置面板
 - **会话监控看板**（[`client-ui-session-monitor/README.zh.md`](packages/dsh-client-ui-session-monitor/README.zh.md)）——查看运行中会话、完成一轮提醒、点击跳转、配置项
+- **卡片容器**（[`client-ui-card-container/README.zh.md`](packages/dsh-client-ui-card-container/README.zh.md)）——把其他小组件拖进整齐的卡片网格集中摆放
 - **小组件管理**（[`client-ui-widget-manager/README.zh.md`](packages/dsh-client-ui-widget-manager/README.zh.md)）——在 Web 设置里列出小组件，可「添加（启用）/ 关闭（禁用）」；带配置的挂件（如余额看板）通过行上的「配置」按钮在独立弹窗中设置，不再占用设置菜单页
 
 ### 余额看板（速览）
@@ -164,6 +169,10 @@ dsh plugin --profile <name> add F:/dsh-balance-plugin/bundles/dsh-widgets-plugin
 ### 会话监控看板（速览）
 
 无需凭据。挂载后 `shell.overlay` 右下角出现「会话监控」面板，列出存活会话（运行中置顶并带呼吸绿点，子代理默认过滤、可配时间范围）；点任意行立即跳到该会话。会话完成一轮时弹出提醒条，**按状态配色**（正常完成 / 需要你处理 / 出错 / 中止 / 阻塞 / 超出 token 上限等，Host 半提供结束原因）——点「跳转」直达、点「知道了」关闭；在小组件管理的「配置」弹窗里可调提醒开关 / 关闭方式（自动消失或需确认）/ 秒数 / 音效 / 浏览器通知 / 提醒范围与列表显示。注意：区分出错/中止等状态需要 Host 半，安装后需重启 web 服务一次。
+
+### 卡片容器（速览）
+
+纯 UI 挂件，无需凭据。在小组件管理页启用「卡片容器」后，左上角出现容器面板：上方「可放入的小组件」托盘列出当前已启用的挂件，把 chip 拖进下方网格（或直接点击）即停靠——挂件的浮窗自动隐藏，网格内显示它的紧凑卡片（token-crit / session-monitor 为内置统计卡，balance 为通用卡）；拖动卡片可调整顺序，点 × 移出容器恢复浮窗。列数在「配置」弹窗里调（自适应 / 2 / 3 / 4 列），停靠顺序与面板位置刷新后保留。
 
 ## 许可
 

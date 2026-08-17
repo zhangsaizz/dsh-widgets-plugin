@@ -79,6 +79,7 @@
 
 .enabled,
 .disabled,
+.docked,
 .notInstalled {
   font-size: 11px;
   line-height: 1;
@@ -95,6 +96,13 @@
 .disabled {
   color: var(--dsw-alias-state-warn-primary);
   background: color-mix(in srgb, var(--dsw-alias-state-warn-primary) 12%, transparent);
+}
+
+/* Docked in the card container: hidden but NOT disabled — the row action is
+   "undock". Business/brand accent (matches the container's blue). */
+.docked {
+  color: var(--dsw-alias-state-business-primary);
+  background: color-mix(in srgb, var(--dsw-alias-state-business-primary) 12%, transparent);
 }
 
 .notInstalled {

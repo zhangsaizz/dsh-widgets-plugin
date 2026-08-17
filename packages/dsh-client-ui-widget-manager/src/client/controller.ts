@@ -31,8 +31,25 @@ import type { WidgetManagerLocaleKey } from './locales.ts'
 export const SHADOW_PRIORITY = -1
 /** Registrant stamp placed on shadow entries so the ledger can tell them apart. */
 export const REGISTRANT = 'widget-manager'
+/** Registrant stamp the card container places on its DOCK shadows — a widget
+ *  hidden by the container is "docked", not "disabled": the manager page must
+ *  not offer to re-enable it (the dock shadow still wins), but offer to
+ *  undock instead. */
+export const DOCKED_REGISTRANT = 'card-container'
 /** localStorage key persisting the disabled widget ids. */
 export const STORAGE_KEY = 'dsh-plugins.widget-manager.disabled'
+/** Window event the manager dispatches (detail = widget id) to ask the card
+ *  container to undock a docked widget (mirror of the container's
+ *  `dsh.card-container.dock` request; a no-op when the container is absent). */
+export const UNDOCK_REQUEST_EVENT = 'dsh.card-container.undock'
+
+/** Dispatch an undock request for the given widget id (the container listens
+ *  and restores the floating panel). Safe when the container is absent. */
+export function requestUndock(id: string): void {
+  try {
+    window.dispatchEvent(new CustomEvent(UNDOCK_REQUEST_EVENT, { detail: id }))
+  } catch { /* events unavailable */ }
+}
 
 /** One row of the widget list page. */
 export interface WidgetRow {
@@ -50,6 +67,10 @@ export interface WidgetRow {
   registered: boolean
   /** Whether the widget's entry is the cell winner (visible). */
   enabled: boolean
+  /** Whether the widget is hidden because it is DOCKED in the card container
+   *  (a container dock shadow wins its cell) — distinct from a manager
+   *  disable: the row offers "undock" instead of "add". */
+  docked: boolean
 }
 
 /** Renders nothing — the winning shadow hides its cell. */
@@ -129,6 +150,14 @@ export class WidgetManagerController implements HostObservable<readonly WidgetRo
     return entry.registrant === REGISTRANT && entry.options.priority === SHADOW_PRIORITY
   }
 
+  /** Whether the widget is hidden because it is DOCKED in the card container
+   *  (a container dock shadow at priority -2 wins its cell) rather than
+   *  disabled by us — the page must offer "undock", not "add". */
+  private isDocked(id: string): boolean {
+    return this.ctx.slots.entries('shell.overlay').some((entry) =>
+      entry.options.id === id && entry.registrant === DOCKED_REGISTRANT && (entry.options.priority ?? 0) < 0)
+  }
+
   /** Bring the shadow for one id in line with the disabled set. */
   private reconcileShadow(id: string): void {
     const want = this.disabled.has(id)
@@ -200,7 +229,7 @@ export class WidgetManagerController implements HostObservable<readonly WidgetRo
     }
     for (const id of widgetIds) {
       if (rows.some((row) => row.id === id)) continue
-      rows.push({ id, packageName: undefined, nameKey: undefined, descriptionKey: undefined, hasConfig: this.configIds.has(id), registered: true, enabled: !this.isShadowed(id) })
+      rows.push({ id, packageName: undefined, nameKey: undefined, descriptionKey: undefined, hasConfig: this.configIds.has(id), registered: true, enabled: !this.isShadowed(id), docked: this.isDocked(id) })
     }
     this.rows = rows
   }
@@ -214,6 +243,7 @@ export class WidgetManagerController implements HostObservable<readonly WidgetRo
       hasConfig: this.configIds.has(descriptor.id),
       registered,
       enabled: registered && !this.isShadowed(descriptor.id),
+      docked: registered && this.isDocked(descriptor.id),
     }
   }
 

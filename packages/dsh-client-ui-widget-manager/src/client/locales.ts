@@ -14,6 +14,8 @@ export type WidgetManagerLocaleKey =
   | 'closeDialog'
   | 'enabled'
   | 'disabled'
+  | 'docked'
+  | 'undock'
   | 'notInstalled'
   | 'notInstalledHint'
   | 'unknownPackage'
@@ -24,6 +26,8 @@ export type WidgetManagerLocaleKey =
   | 'tokenCritDescription'
   | 'sessionMonitorName'
   | 'sessionMonitorDescription'
+  | 'cardContainerName'
+  | 'cardContainerDescription'
 
 /** Simplified Chinese dictionary. */
 export const zh: Record<WidgetManagerLocaleKey, string> = {
@@ -36,6 +40,8 @@ export const zh: Record<WidgetManagerLocaleKey, string> = {
   closeDialog: '关闭',
   enabled: '已启用',
   disabled: '已停用',
+  docked: '已停靠',
+  undock: '移出容器',
   notInstalled: '未安装',
   notInstalledHint: '该小组件尚未安装，无法启用。',
   unknownPackage: '未知来源',
@@ -46,6 +52,8 @@ export const zh: Record<WidgetManagerLocaleKey, string> = {
   tokenCritDescription: '实时显示当前会话累计 token 用量，增长时触发暴击动效。',
   sessionMonitorName: '会话监控看板',
   sessionMonitorDescription: '列出正在执行的会话，完成一轮时主动提醒，点击即可跳转到目标会话。',
+  cardContainerName: '卡片容器',
+  cardContainerDescription: '把其他小组件拖进一个整齐、等间距的卡片网格中集中摆放，浮窗自动收起。',
 }
 
 /** English dictionary. */
@@ -59,6 +67,8 @@ export const en: Record<WidgetManagerLocaleKey, string> = {
   closeDialog: 'Close',
   enabled: 'Enabled',
   disabled: 'Disabled',
+  docked: 'Docked',
+  undock: 'Undock',
   notInstalled: 'Not installed',
   notInstalledHint: 'This widget is not installed and cannot be enabled.',
   unknownPackage: 'Unknown source',
@@ -69,4 +79,6 @@ export const en: Record<WidgetManagerLocaleKey, string> = {
   tokenCritDescription: 'Shows the current session token usage in real time with crit animations on growth.',
   sessionMonitorName: 'Session monitor',
   sessionMonitorDescription: 'Lists running sessions, notifies you when a round finishes, and jumps to the target session on click.',
+  cardContainerName: 'Card container',
+  cardContainerDescription: 'Dock other widgets into a tidy, evenly-gapped card grid; their floating panels hide while docked.',
 }

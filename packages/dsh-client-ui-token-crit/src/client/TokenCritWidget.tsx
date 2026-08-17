@@ -793,6 +793,29 @@ export function TokenCritWidget(props: { useSessions: (sel: (s: any) => any) => 
         >
           ⚙
         </div>
+        <div
+          className={css.dockBtn}
+          title={lang === 'zh' ? '放入卡片容器' : 'Dock into card container'}
+          role="button"
+          tabIndex={0}
+          aria-label={lang === 'zh' ? '放入卡片容器' : 'Dock into card container'}
+          onPointerDown={(e) => e.stopPropagation()}
+          onClick={() => {
+            try {
+              window.dispatchEvent(new CustomEvent('dsh.card-container.dock', { detail: 'token-crit' }))
+            } catch { /* events unavailable */ }
+          }}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' || e.key === ' ') {
+              e.preventDefault()
+              try {
+                window.dispatchEvent(new CustomEvent('dsh.card-container.dock', { detail: 'token-crit' }))
+              } catch { /* events unavailable */ }
+            }
+          }}
+        >
+          ⤢
+        </div>
       </div>
     )
   }
@@ -802,6 +825,7 @@ export function TokenCritWidget(props: { useSessions: (sel: (s: any) => any) => 
       ref={anchorRef}
       className={[css.anchor, light ? css.light : ''].filter(Boolean).join(' ')}
       style={anchorStyle}
+      data-widget-id="token-crit"
       onPointerMove={onPointerMove}
       onPointerUp={endDrag}
       onPointerCancel={endDrag}

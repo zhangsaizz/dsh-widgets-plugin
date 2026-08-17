@@ -242,9 +242,85 @@ ctx.slots.inject('widgets.config', () => ctx.slots.register({
   的回调永不执行——配置面板自然不注册，不会报错。若你的挂件被单独安装
   （无管理器）时配置必须可用，需要保留另一条配置入口并文档说明。
 
+### 2.5 可选：接入卡片容器（`widgets.card` 适配器规范）
+
+卡片容器（`@dsh-plugins/client-ui-card-container`）会声明 `widgets.card` 子槽
+（list，root scope）：**每个挂件可以自由选择**是否在容器网格里提供自己的紧凑
+卡片视图。不接入的挂件被停靠进容器时，容器会显示通用占位卡片——所以接入是
+**纯增量、可选**的。标准契约：
+
+- **槽**：`widgets.card`，条目 `id` **必须等于**挂件在 `shell.overlay` 的 id
+  （容器用 `renderSlot('widgets.card', {}, { only: 挂件id })` 渲染停靠卡片）。
+- **组件 props**：使用容器包导出的标准类型 `WidgetCardProps`
+  （= `PropsRuntime<'widgets.card'>`，含框架全局座 `useSessions` /
+  `useWorkspaces`）；需要字典时叠加 `PropsLocale<'你的NS'>` 并在注册里声明
+  `locale`（与 `widgets.config` 同一套模式）。每个卡片还会收到槽级注入面
+  `CardSlotInject`：`useContainer` hook（容器实时停靠/可用快照）加
+  `dock` / `undock` 动词——卡片可以响应容器状态，比如「打开浮窗」按钮调
+  `undock(id)`。
+- **显示名**：托盘 chip 与卡片头优先读挂件在 `shell.overlay` 注册的 `label`
+  （thunk，跟随当前语言）——挂件自己命名自己；未声明才回退到内置名称表 /
+  raw id。
+- **优先级**：注册用**默认 priority 0**——容器自带的内置兜底视图在 priority 10，
+  挂件自己的卡片一注册就赢下该单元；不注册就显示占位卡。
+- **卡片规格（可选）**：卡片可以声明自己在网格里占多大——给组件设置静态
+  `spec` 属性（`'small'` = 1 列，默认；`'medium'` = 2 列；`'large'` = 整行），
+  容器读获胜条目的组件规格自动排版。用容器包导出的 `WidgetCardComponent` 类型
+  标记：`(MyWidgetCard as WidgetCardComponent).spec = 'medium'`。不声明就是
+  `'small'`。
+- **数据**：卡片可以只用全局 `useSessions`（token-crit / session-monitor 的
+  内置卡就是这么读数据的，零 Host RPC）；需要业务数据就自己接（如 balance 的
+  remote），与浮窗互不干扰。
+
+```ts
+// 你的挂件包：src/client/index.ts（apply 内追加）
+import type { WidgetCardProps, WidgetCardComponent } from '@dsh-plugins/client-ui-card-container/client'
+import type {} from '@dsh-plugins/client-ui-card-container/client'   // 拉入 widgets.card SlotMap 合并
+
+export function MyWidgetCard({ useSessions, undock }: WidgetCardProps) {
+  const sessions = useSessions(s => s)
+  // …紧凑展示…；需要恢复浮窗时调 undock('<id>')
+}
+// 可选：声明卡片占 2 列（不声明则 1 列）
+(MyWidgetCard as WidgetCardComponent).spec = 'medium'
+
+ctx.slots.inject('widgets.card', () => ctx.slots.register({
+  name: 'widgets.card',
+  id: 'clock',                       // ★ = shell.overlay 的 id
+  order: 0,
+  priority: 0,                       // 默认 0：优先于容器内置兜底（10）
+  // locale: 'clock',                // 需要 t 时声明
+}, MyWidgetCard))
+```
+
+**浮窗快捷停靠（可选）**：给浮动面板加一个「放入容器」按钮，dispatch
+`window` 事件 `dsh.card-container.dock`（detail = 挂件 id）即可——容器监听并停靠到
+**当前激活分组**，未挂载时为 no-op。事件契约与容器包解耦，无需 import 容器包：
+
+```ts
+// 浮窗组件里（如头部工具按钮 onClick）
+window.dispatchEvent(new CustomEvent('dsh.card-container.dock', { detail: 'clock' }))
+```
+
+**容器侧交互（挂件无需感知）**：
+- **多分组**：容器顶部分组标签切换；一个挂件同一时刻只能停靠在一个分组。
+  **把卡片拖到另一个分组标签上松手 = 跨组移动**。
+- **实时换位**：拖动卡片 = 幽灵跟随 + 其余卡片实时让位，网格内松手落定。
+- **拖出移出**：把卡片拖出网格松手 = 移出容器（恢复浮窗）。
+- **键盘**：Tab 聚焦卡片后 Enter/空格移出、方向键排序。
+- **触屏**：无 hover 设备 chrome 常显，容器始终可达。
+
+配套改动：
+
+- **类型依赖**：`import type {}` 是 type-only（esbuild/Vite 剥离），但在
+  `package.json` 的 `peerDependencies` 加
+  `"@dsh-plugins/client-ui-card-container": "workspace:*"`。
+- **缺席回退**：容器未安装时 `widgets.card` 不被声明，`ctx.slots.inject` 回调
+  永不执行——卡片不注册，无任何副作用。
+
 ---
 
-## 3. 完整示例：带配置面板的时钟挂件
+## 3. 完整示例：带配置面板与容器卡片的时钟挂件
 
 假设包 `@dsh-plugins/client-ui-clock`、id `clock`，配置项为「是否显示秒针」：
 
@@ -329,6 +405,9 @@ export const en: Record<ClockKey, string> = { title: 'Clock', secondsLabel: 'Sho
 - [ ] `package.json`：`dsh.client`、`exports["./client"]`、`files: ["lib"]`、
       `publishConfig.access: "public"`、版本与其他包一致、配置槽依赖已加 peer
 - [ ] 注册 `shell.overlay`（id 唯一稳定）+ 需要时注册 `widgets.config`
+- [ ] 若要在卡片容器里显示自己的紧凑卡片：按第 2.5 节注册 `widgets.card`
+      （id = `shell.overlay` id、priority 默认 0），并在 peerDependencies 加
+      `@dsh-plugins/client-ui-card-container`（type-only）
 - [ ] 目录登记（`widgets.ts` + `locales.ts` 键）+ `COMPONENTS.md` 各表更新
 - [ ] 双语 README + `README.i18n.yaml` hash 已更新
 - [ ] bundle 分发：`cordis.patch.yml` 插入行 + bundle 依赖
@@ -341,6 +420,11 @@ export const en: Record<ClockKey, string> = { title: 'Clock', secondsLabel: 'Sho
 - **关闭后刷新又出现？** 检查 `shell.overlay` 的 `id` 是否改动过（关闭状态按 id 持久化）。
 - **「配置」按钮不显示？** `widgets.config` 没有该 id 的条目（注册被跳过，通常是
   管理器未安装、或槽声明与注册时机/`id` 不一致）。
+- **停靠进卡片容器后显示的是占位卡而不是我的卡片？** `widgets.card` 没有该 id 的
+  条目——按第 2.5 节注册（注意 `id` 必须与 `shell.overlay` 一致；容器未安装时注册
+  会被跳过，属正常行为）。
+- **卡片尺寸不对（想占 2 列/整行）？** 给卡片组件设置静态 `spec` 属性
+  （`'small'` / `'medium'` / `'large'`），见第 2.5 节「卡片规格」。
 - **弹窗样式和主题不一致？** 用 `--dsw-alias-*` 语义令牌（面板弹窗：
   `--dsw-alias-bg-layer-2` + `--dsw-shadow-lv3` + `--dsw-alias-bg-mask-1`）。
 - **改了余额插件的 Remote 线协议？** `lib/typert.*` 是 typert codegen 产物，`pnpm build`

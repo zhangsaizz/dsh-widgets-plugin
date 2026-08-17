@@ -25,5 +25,9 @@ export function apply(ctx: ClientContext): void {
     name: 'shell.overlay',
     id: 'token-crit',
     order: 50,
+    // The card container resolves a widget's tray/card name from its overlay
+    // label first; token-crit has no locale namespace, so a small thunk keeps
+    // the label in sync with the page language.
+    label: () => document.documentElement.lang === 'zh' ? 'Token 暴击' : 'Token crit',
   }, TokenCritWidget))
 }

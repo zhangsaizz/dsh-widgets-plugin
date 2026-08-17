@@ -29,8 +29,12 @@
 | 12 | 会话监控看板 `SessionMonitorWidget` | Web 挂件 | `@dsh-plugins/client-ui-session-monitor` | `shell.overlay`（order 90） | 列出运行中/空闲/本轮完成的会话（子代理默认过滤、可配置时间范围默认 1h），完成一轮主动弹提醒（按状态配色：完成/待处理/出错/中止/阻塞/token 上限等，可自动消失或需确认），点击行一键跳转；可收起为胶囊、拖角缩放 |
 | 13 | 会话监控 Host 半 + 状态路由 | Host 插件 + Web 路由 | `@dsh-plugins/client-ui-session-monitor` | `/_dsh/session-monitor/status` | 监听 `turn/end` 记录结束原因（completed/aborted/blocked/error/max-tokens/interrupted），浏览器半 3s 轮询取回 |
 | 14 | 会话监控配置面板 `SessionSettings` | Web 配置弹窗 | `@dsh-plugins/client-ui-session-monitor` | `widgets.config`（管理器「配置」弹窗） | 提醒开关/关闭方式/秒数/音效/提醒范围与列表显示选项，localStorage 持久化 |
-| 15 | 安装 bundle | 分发层 | `@dsh-plugins/dsh-widgets-plugin` | `cordis.patch.yml` | 一次插入 4 个插件，一键挂载全部组件 |
-| 16 | 小组件管理页 `WidgetManagerSettings` | Web 设置页 | `@dsh-plugins/client-ui-widget-manager` | `settings.section`（order 10） | 实时列出小组件，支持「添加/关闭」，并为带配置的挂件提供「配置」弹窗 |
+| 15 | 卡片容器 `CardContainerWidget` | Web 挂件 | `@dsh-plugins/client-ui-card-container` | `shell.overlay`（order 20） | 浮动容器面板：**多分组**（顶部分组标签 + ⋯ 管理菜单），托盘列出可停靠挂件，拖入网格即停靠（影子条目隐藏浮窗）、渲染紧凑卡片视图；卡片**实时换位**（ghost 跟随 + 其余让位，拖出网格=移出）、键盘可达（Enter/空格移出、方向键排序）、触屏常显、列数可配、状态持久化 |
+| 16 | 卡片容器控制器 `CardContainerController` | 客户端数据层 | `@dsh-plugins/client-ui-card-container` | 注入 hook | 多分组停靠（groups/active 持久化，旧单列表自动迁移）+ 可用托盘投影，注册/释放 priority -2 停靠影子，针对 overlay 台账自我修复 |
+| 17 | 卡片视图（内置） | Web 卡片视图 | `@dsh-plugins/client-ui-card-container` | `widgets.card`（容器声明子槽，priority 10 兜底） | token-crit / session-monitor 紧凑统计卡（标准 `useSessions` 数据）+ balance 通用卡；**标准接入规范**（`WidgetCardProps` + 槽级注入面 `CardSlotInject`，见 WIDGET-DEVELOPMENT.md §2.5）：挂件自己的卡片注册进 `widgets.card`（id = shell.overlay id、priority 默认 0、显示名优先读 shell.overlay 的 label）即优先渲染，不注册则用占位卡；卡片可声明**规格**（静态 `spec`：small 1 列 / medium 2 列 / large 整行） |
+| 18 | 卡片容器配置面板 `CardContainerSettings` | Web 配置弹窗 | `@dsh-plugins/client-ui-card-container` | `widgets.config`（管理器「配置」弹窗） | 列数（自适应/2/3/4）+ 清空停靠/重置，localStorage 持久化 |
+| 19 | 安装 bundle | 分发层 | `@dsh-plugins/dsh-widgets-plugin` | `cordis.patch.yml` | 一次插入 5 个插件，一键挂载全部组件 |
+| 20 | 小组件管理页 `WidgetManagerSettings` | Web 设置页 | `@dsh-plugins/client-ui-widget-manager` | `settings.section`（order 10） | 实时列出小组件，支持「添加/关闭」，并为带配置的挂件提供「配置」弹窗 |
 
 > 1–10 全部由 `@dsh-plugins/balance` 一个包、一个插件行承载（原 `balance` 缝隙 +
 > `balance-vendors` + `client-ui-balance` 三个包已合并）。
@@ -39,7 +43,7 @@
 
 ## 2. 发布包清单
 
-5 个包版本号保持一致（当前 **0.1.0**），全部带 `"publishConfig": { "access": "public" }`，
+6 个包版本号保持一致（当前 **0.1.0**），全部带 `"publishConfig": { "access": "public" }`，
 包间依赖一律 `workspace:*`（禁止 `link:`）。
 
 | 包 | 版本 | 角色 | 发布内容（files） | 关键 exports | 维护来源 |
@@ -47,6 +51,7 @@
 | `@dsh-plugins/balance` | 0.1.0 | 合并后的余额插件（Host 缝隙 + 厂商 + Web 看板） | `lib` | `.`、`./invariant`、`./types`、`./typert`、`./remote`、`./client` | 独立维护（已废弃 harness 同步） |
 | `@dsh-plugins/client-ui-token-crit` | 0.1.0 | Token 暴击挂件（浏览器端，纯 UI） | `lib` | `.`、`./client` | 独立维护 |
 | `@dsh-plugins/client-ui-session-monitor` | 0.1.0 | 会话监控看板（Host 半：turn/end 原因跟踪 + 状态路由；浏览器端看板） | `lib` | `.`、`./client` | 独立维护 |
+| `@dsh-plugins/client-ui-card-container` | 0.1.0 | 卡片容器（浏览器端，纯 UI：声明 `widgets.card` 子槽、停靠影子、内置卡片视图） | `lib` | `.`、`./client` | 独立维护 |
 | `@dsh-plugins/client-ui-widget-manager` | 0.1.0 | 小组件管理设置页（浏览器端，纯 UI） | `lib` | `.`、`./client` | 独立维护 |
 | `@dsh-plugins/dsh-widgets-plugin` | 0.1.0 | 可安装 bundle | `cordis.patch.yml` | `./cordis.patch.yml` | 独立维护 |
 
@@ -138,14 +143,51 @@
   hover 显示设置面板（语言、数字格式/字号、标签、连击、粒子、暴击阈值/比例、音效、泛光）；
   位置与缩放写入 `localStorage`。
 
-### 3.3 安装 bundle（`dsh-widgets-plugin`）
+### 3.3 卡片容器（`client-ui-card-container`）
+
+- 包：`@dsh-plugins/client-ui-card-container`（`packages/dsh-client-ui-card-container`），**纯 UI**。
+- Host 半（`src/index.ts`）：空 apply（surface 占位）。
+- Client 半（`src/client/index.ts`）：`inject = ['slots', 'locale']`，注册
+  `shell.overlay`，id `card-container`，order **20** → `CardContainerWidget`，
+  并在同一注册中**声明 `widgets.card` 子槽**（list，条目 id = 挂件 id，
+  容器是唯一渲染方）；再注册 `widgets.config`，id `card-container` → 配置面板。
+- **停靠机制**（`controller.ts`，`CardContainerController`，经 inject hooks 暴露
+  `useContainer`）：停靠一个挂件 = 向 `shell.overlay` 注册同 id、`priority: -2`
+  的影子条目（list 槽最低优先级胜出；-2 避开 widget-manager 的 -1，同 id 同
+  priority 会抛错）→ 挂件浮窗停止渲染但插件仍存活；网格用
+  `renderSlot('widgets.card', {}, { only: id, fallback })` 渲染紧凑卡片。
+  点 × 移出 = dispose 影子，浮窗恢复。停靠顺序持久化到 localStorage
+  （`dsh-plugins.card-container.docked`）；订阅 `shell.overlay` 台账，挂件卸载
+  时自动移除停靠与影子（自我修复）；**容器自身被隐藏时释放全部停靠影子**
+  （挂件恢复浮动），重新启用按持久化顺序恢复。
+- **托盘**：`entriesOfSlot('shell.overlay')` 投影当前 enabled（priority ≥ 0、
+  非自身、未停靠）的挂件为可停靠 chip；名称经内置映射 `widgetName` 解析（未知 id
+  回退为原始 id）；chip 可 HTML5 拖拽进网格（`text/plain` id），也可点击停靠。
+- **网格**：CSS grid，gap **12px**（间隔一致），列数 `auto`（auto-fill
+  minmax(170px,1fr)）/ 2 / 3 / 4（设置持久化，配置变更经 window CustomEvent
+  `dsh.card-container.settings-changed` 通知）；卡片可拖拽排序（`move(from,to)`）。
+- **内置卡片视图**（`cards.tsx`，注册进 `widgets.card`，**priority 10** 兜底——
+  挂件自己的卡片默认 priority 0 优先渲染）：`token-crit` 紧凑 token 用量统计
+  （标准 `useSessions` → `projectionValues.tokenUsage`）、`session-monitor`
+  紧凑忙碌会话计数、`balance` 通用卡（`BalanceCard`）；无卡片视图的挂件走
+  `renderSlot` 的 fallback。
+- 面板位置持久化（`dsh-plugins.card-container.pos`，默认左上 16/96），头部拖动、
+  「—」收起为胶囊（显示停靠数）、tap 展开（照抄 session-monitor 的拖拽/夹紧模式）。
+- 字典 NS `card-container`（zh / en），经 `LocaleNamespaceMap` 类型合并声明。
+- 依赖：`@dsh-plugins/client-ui-widget-manager`（type-only，peer）；`@deepseek-ai/cordis`、
+  `dsh-client-runtime`、`dsh-client-ui-layout`、`dsh-client-ui-slots`、
+  `dsh-client-locale`、`react`（peer）。
+- 构建：Host → `lib/index.js`（ESM，外部化，空 apply）；Client → `lib/client.js`
+  （ModuleLoader CJS + 内联 CSS，Vite library mode）。
+
+### 3.4 安装 bundle（`dsh-widgets-plugin`）
 
 - 包：`@dsh-plugins/dsh-widgets-plugin`（`bundles/dsh-widgets-plugin`）。
-- `dsh.bundle.patch = ./cordis.patch.yml`；依赖 4 个 `workspace:*` 包。
+- `dsh.bundle.patch = ./cordis.patch.yml`；依赖 5 个 `workspace:*` 包。
 - `cordis.patch.yml` 插入顺序：`balance`（requestTimeoutMs / newApiBaseURL / bindings）→
-  `ui-token-crit` → `ui-session-monitor` → `ui-widget-manager`。
+  `ui-token-crit` → `ui-session-monitor` → `ui-card-container` → `ui-widget-manager`。
 
-### 3.4 小组件管理页（`client-ui-widget-manager`）
+### 3.5 小组件管理页（`client-ui-widget-manager`）
 
 - 包：`@dsh-plugins/client-ui-widget-manager`（`packages/dsh-client-ui-widget-manager`），**纯 UI**。
 - Host 半（`src/index.ts`）：空 apply（surface 占位）。
@@ -167,7 +209,7 @@
   启动与台账变化时自动对账。
 - 字典 NS `widgets`（zh / en），经 `LocaleNamespaceMap` 类型合并声明。
 
-### 3.5 会话监控看板（`client-ui-session-monitor`）
+### 3.6 会话监控看板（`client-ui-session-monitor`）
 
 - 包：`@dsh-plugins/client-ui-session-monitor`（`packages/dsh-client-ui-session-monitor`），
   **Host 半 + 浏览器半**（双半插件行）。
@@ -244,32 +286,35 @@ graph LR
   BALANCE[@dsh-plugins/balance]
   UI_CRIT[@dsh-plugins/client-ui-token-crit]
   UI_SMON[@dsh-plugins/client-ui-session-monitor]
+  UI_CARD[@dsh-plugins/client-ui-card-container]
   UI_MANAGER[@dsh-plugins/client-ui-widget-manager]
 
   BUNDLE --> BALANCE
   BUNDLE --> UI_CRIT
   BUNDLE --> UI_SMON
+  BUNDLE --> UI_CARD
   BUNDLE --> UI_MANAGER
   BALANCE -. peer（type-only） .-> UI_MANAGER
   UI_SMON -. peer（type-only） .-> UI_MANAGER
+  UI_CARD -. peer（type-only） .-> UI_MANAGER
 ```
 
 外部 peer 依赖（Harness 生态，`@deepseek-ai/*`）：
 
 | 依赖 | 被谁需要 |
 |---|---|
-| `@deepseek-ai/cordis` | 全部 4 个可运行包 |
+| `@deepseek-ai/cordis` | 全部 5 个可运行包 |
 | `@deepseek-ai/dsh-invariants` | balance（invariant 伴侣） |
 | `@deepseek-ai/dsh-credentials` / `dsh-typert-protocol` | balance |
 | `@deepseek-ai/dsh-settings` | balance（设置区 + Web 后端） |
 | `@deepseek-ai/dsh-api-remotes` | balance（client） |
-| `@deepseek-ai/dsh-client-runtime` | balance、client-ui-token-crit、client-ui-session-monitor、client-ui-widget-manager |
-| `@deepseek-ai/dsh-client-ui-layout` | balance、client-ui-token-crit、client-ui-session-monitor、client-ui-widget-manager（`shell.overlay` 类型合并） |
-| `@deepseek-ai/dsh-client-locale` | balance、client-ui-session-monitor、client-ui-widget-manager |
+| `@deepseek-ai/dsh-client-runtime` | balance、client-ui-token-crit、client-ui-session-monitor、client-ui-card-container、client-ui-widget-manager |
+| `@deepseek-ai/dsh-client-ui-layout` | balance、client-ui-token-crit、client-ui-session-monitor、client-ui-card-container、client-ui-widget-manager（`shell.overlay` 类型合并） |
+| `@deepseek-ai/dsh-client-locale` | balance、client-ui-session-monitor、client-ui-card-container、client-ui-widget-manager |
 | `@deepseek-ai/dsh-session` | client-ui-session-monitor（Host 半 `session/event` 类型） |
 | `@deepseek-ai/dsh-client-ui-settings` | client-ui-widget-manager（`settings.section`） |
-| `@deepseek-ai/dsh-client-ui-slots` | balance、client-ui-token-crit、client-ui-session-monitor、client-ui-widget-manager |
-| `react` | balance、client-ui-token-crit、client-ui-session-monitor、client-ui-widget-manager |
+| `@deepseek-ai/dsh-client-ui-slots` | balance、client-ui-token-crit、client-ui-session-monitor、client-ui-card-container、client-ui-widget-manager |
+| `react` | balance、client-ui-token-crit、client-ui-session-monitor、client-ui-card-container、client-ui-widget-manager |
 
 ---
 
@@ -284,6 +329,7 @@ Host 半用 esbuild，浏览器半用 **Vite library mode**（与官方 deepseek
 | `@dsh-plugins/balance` | `lib/index.js`（ESM，外部化） | `lib/client.js` | ModuleLoader CJS + 内联 CSS（Vite lib mode + CSS Modules）；`lib/types/**` 由 `pnpm build` 内嵌的 tsc 步骤从 src 重新生成（js + d.ts + map）；`lib/typert.*` 为 typert codegen 产物，**已提交进 git**（仓库内无法重新生成，见 AGENTS.md），`pnpm build` 不重建 |
 | `@dsh-plugins/client-ui-token-crit` | `lib/index.js`（空 apply 壳） | `lib/client.js` | ModuleLoader CJS + 内联 CSS |
 | `@dsh-plugins/client-ui-session-monitor` | `lib/index.js`（Host 半：`turn/end` 原因跟踪 + 状态路由） | `lib/client.js` | ModuleLoader CJS + 内联 CSS |
+| `@dsh-plugins/client-ui-card-container` | `lib/index.js`（空 apply 壳） | `lib/client.js` | ModuleLoader CJS + 内联 CSS |
 | `@dsh-plugins/client-ui-widget-manager` | `lib/index.js`（ESM，空 apply 壳） | `lib/client.js` | ModuleLoader CJS + 内联 CSS |
 | `@dsh-plugins/dsh-widgets-plugin` | —（仅 `cordis.patch.yml`） | — | — |
 
@@ -303,10 +349,15 @@ Host 半用 esbuild，浏览器半用 **Vite library mode**（与官方 deepseek
 | `shell.overlay` | `balance` | 100 | balance | `BalanceWidget` |
 | `shell.overlay` | `token-crit` | 50 | client-ui-token-crit | `TokenCritWidget` |
 | `shell.overlay` | `session-monitor` | 90 | client-ui-session-monitor | `SessionMonitorWidget` |
+| `shell.overlay` | `card-container` | 20 | client-ui-card-container | `CardContainerWidget`（声明子槽 `widgets.card`） |
 | `shell.overlay` | `balance` / `token-crit` / `session-monitor` | priority -1（影子） | client-ui-widget-manager | `ShadowWidget`（禁用时隐藏挂件） |
+| `shell.overlay` | 任意已停靠挂件 | priority -2（影子） | client-ui-card-container | `ShadowWidget`（停靠时隐藏浮窗） |
 | `settings.section` | `widgets` | 10 | client-ui-widget-manager | `WidgetManagerSettings`（声明子槽 `widgets.config`） |
 | `widgets.config` | `balance` | 0 | balance | `BalanceSettings`（管理页「配置」弹窗内容） |
 | `widgets.config` | `session-monitor` | 0 | client-ui-session-monitor | `SessionSettings`（管理页「配置」弹窗内容） |
+| `widgets.config` | `card-container` | 0 | client-ui-card-container | `CardContainerSettings`（管理页「配置」弹窗内容） |
+| `widgets.card` | `token-crit` / `session-monitor` / `balance` | priority 10（兜底） | client-ui-card-container | 内置紧凑卡片视图（挂件自己的卡片 priority 0 优先；槽级注入面 `CardSlotInject`：useContainer + dock/undock；标准接入规范见 WIDGET-DEVELOPMENT.md §2.5） |
+| `shell.overlay` | `balance` / `token-crit` / `session-monitor` | label thunk | balance / client-ui-token-crit / client-ui-session-monitor | 各自注册 `label`（thunk）——卡片容器托盘/卡片头优先读它作为显示名 |
 | `remote` | balance Remote | — | balance（client 半） | `balance/query` + `balance/list` |
 | `webServer` | `/_dsh/balance/settings` | — | balance | `BalanceWebBackend` |
 
@@ -324,6 +375,13 @@ Host 半用 esbuild，浏览器半用 **Vite library mode**（与官方 deepseek
 - [ ] 若新增带配置的小组件：把配置面板注册进管理器声明的 `widgets.config` 槽
   （`ctx.slots.inject('widgets.config', …)`，条目 id = 挂件 id），管理页即自动显示
   「配置」按钮并在弹窗中渲染
+- [ ] 若要在卡片容器里提供自己的紧凑卡片：按 `WIDGET-DEVELOPMENT.md` §2.5 的
+  标准适配器规范注册 `widgets.card`（条目 id = `shell.overlay` id、priority
+  默认 0），并在 peerDependencies 加 `@dsh-plugins/client-ui-card-container`
+  （type-only）；需要占多列时给组件设静态 `spec`（small/medium/large）；
+  显示名优先在 `shell.overlay` 注册 `label`（thunk）；需要时实现
+  `CardSlotInject`（useContainer / undock）；浮窗加「放入容器」按钮可 dispatch
+  `dsh.card-container.dock` 事件；不注册则容器显示占位卡
 - [ ] 若改动 `@dsh-plugins/balance` 的 Remote 线协议：同步重新生成 `lib/typert.*`
   （typert codegen，build.mjs 不重建；仓库内无生成工具，需从上游生成后提交，
   见 AGENTS.md 第 3 节）
@@ -350,6 +408,6 @@ Host 半用 esbuild，浏览器半用 **Vite library mode**（与官方 deepseek
 
 | 项 | 值 |
 |---|---|
-| 包版本 | 0.1.0（5 包一致） |
+| 包版本 | 0.1.0（6 包一致） |
 | 语言约定 | 根文档中文；包 README 双语对 + `README.i18n.yaml` hash 凭据 |
 | CI | install → build → pack → git diff 干净（ci.yml）；`v*` tag 发布（publish.yml） |

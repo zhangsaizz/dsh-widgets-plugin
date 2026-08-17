@@ -22,6 +22,7 @@ export type SessionMonitorKey =
   | 'current'
   | 'collapse'
   | 'expand'
+  | 'dockToContainer'
   | 'resizeHint'
   | 'clearDone'
   | 'toastTitle'
@@ -99,6 +100,7 @@ export const zh: Record<SessionMonitorKey, string> = {
   current: '当前',
   collapse: '收起',
   expand: '点击展开',
+  dockToContainer: '放入卡片容器',
   resizeHint: '拖动右下角缩放',
   clearDone: '清除完成标记',
   toastTitle: '会话完成',
@@ -177,6 +179,7 @@ export const en: Record<SessionMonitorKey, string> = {
   current: 'Current',
   collapse: 'Collapse',
   expand: 'Click to expand',
+  dockToContainer: 'Dock into card container',
   resizeHint: 'Drag the corner to zoom',
   clearDone: 'Clear done marks',
   toastTitle: 'Session finished',

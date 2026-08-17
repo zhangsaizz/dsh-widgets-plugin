@@ -7,13 +7,14 @@
 
 `dsh-widgets-plugin` 是一个 **DeepSeek Harness 小组件（widgets）monorepo**：
 制作可独立发布、可安装到任意 Harness 实例的插件。浏览器端以 `shell.overlay`
-浮动挂件或 Web 设置页呈现。当前三个小组件：
+浮动挂件或 Web 设置页呈现。当前四个小组件：
 
 | 小组件 | 包 |
 |---|---|
 | 余额看板 | `@dsh-plugins/balance` |
 | Token 暴击挂件 | `@dsh-plugins/client-ui-token-crit` |
 | 会话监控看板 | `@dsh-plugins/client-ui-session-monitor` |
+| 卡片容器 | `@dsh-plugins/client-ui-card-container` |
 
 其余包是支撑：`@dsh-plugins/client-ui-widget-manager`（小组件管理设置页）、
 `@dsh-plugins/dsh-widgets-plugin`（可安装 bundle，一层挂载全部插件）。
@@ -31,9 +32,11 @@ packages/
   dsh-client-ui-session-monitor/ 会话监控看板（双半：Host 半 turn/end 原因 + 状态
                              路由；浏览器端 useSessions 投影列表、running 边沿
                              检测「完成一轮」提醒、点击跳转会话）
+  dsh-client-ui-card-container/ 卡片容器（纯 UI，浏览器端：声明 widgets.card 子槽、
+                             停靠影子条目隐藏浮窗、自带紧凑卡片视图）
   dsh-client-ui-widget-manager/ 小组件管理设置页（声明 widgets.config 子槽）
 bundles/
-  dsh-widgets-plugin/        可安装 bundle：cordis.patch.yml 插入 4 个插件
+  dsh-widgets-plugin/        可安装 bundle：cordis.patch.yml 插入 5 个插件
 scripts/
   build.mjs                   用 esbuild 构建 Host 产物、用 Vite library mode 构建
                              浏览器 client bundle（官方 deepseek-harness 同款工具链）
@@ -214,3 +217,39 @@ pnpm 版本由 root `package.json` 的 `packageManager` 固定（当前 `pnpm@11
   `node` 执行报 `SyntaxError: Invalid or unexpected token`（CI 的 `pnpm build`
   步骤因此失败，Windows 本机不受影响）；JS API 自行解析
   `@esbuild/<platform>` 平台包，全平台行为一致。
+- **新增卡片容器** `@dsh-plugins/client-ui-card-container`（**纯 UI 插件行**，
+  `shell.overlay` id `card-container` order 20 + `widgets.config` 配置弹窗）：
+  声明 `widgets.card` 子槽（list，条目 id = 挂件 id）渲染停靠卡片；托盘列出当前
+  启用的挂件（`entriesOfSlot` 投影 + 内置名称映射 `widgetName`），chip 拖入网格
+  或点击即**停靠**——控制器向 `shell.overlay` 注册同 id、priority -2（避开
+  widget-manager 的 -1）的影子条目隐藏浮窗（机制与管理页停用一致），网格
+  `renderSlot('widgets.card', {}, { only, fallback })` 渲染紧凑卡片；点 × 移出
+  恢复浮窗；卡片可拖拽排序；网格 gap 12px、列数自适应/2/3/4（设置持久化）；停靠
+  顺序（`dsh-plugins.card-container.docked`）、位置（`.pos`）、设置（`.settings`）
+  写 localStorage，配置变更经 window CustomEvent 通知；容器自身被隐藏时释放全部
+  停靠影子（浮窗恢复浮动），重新启用按持久化顺序恢复。**自带内置卡片视图**
+  （`widgets.card` priority 10，挂件自己的卡片 priority 0 优先）：token-crit /
+  session-monitor 紧凑统计卡（数据走标准 `useSessions`）、balance 通用卡。
+  **卡片接入已规范化为标准适配器契约**：导出 `WidgetCardProps`
+  （= `PropsRuntime<'widgets.card'>`，全局座 useSessions/useWorkspaces，可叠加
+  PropsLocale）+ **槽级注入面 `CardSlotInject`**（useContainer hook +
+  dock/undock 动词），注册模式写入 WIDGET-DEVELOPMENT.md §2.5 与双语 README
+  （`ctx.slots.inject('widgets.card', …)`、条目 id = shell.overlay id、priority
+  默认 0、type-only peer 依赖、容器缺席自动跳过）——任何挂件可选接入，不接入
+  显示占位卡；**卡片支持规格**（`WidgetCardComponent.spec` 静态属性：
+  small 1 列 / medium 2 列 / large 整行，容器读获胜条目组件规格排版，内置卡
+  token-crit=small、session-monitor=medium、balance=large）；**显示名 label 化**
+  （托盘/卡片头优先读挂件在 shell.overlay 注册的 label thunk，balance /
+  session-monitor / token-crit 均已补 label）；**浮窗快捷停靠**（浮窗头部
+  「⤢」按钮 dispatch `dsh.card-container.dock` window 事件，detail=挂件 id，
+  容器监听并停靠，解耦 no-op）；**管理页停靠态**（widget-manager 识别
+  registrant `card-container` 的停靠影子为「已停靠」独立状态，行动作变
+  「移出容器」——dispatch `dsh.card-container.undock` 事件，容器监听并恢复
+  浮窗；停靠≠停用，不再显示「已停用」/「添加」；停靠态仍可配置）；**完善**：
+  卡片**实时换位**（pointer 拖拽拎起 ghost 跟随 + 其余卡片实时让位，
+  indexFromPointer 按网格矩形映射，拖出网格 24px 松手=移出，tap 不启动拖拽）、
+  **多分组**（groups/active 持久化，旧单 docked 列表自动迁移，顶部分组标签 +
+  ⋯ 管理菜单新建/重命名/删除，一个挂件一次只能停靠一个分组）、键盘可达（卡片
+  Tab 聚焦，Enter/空格移出、方向键排序）、触屏 hover:none chrome 常显、空态
+  引导、ghost 宽度按 spec。已登记
+  widget-manager 目录；bundle 增至 5 个插件行。纯客户端改动，build 后刷新页面即生效。

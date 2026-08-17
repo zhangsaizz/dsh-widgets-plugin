@@ -30,8 +30,8 @@ import type {
   PendingInteractionStatus, SessionListState, SessionSummary,
 } from '@deepseek-ai/dsh-client-runtime/client'
 import {
-  MAX_SCALE, MIN_SCALE, POS_KEY, SETTINGS_CHANGED_EVENT, SETTINGS_KEY, clampToViewport, loadLastActive,
-  loadPos, loadScale, loadSettings, playChime, saveLastActive, savePos, saveScale,
+  MAX_SCALE, MIN_SCALE, POS_KEY, SETTINGS_CHANGED_EVENT, SETTINGS_KEY, clampToViewport, loadDone,
+  loadLastActive, loadPos, loadScale, loadSettings, playChime, saveDone, saveLastActive, savePos, saveScale,
 } from './settings.ts'
 import type { MonitorSettings } from './settings.ts'
 import css from './SessionMonitorWidget.module.css'
@@ -228,7 +228,10 @@ export function SessionMonitorWidget(props: SessionMonitorWidgetProps) {
   const [scale, setScale] = useState(loadScale)
   const [dragging, setDragging] = useState(false)
   const [toasts, setToasts] = useState<Toast[]>([])
-  const [doneIds, setDoneIds] = useState<ReadonlySet<string>>(new Set())
+  /** Sessions that finished a round since last visited. Persisted (loadDone
+   *  prunes expired entries and sessions that no longer exist), so a reload
+   *  keeps the badge; toasts/pending are in-memory only. */
+  const [doneIds, setDoneIds] = useState<ReadonlySet<string>>(() => loadDone(new Set(sessions.ids)))
   /** Per-session last-observed-activity ms (persisted; feeds the recent window). */
   const [lastActive, setLastActive] = useState<Record<string, number>>(loadLastActive)
   /**
@@ -253,11 +256,6 @@ export function SessionMonitorWidget(props: SessionMonitorWidgetProps) {
   const movedRef = useRef(false)
   /** Live system-Notification instances per session, so other surfaces can dismiss them. */
   const notifyInstRef = useRef<Map<string, Notification>>(new Map())
-  /** Sessions for which a system notification was ACTUALLY created (permission
-   *  granted). Outlives the notification instance: even if the OS already
-   *  auto-dismissed the popup before the user returned, the delivery happened,
-   *  so the return-cleanup can still clear the "round done" badge. */
-  const notifiedRef = useRef<Set<string>>(new Set())
   /** Host turn-end reason table (sessionId → { reason, at }), refreshed by polling. */
   const reasonsRef = useRef<Record<string, { reason: string; at: number; round?: number }>>({})
   /** Whether the Host status route answered at least once ('unknown' before the first poll). */
@@ -279,6 +277,10 @@ export function SessionMonitorWidget(props: SessionMonitorWidgetProps) {
   const scaleRef = useRef(scale)
   /** Latest current-session id for the return-cleanup listener (below). */
   const currentIdRef = useRef<string | undefined>(sessions.current)
+  /** Previous current-session id for the app-open acknowledgment effect. */
+  const prevCurrentRef = useRef<string | undefined>(undefined)
+  /** Skip the first run of that effect: the mount-time current is not an "opened" event. */
+  const currentFirstRunRef = useRef(true)
 
   useEffect(() => { settingsRef.current = settings }, [settings])
   useEffect(() => { doneIdsRef.current = doneIds }, [doneIds])
@@ -287,6 +289,9 @@ export function SessionMonitorWidget(props: SessionMonitorWidgetProps) {
   // Re-point the flush ref every render: flushPending closes over the latest
   // `t`/settings, so the mount-time poll loop must not hold the first frame's.
   useEffect(() => { flushPendingRef.current = flushPending })
+  // Persist the done marks on every change so a reload keeps the record of
+  // finished rounds (toasts and pending alerts stay in-memory by design).
+  useEffect(() => { saveDone(doneIds) }, [doneIds])
 
   // Re-read settings/position/scale whenever the config panel writes them.
   useEffect(() => {
@@ -388,21 +393,22 @@ export function SessionMonitorWidget(props: SessionMonitorWidgetProps) {
     return () => window.clearInterval(id)
   }, [])
 
-  // "Returned to the page" cleanup: the system notification exists to reach
-  // the user while they are NOT looking at the page (tab hidden, window
+  // "Returned to the page" cleanup: the completion notices exist to reach the
+  // user while they are NOT looking at the page (tab hidden, window
   // minimized, or the browser window simply lost focus — another program in
   // front). Once they actually come back (window refocused / tab shown), the
-  // current session's notification has served its purpose — close it and
-  // clear that session's "round done" badge, so a stale OS popup does not
-  // linger after the user is already here. Scope: ONLY the current session
+  // CURRENT session's notices have served their purpose — the conversation
+  // they were viewing is right there, so the finished round needs no further
+  // pestering: close any live system notification, clear the session's
+  // "round done" badge, drop its in-page toast, and cancel a round whose
+  // Host reason was still pending (a late reason must not re-toast after the
+  // return). This runs regardless of whether a system notification was
+  // actually delivered — the user is back either way, so the in-page toast
+  // and badge would only linger stale. Scope: ONLY the current session
   // (other sessions' completions still await the user's attention and must
-  // not be silently dropped), ONLY when a notification was actually sent for
-  // it (with browserNotify off, or without permission, nothing was delivered
-  // and the badge stays as the only record of the finished round), and the
-  // in-page toasts are untouched (the toast is the in-page notification
-  // now). Each tab cleans its own notification instance — no cross-tab
-  // broadcast: another tab may have a different current session, and its own
-  // return event cleans its own instance.
+  // not be silently dropped). Each tab cleans its own notice instances — no
+  // cross-tab broadcast: another tab may have a different current session,
+  // and its own return event cleans its own instance.
   //
   // The away↔back edge must be tracked on BOTH directions. Listening to
   // `focus` alone is not enough: switching to another program leaves the tab
@@ -419,9 +425,15 @@ export function SessionMonitorWidget(props: SessionMonitorWidgetProps) {
       if (!returned) return
       const id = currentIdRef.current
       if (id === undefined) return
-      const live = notifyInstRef.current.has(id)
-      if (!live && !notifiedRef.current.has(id)) return
-      if (live) closeBrowserNotify(id)
+      closeBrowserNotify(id)
+      // Cancel a still-pending alert first: if its Host turn-end reason had
+      // not been resolved by the time the user came back, the next poll would
+      // otherwise toast a round the user is already looking at.
+      pendingRef.current.delete(id)
+      setToasts((ts) => {
+        if (!ts.some((t) => t.sessionId === id)) return ts
+        return ts.filter((t) => t.sessionId !== id)
+      })
       setDoneIds((ds) => {
         if (!ds.has(id)) return ds
         const next = new Set(ds)
@@ -438,6 +450,40 @@ export function SessionMonitorWidget(props: SessionMonitorWidgetProps) {
       document.removeEventListener('visibilitychange', sync)
     }
   }, [])
+
+  // "Session opened through the app" acknowledgment: the moment the app's
+  // CURRENT session changes to a defined session (opened via the app's own UI
+  // — sidebar, history, … — not the widget's rows/toasts), that session's
+  // completion notices are stale: the user is looking at it now. Mirror
+  // handleOpen: clear its done mark, toasts, pending alert and any live system
+  // notification, and broadcast the acknowledgment so other tabs stop nagging
+  // for it too. The FIRST run is skipped: the mount-time current is not an
+  // "opened" event, and a done mark restored for it after a reload must
+  // survive. While the user is away no app-side switch happens without them,
+  // so nothing fires then — the return-cleanup owns that window.
+  useEffect(() => {
+    const prev = prevCurrentRef.current
+    const next = sessions.current
+    prevCurrentRef.current = next
+    if (currentFirstRunRef.current) {
+      currentFirstRunRef.current = false
+      return
+    }
+    if (next === undefined || prev === next || isUserAway()) return
+    pendingRef.current.delete(next)
+    closeBrowserNotify(next)
+    setToasts((ts) => {
+      if (!ts.some((t) => t.sessionId === next)) return ts
+      return ts.filter((t) => t.sessionId !== next)
+    })
+    setDoneIds((ds) => {
+      if (!ds.has(next)) return ds
+      const n = new Set(ds)
+      n.delete(next)
+      return n
+    })
+    broadcastSync({ type: 'opened', sessionId: next })
+  }, [sessions.current])
 
   // Round-completion detection: diff the running bits across snapshots.
   useEffect(() => {
@@ -834,7 +880,6 @@ export function SessionMonitorWidget(props: SessionMonitorWidgetProps) {
 
   /** Close the live system notification for one session (no-op when none is showing). */
   function closeBrowserNotify(sessionId: string): void {
-    notifiedRef.current.delete(sessionId)
     const inst = notifyInstRef.current.get(sessionId)
     if (!inst) return
     notifyInstRef.current.delete(sessionId)
@@ -855,6 +900,9 @@ export function SessionMonitorWidget(props: SessionMonitorWidgetProps) {
     // Opening a session consumes its completion notice — dismiss any system
     // notification still showing for it too (cross-channel link).
     closeBrowserNotify(sessionId)
+    // A round whose Host reason was still pending must not toast after the
+    // session is already open — drop the queued alert.
+    pendingRef.current.delete(sessionId)
     open(sessionId)
     // A completion acknowledged here is acknowledged everywhere (other tabs).
     broadcastSync({ type: 'opened', sessionId })
@@ -878,10 +926,6 @@ export function SessionMonitorWidget(props: SessionMonitorWidgetProps) {
         tag: 'dsh-smon:' + sessionId,
       })
       notifyInstRef.current.set(sessionId, n)
-      // Delivery record: outlives the instance, so the return-cleanup can
-      // clear the round's done mark even if the OS already dismissed the
-      // popup before the user came back.
-      notifiedRef.current.add(sessionId)
       n.onclose = () => { notifyInstRef.current.delete(sessionId) }
       n.onclick = () => {
         // Clicking the notification: focus the window, jump to the session
@@ -1021,6 +1065,18 @@ export function SessionMonitorWidget(props: SessionMonitorWidgetProps) {
           <span className={css.count}>{t('busyCount', { count: String(busyCount) })}</span>
           <button
             className={css.iconBtn}
+            title={t('dockToContainer')}
+            onPointerDown={(e) => e.stopPropagation()}
+            onClick={() => {
+              try {
+                window.dispatchEvent(new CustomEvent('dsh.card-container.dock', { detail: 'session-monitor' }))
+              } catch { /* events unavailable */ }
+            }}
+          >
+            ⤢
+          </button>
+          <button
+            className={css.iconBtn}
             title={t('collapse')}
             onPointerDown={(e) => e.stopPropagation()}
             onClick={() => setCollapsed(true)}
@@ -1127,6 +1183,7 @@ export function SessionMonitorWidget(props: SessionMonitorWidgetProps) {
         ref={anchorRef}
         className={css.anchor}
         style={anchorStyle}
+        data-widget-id="session-monitor"
         onPointerMove={onPointerMove}
         onPointerUp={endDrag}
         onPointerCancel={endDrag}
