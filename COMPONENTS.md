@@ -396,7 +396,12 @@
     前缀）；应用级没有 `Builder::on_navigation`（那是 `plugin::Builder` 的 API），
     故用命令而非导航拦截；
   - **托盘**（`tray-icon` feature）：左键单击或菜单「显示挂件」唤回隐藏的窗口，
-    「退出」结束进程；✕ 只隐藏不退出。
+    「退出」结束进程；✕ 只隐藏不退出。菜单第一行是**待处理通知计数**（灰色
+    状态行）：挂件页每次 inbox 未读数变化经自定义命令 `set_tray_unread` 上报，
+    Rust 侧同步更新**托盘 tooltip**（「会话监控 · N 条待处理」）与该菜单项文本——
+    窗口隐藏时也能一眼看到还有几件待处理（命令已加入 `build.rs`
+    `commands(&["open_in_browser", "set_tray_unread"])` 与 capability
+    `"allow-set-tray-unread"`）。
 - 构建：`desktop/dsh-session-desktop` 下 `npm i` 后
   `npx tauri build --no-bundle`（cargo release + tauri-build 嵌入图标/manifest）；
   `npx tauri icon <png>` 从 `icon-source.png` 再生成全套图标。首编需拉取 crates.io

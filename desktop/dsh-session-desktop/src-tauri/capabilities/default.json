@@ -16,6 +16,7 @@
     "core:window:allow-set-focus",
     "core:window:allow-close",
     "core:window:allow-minimize",
-    "allow-open-in-browser"
+    "allow-open-in-browser",
+    "allow-set-tray-unread"
   ]
 }

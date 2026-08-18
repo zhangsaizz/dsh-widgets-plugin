@@ -317,3 +317,24 @@ pnpm 版本由 root `package.json` 的 `packageManager` 固定（当前 `pnpm@11
     首编拉取数百个 crates 10–30 分钟）；图标从 `icon-source.png` 用
     `npx tauri icon` 生成。运行前提：本机 `dsh web`（默认 127.0.0.1:3080）+ 插件
     Host 半已挂载。
+- **会话监控桌面挂件重构为「待处理通知列表」**（inbox 为主视图 + 会话 Tab 副视图）：
+  - **Host 权威通知存储**（`src/desktop-notifications.ts`，`NotificationStore`）：
+    事件折叠为通知记录（turn/end 原因→kind、approval 审计、question/plan-review
+    **host 工具调用检测**（`ask_user_question` / `exit_plan_mode` 的 `tool/call` →
+    `tool/result`，纯桌面可见；网页 relay 降级为幂等备份）、子代理最后回合结束、
+    P2 标题/新会话），幂等键 `(sessionId, kind, round)`、上限 200、已读/已解决 7 天
+    归档、持久化到 `session-monitor-inbox` settings 分区（1s debounce + 停顿时 flush）；
+    新增路由 `GET /notifications`（全量快照 + unread）、`POST /notifications/ack`
+    （ids/sessionId/all）、`POST /events`（relay）。
+  - **挂件页双 Tab**（`src/widget-page.html`）：「待处理」通知列表（未读徽标、
+    P0/P1/P2 级别开关、处理→跳转+ackOnJump 自动已读/忽略/全部已读、已读与
+    「已处理」折叠区、空态）+「会话」原列表；共享设置新增 `ackOnJump` /
+    `autoAckOnOpen`（网页配置面板同步）。
+  - **网页版未读徽标**：挂件头部 + 收起胶囊 5s 轮询 `/notifications` 显示未读数，
+    点击跳最新未读会话；已读状态经 Host 与桌面共享。
+  - **托盘未读数**（桌面壳）：挂件页每次未读变化经新命令 `set_tray_unread` 上报，
+    Rust 侧更新托盘 tooltip 与菜单状态行（`build.rs` commands 列表与 capability
+    同步加 `allow-set-tray-unread`）。
+  - 设计稿/原型/冒烟测试在包内 `docs/`（`notification-inbox-design.md`、
+    `inbox-prototype.html`、`store-smoke-test.cjs`——后者用 esbuild 打包
+    `desktop-notifications.ts` 后跑 8 组断言）。

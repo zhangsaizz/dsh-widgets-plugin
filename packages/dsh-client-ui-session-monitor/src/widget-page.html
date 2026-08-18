@@ -709,6 +709,13 @@
     window.open(url, '_blank')
   }
 
+  /** Mirror the inbox unread count into the Tauri tray (tooltip + menu status
+   *  item); a no-op in a plain browser. */
+  function updateTrayUnread(count) {
+    if (!tauri) return
+    tauri.core.invoke('set_tray_unread', { count: count }).catch(function () {})
+  }
+
   // ── shared settings (server-mediated) ───────────────────────
   function loadCache() {
     var stored = null
@@ -898,12 +905,13 @@
       else readCount++
     }
 
-    // Unread badge (header + tab).
+    // Unread badge (header + tab) + tray mirror (Tauri shell).
     document.getElementById('unreadBadge').hidden = unread === 0
     document.getElementById('unreadBadge').textContent = String(unread)
     document.getElementById('tabInboxBadge').hidden = unread === 0
     document.getElementById('tabInboxBadge').textContent = String(unread)
     document.getElementById('ackAllBtn').disabled = unread === 0
+    updateTrayUnread(unread)
 
     var sig = visible.map(noteSignature).join('\n')
     if (sig === lastInboxSig) return

@@ -33,12 +33,18 @@
   运行中/子代理/时间范围）存在 Host 的 `session-monitor` settings 命名空间
   （`/_dsh/session-monitor/settings`），网页版（小组件管理 → 配置）与桌面挂件
   读写同一份、实时双向同步——WebView2 与浏览器存储分区隔离，只有服务端中转能
-  跨上下文同步。仅「刷新间隔」是本挂件独有。
-- 托盘图标：左键单击或菜单「显示挂件」唤回隐藏窗口，「退出」结束进程。
+  跨上下文同步。仅「刷新间隔」与「待处理通知级别开关」是本挂件独有。
+- **通知列表（inbox）为主视图**：挂件页「待处理」Tab 展示 Host 权威通知存储
+  （`/_dsh/session-monitor/notifications`）——审批/回答/计划/出错/阻塞/token 上限/
+  完成一轮/子代理完成等，未读徽标 + 处理/忽略/全部已读 + 级别开关；「会话」列表
+  迁入副 Tab。已读状态存 Host，与网页版同源共享（网页挂件头部也有未读徽标）。
+- 托盘图标：左键单击或菜单「显示挂件」唤回隐藏窗口，「退出」结束进程；托盘
+  **tooltip 与菜单第一行实时镜像 inbox 未读数**（挂件页每次未读变化经
+  `set_tray_unread` 命令上报，隐藏窗口时也能一眼看到还有几件待处理）。
 - **ACL 注意**：自定义 app 命令从远程页（`http://127.0.0.1:3080`）调用必须放行——
-  `build.rs` 用 `AppManifest::new().commands(&["open_in_browser"])` 自动生成权限，
-  `capabilities/default.json` 里以无前缀 `"allow-open-in-browser"` 引用（改命令时
-  两处要同步）。
+  `build.rs` 用 `AppManifest::new().commands(&["open_in_browser", "set_tray_unread"])`
+  自动生成权限，`capabilities/default.json` 里以无前缀
+  `"allow-open-in-browser"` / `"allow-set-tray-unread"` 引用（改命令时两处要同步）。
 
 ## 构建
 
