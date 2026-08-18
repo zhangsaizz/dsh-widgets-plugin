@@ -34,6 +34,8 @@ const EXTERNAL_CLIENT = EXTERNAL.filter((entry) => entry !== 'zod')
 
 // Host bundles (ESM, packages external) — the merged balance plugin plus the
 // surface-plugin stubs, so a fresh clone + `pnpm build` reproduces every lib/.
+// The session-monitor half inlines its standalone desktop widget page through
+// the esbuild `text` loader (`import pageHtml from './widget-page.html'`).
 for (const pkg of [
   'packages/dsh-balance',
   'packages/dsh-client-ui-token-crit',
@@ -51,6 +53,9 @@ for (const pkg of [
     outfile: 'lib/index.js',
     logLevel: 'warning',
     absWorkingDir: join(root, pkg),
+    loader: pkg === 'packages/dsh-client-ui-session-monitor'
+      ? { '.html': 'text' }
+      : undefined,
   })
   console.log('built ' + pkg + '/lib/index.js')
 }

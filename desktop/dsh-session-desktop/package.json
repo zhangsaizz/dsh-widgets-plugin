@@ -1,0 +1,16 @@
+{
+  "name": "dsh-session-monitor-desktop",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Desktop floating session monitor for DeepSeek Harness (Tauri 2 shell). Not part of the pnpm workspace — standalone Rust app.",
+  "scripts": {
+    "tauri": "tauri",
+    "dev": "tauri dev",
+    "build": "tauri build --no-bundle",
+    "bundle": "tauri build",
+    "icon": "tauri icon"
+  },
+  "devDependencies": {
+    "@tauri-apps/cli": "^2.11.4"
+  }
+}

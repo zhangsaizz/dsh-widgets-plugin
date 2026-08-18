@@ -1,0 +1,106 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<title>会话监控 · 连接中</title>
+<style>
+  /* Local retry page loaded from tauri://localhost at startup: waits for the
+     local Harness web service (127.0.0.1:3080) to come up, then redirects
+     into the plugin-served widget page. Dark translucent card mirrors the
+     widget page so the transition is seamless. */
+  * { box-sizing: border-box; }
+  html, body { background: transparent; height: 100%; margin: 0; overflow: hidden; }
+  body {
+    font-family: "Segoe UI", "Microsoft YaHei", system-ui, sans-serif;
+    color: #e8eaf0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    user-select: none;
+    -webkit-user-select: none;
+  }
+  .card {
+    width: calc(100% - 32px);
+    padding: 26px 20px;
+    border-radius: 14px;
+    border: 1px solid rgba(255, 255, 255, 0.14);
+    background:
+      linear-gradient(180deg, rgba(255, 255, 255, 0.06), rgba(255, 255, 255, 0) 42%),
+      rgba(24, 26, 32, 0.92);
+    backdrop-filter: blur(14px) saturate(1.2);
+    -webkit-backdrop-filter: blur(14px) saturate(1.2);
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08), 0 8px 20px rgba(0, 0, 0, 0.1), 0 24px 56px rgba(0, 0, 0, 0.14);
+    text-align: center;
+  }
+  .spinner {
+    width: 22px;
+    height: 22px;
+    margin: 0 auto 14px;
+    border: 3px solid rgba(79, 140, 255, 0.25);
+    border-top-color: #4f8cff;
+    border-radius: 50%;
+    animation: spin 0.9s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  h1 { font-size: 14px; margin: 0 0 6px; font-weight: 600; }
+  p { font-size: 12px; color: rgba(232, 234, 240, 0.62); margin: 0 0 14px; line-height: 1.6; }
+  p:last-child { margin-bottom: 0; }
+  button {
+    border: none;
+    border-radius: 8px;
+    padding: 8px 20px;
+    font-size: 12.5px;
+    font-weight: 600;
+    color: #fff;
+    background: #4f8cff;
+    cursor: pointer;
+  }
+  button:hover { filter: brightness(1.08); }
+  .error { display: none; }
+  body.error .spinner { display: none; }
+  body.error .error { display: block; }
+  .hint { font-size: 10.5px; color: rgba(232, 234, 240, 0.4); margin-top: 12px; }
+</style>
+</head>
+<body>
+  <div class="card">
+    <div class="spinner"></div>
+    <h1>正在连接 DeepSeek Harness…</h1>
+    <p class="waiting">等待本机 Web 服务（127.0.0.1:3080）就绪</p>
+    <div class="error">
+      <p>无法连接 Harness 服务<br />请先启动 <b>dsh web</b> 再重试</p>
+      <button id="retry">重试</button>
+      <p class="hint">提示：在 dsh 安装目录执行 <b>dsh web</b> 即可启动</p>
+    </div>
+  </div>
+<script>
+(function () {
+  'use strict'
+  var WIDGET_URL = 'http://127.0.0.1:3080/_dsh/session-monitor/widget'
+  var PROBE_URL = 'http://127.0.0.1:3080/_dsh/session-monitor/sessions'
+  var attempts = 0
+
+  function probe() {
+    fetch(PROBE_URL, { cache: 'no-store' })
+      .then(function (res) {
+        if (!res.ok) throw new Error('HTTP ' + res.status)
+        location.href = WIDGET_URL
+      })
+      .catch(function () {
+        attempts++
+        if (attempts >= 8) document.body.classList.add('error')
+        setTimeout(probe, 2000)
+      })
+  }
+
+  document.getElementById('retry').addEventListener('click', function () {
+    document.body.classList.remove('error')
+    attempts = 0
+    probe()
+  })
+
+  probe()
+})()
+</script>
+</body>
+</html>

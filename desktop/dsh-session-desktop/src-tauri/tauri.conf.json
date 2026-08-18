@@ -1,0 +1,44 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "DSH-Session-Monitor",
+  "version": "0.1.0",
+  "identifier": "com.dsh.session-monitor-desktop",
+  "build": {
+    "frontendDist": "assets"
+  },
+  "app": {
+    "withGlobalTauri": true,
+    "windows": [
+      {
+        "label": "main",
+        "title": "会话监控",
+        "width": 320,
+        "height": 560,
+        "minWidth": 240,
+        "minHeight": 200,
+        "resizable": true,
+        "decorations": false,
+        "transparent": true,
+        "alwaysOnTop": true,
+        "skipTaskbar": true,
+        "shadow": false,
+        "visible": true,
+        "url": "start.html"
+      }
+    ],
+    "security": {
+      "csp": null,
+      "capabilities": ["default"]
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": ["nsis"],
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.ico"
+    ]
+  }
+}

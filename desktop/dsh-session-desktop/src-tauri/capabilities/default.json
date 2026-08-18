@@ -1,0 +1,21 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "default",
+  "description": "Main widget window: window controls (drag / pin / hide) usable both from the local start page and from the remote widget page on 127.0.0.1, plus core defaults.",
+  "windows": ["main"],
+  "remote": {
+    "urls": ["http://127.0.0.1:*"]
+  },
+  "permissions": [
+    "core:default",
+    "core:window:allow-start-dragging",
+    "core:window:allow-set-always-on-top",
+    "core:window:allow-is-always-on-top",
+    "core:window:allow-hide",
+    "core:window:allow-show",
+    "core:window:allow-set-focus",
+    "core:window:allow-close",
+    "core:window:allow-minimize",
+    "allow-open-in-browser"
+  ]
+}

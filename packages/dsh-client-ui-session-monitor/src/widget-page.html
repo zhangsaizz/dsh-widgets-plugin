@@ -1,0 +1,953 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>会话监控 · 桌面挂件</title>
+<style>
+  /* Standalone desktop widget page — served by the session-monitor host half
+     at /_dsh/session-monitor/widget. Self-contained (no framework, no host
+     theme tokens): the palette mirrors the in-app overlay widget so the two
+     monitors read the same. The page is designed for a transparent,
+     frameless, always-on-top desktop window (Tauri shell), but also works
+     as a plain browser tab.
+     Settings are SHARED with the web widget via the Host store
+     (/_dsh/session-monitor/settings); only the refresh interval is
+     desktop-local. */
+  :root { color-scheme: dark; }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  /* The hidden attribute must always win, even against class rules that set
+     `display` explicitly (e.g. .settings { display: flex }) — the UA rule is
+     overridden by any author display declaration, which would leave panels
+     permanently visible. */
+  [hidden] { display: none !important; }
+  html, body {
+    background: transparent;
+    height: 100%;
+    overflow: hidden;
+  }
+  body {
+    font-family: "Segoe UI", "Microsoft YaHei", system-ui, -apple-system, sans-serif;
+    font-size: 13px;
+    color: #e8eaf0;
+    user-select: none;
+    -webkit-user-select: none;
+    display: flex;
+    flex-direction: column;
+  }
+  button { font-family: inherit; }
+
+  .panel {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    margin: 8px;
+    border: 1px solid rgba(255, 255, 255, 0.14);
+    border-radius: 14px;
+    background:
+      linear-gradient(180deg, rgba(255, 255, 255, 0.06), rgba(255, 255, 255, 0) 42%),
+      rgba(24, 26, 32, 0.92);
+    backdrop-filter: blur(14px) saturate(1.2);
+    -webkit-backdrop-filter: blur(14px) saturate(1.2);
+    box-shadow:
+      0 1px 2px rgba(0, 0, 0, 0.08),
+      0 8px 20px rgba(0, 0, 0, 0.1),
+      0 24px 56px rgba(0, 0, 0, 0.14);
+    overflow: hidden;
+    position: relative;
+  }
+  .panel::before {
+    content: '';
+    position: absolute;
+    inset: 0 0 auto 0;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.22), transparent);
+    pointer-events: none;
+  }
+
+  /* ── header ─────────────────────────────────────────── */
+  .header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 9px 8px 9px 14px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    flex: none;
+  }
+  .header.draggable { cursor: grab; }
+  .header.draggable:active { cursor: grabbing; }
+  .titleDot {
+    flex: none;
+    width: 8px;
+    height: 8px;
+    border-radius: 3px;
+    background: #4f8cff;
+    box-shadow: 0 0 8px rgba(79, 140, 255, 0.45);
+  }
+  .title {
+    flex: none;
+    font-size: 13px;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+  }
+  .count {
+    flex: 1;
+    min-width: 0;
+    text-align: right;
+    font-size: 11px;
+    color: rgba(232, 234, 240, 0.62);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .iconBtn {
+    flex: none;
+    width: 24px;
+    height: 24px;
+    border: none;
+    border-radius: 8px;
+    background: transparent;
+    color: rgba(232, 234, 240, 0.62);
+    font-size: 14px;
+    line-height: 1;
+    cursor: pointer;
+    transition: background 120ms ease, color 120ms ease;
+  }
+  .iconBtn:hover { background: rgba(255, 255, 255, 0.1); color: #e8eaf0; }
+  .iconBtn.on { color: #4f8cff; }
+
+  /* ── status banner ──────────────────────────────────── */
+  .banner {
+    flex: none;
+    margin: 8px 10px 0;
+    padding: 7px 10px;
+    border-radius: 8px;
+    font-size: 11.5px;
+    background: rgba(255, 107, 107, 0.14);
+    color: #ff8f8f;
+    border: 1px solid rgba(255, 107, 107, 0.25);
+  }
+
+  /* ── session list ───────────────────────────────────── */
+  .list {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow-y: auto;
+    padding: 6px;
+    scrollbar-width: thin;
+    scrollbar-color: rgba(255, 255, 255, 0.18) transparent;
+  }
+  .list::-webkit-scrollbar { width: 6px; }
+  .list::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.18); border-radius: 3px; }
+  .empty {
+    padding: 26px 12px;
+    text-align: center;
+    font-size: 12px;
+    color: rgba(232, 234, 240, 0.5);
+  }
+  .row {
+    display: flex;
+    align-items: flex-start;
+    gap: 9px;
+    padding: 8px 9px;
+    border-radius: 9px;
+    cursor: pointer;
+  }
+  .row:hover { background: rgba(255, 255, 255, 0.07); }
+  .dot {
+    flex: none;
+    width: 8px;
+    height: 8px;
+    margin-top: 4px;
+    border-radius: 50%;
+    background: rgba(232, 234, 240, 0.35);
+  }
+  .dotRunning {
+    background: #3dd68c;
+    animation: pulse 1.4s ease-in-out infinite;
+  }
+  .dotDone { background: #f5b544; }
+  .dotPending { background: #ff9f43; }
+  @keyframes pulse {
+    0%, 100% { opacity: 1; box-shadow: 0 0 0 0 rgba(61, 214, 140, 0.4); }
+    50% { opacity: 0.55; box-shadow: 0 0 0 4px transparent; }
+  }
+  .rowMain { flex: 1; min-width: 0; }
+  .rowTitle {
+    font-size: 12.5px;
+    font-weight: 500;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .rowMeta {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-top: 3px;
+    flex-wrap: wrap;
+  }
+  .badge {
+    flex: none;
+    font-size: 10px;
+    line-height: 1.4;
+    padding: 0 5px;
+    border-radius: 4px;
+    background: rgba(255, 255, 255, 0.1);
+    color: rgba(232, 234, 240, 0.62);
+  }
+  .subBadge {
+    background: rgba(179, 136, 255, 0.16);
+    color: #b388ff;
+    font-weight: 600;
+  }
+  .pendingBadge {
+    background: rgba(255, 159, 67, 0.16);
+    color: #ff9f43;
+    font-weight: 600;
+  }
+  .status { font-size: 11px; color: rgba(232, 234, 240, 0.72); }
+  .statusSub { color: #b388ff; }
+  .time {
+    font-size: 11px;
+    color: rgba(232, 234, 240, 0.4);
+    margin-left: auto;
+    white-space: nowrap;
+  }
+  .footer {
+    flex: none;
+    padding: 6px 10px;
+    border-top: 1px solid rgba(255, 255, 255, 0.08);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    font-size: 10.5px;
+    color: rgba(232, 234, 240, 0.5);
+  }
+
+  /* ── settings popover ───────────────────────────────── */
+  .settings {
+    position: absolute;
+    right: 10px;
+    top: 44px;
+    z-index: 20;
+    width: 236px;
+    max-height: calc(100% - 56px);
+    overflow-y: auto;
+    padding: 12px;
+    border: 1px solid rgba(255, 255, 255, 0.14);
+    border-radius: 12px;
+    background: rgba(30, 32, 40, 0.97);
+    backdrop-filter: blur(14px) saturate(1.2);
+    -webkit-backdrop-filter: blur(14px) saturate(1.2);
+    box-shadow: 0 10px 28px rgba(0, 0, 0, 0.24);
+    display: flex;
+    flex-direction: column;
+    gap: 9px;
+    font-size: 12px;
+    scrollbar-width: thin;
+    scrollbar-color: rgba(255, 255, 255, 0.18) transparent;
+  }
+  .settings label { display: flex; flex-direction: column; gap: 4px; color: rgba(232, 234, 240, 0.72); }
+  .settings label.check { flex-direction: row; align-items: center; gap: 6px; cursor: pointer; }
+  .settings select, .settings input[type="number"] {
+    background: rgba(255, 255, 255, 0.08);
+    border: 1px solid rgba(255, 255, 255, 0.14);
+    color: #e8eaf0;
+    border-radius: 7px;
+    padding: 5px 7px;
+    font-size: 12px;
+    outline: none;
+  }
+  .settings input[type="checkbox"] { accent-color: #4f8cff; }
+  .settings .hint { font-size: 10.5px; color: rgba(232, 234, 240, 0.45); }
+  .reset {
+    border: none;
+    border-radius: 7px;
+    padding: 6px 0;
+    font-size: 12px;
+    font-weight: 600;
+    color: #e8eaf0;
+    background: rgba(255, 255, 255, 0.1);
+    cursor: pointer;
+  }
+  .reset:hover { background: rgba(255, 255, 255, 0.16); }
+
+  /* ── toast stack ────────────────────────────────────── */
+  .toasts {
+    position: fixed;
+    top: 64px;
+    right: 20px;
+    z-index: 10010;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    width: 300px;
+    max-width: calc(100vw - 28px);
+    max-height: calc(100vh - 90px);
+    overflow-y: auto;
+    pointer-events: none;
+  }
+  .toast {
+    pointer-events: auto;
+    --toast-accent: #f5b544;
+    border: 1px solid rgba(255, 255, 255, 0.16);
+    border-radius: 12px;
+    background: rgba(30, 32, 40, 0.96);
+    backdrop-filter: blur(14px) saturate(1.2);
+    -webkit-backdrop-filter: blur(14px) saturate(1.2);
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1), 0 10px 28px rgba(0, 0, 0, 0.24);
+    padding: 10px 12px;
+    animation: toastIn 200ms ease-out;
+    position: relative;
+  }
+  .toast::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: 9px;
+    bottom: 9px;
+    width: 3px;
+    border-radius: 2px;
+    background: var(--toast-accent);
+  }
+  .toastApproval   { --toast-accent: #ff9f43; }
+  .toastQuestion   { --toast-accent: #4f8cff; }
+  .toastPlanReview { --toast-accent: #b388ff; }
+  .toastSubagent   { --toast-accent: #b388ff; }
+  .toastError      { --toast-accent: #ff6b6b; }
+  .toastAborted    { --toast-accent: #9aa0ab; }
+  .toastBlocked    { --toast-accent: #ff9f43; }
+  .toastMaxTokens  { --toast-accent: #4dd0e1; }
+  .toastInterrupted{ --toast-accent: #7d93c4; }
+  @keyframes toastIn {
+    from { opacity: 0; transform: translateY(-8px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+  .toastHead { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+  .toastTitle {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 12px;
+    font-weight: 700;
+    min-width: 0;
+  }
+  .toastIcon { color: var(--toast-accent); font-style: normal; font-size: 14px; line-height: 1; }
+  .toastTime { font-size: 10.5px; color: rgba(232, 234, 240, 0.4); white-space: nowrap; }
+  .toastBody {
+    margin-top: 4px;
+    font-size: 12.5px;
+    line-height: 1.45;
+    color: #e8eaf0;
+    word-break: break-all;
+  }
+  .toastActions { display: flex; gap: 8px; margin-top: 9px; }
+  .jumpBtn, .dismissBtn {
+    flex: 1;
+    border: none;
+    border-radius: 7px;
+    padding: 6px 0;
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+  }
+  .jumpBtn { color: #fff; background: #4f8cff; }
+  .jumpBtn:hover { filter: brightness(1.08); }
+  .toastDone .jumpBtn, .toastAborted .jumpBtn, .toastInterrupted .jumpBtn {
+    color: #e8eaf0;
+    background: rgba(255, 255, 255, 0.1);
+  }
+  .toastDone .jumpBtn:hover, .toastAborted .jumpBtn:hover, .toastInterrupted .jumpBtn:hover {
+    background: rgba(255, 255, 255, 0.16);
+  }
+  .dismissBtn { color: #e8eaf0; background: rgba(255, 255, 255, 0.1); }
+  .dismissBtn:hover { background: rgba(255, 255, 255, 0.16); }
+</style>
+</head>
+<body>
+  <div class="panel">
+    <header class="header" id="header">
+      <span class="titleDot"></span>
+      <span class="title">会话监控</span>
+      <span class="count" id="count"></span>
+      <button class="iconBtn" id="pinBtn" title="置顶">📌</button>
+      <button class="iconBtn" id="settingsBtn" title="设置">⚙</button>
+      <button class="iconBtn" id="closeBtn" title="隐藏">✕</button>
+    </header>
+    <div class="banner" id="banner" hidden>连接 Harness 失败，正在重试…</div>
+    <div class="list" id="list"></div>
+    <div class="empty" id="empty" hidden>暂无活动会话</div>
+    <div class="footer" id="footer" hidden>
+      <span id="footerHint"></span>
+    </div>
+    <div class="settings" id="settingsPanel" hidden>
+      <span class="hint">以下选项与网页版共享，两边改动实时同步</span>
+      <label class="check"><input type="checkbox" id="setNotify" /> 完成提醒</label>
+      <label>通知方式
+        <select id="setNotifyMode">
+          <option value="auto">自动消失</option>
+          <option value="confirm">需确认</option>
+        </select>
+      </label>
+      <label>自动消失（秒）
+        <input type="number" id="setAutoDismiss" min="2" max="60" step="1" />
+      </label>
+      <label class="check"><input type="checkbox" id="setSound" /> 完成提醒提示音</label>
+      <label class="check"><input type="checkbox" id="setRunningOnly" /> 只显示运行中</label>
+      <label class="check"><input type="checkbox" id="setSubagents" /> 显示子代理会话</label>
+      <label>时间范围（分钟，0=全部）
+        <input type="number" id="setWindow" min="0" step="5" />
+      </label>
+      <span class="hint">以下为本挂件独有</span>
+      <label>刷新间隔
+        <select id="setPoll">
+          <option value="1000">1 秒</option>
+          <option value="2000">2 秒</option>
+          <option value="3000">3 秒</option>
+          <option value="5000">5 秒</option>
+        </select>
+      </label>
+      <button class="reset" id="resetBtn">恢复默认</button>
+    </div>
+  </div>
+  <div class="toasts" id="toasts"></div>
+
+<script>
+(function () {
+  'use strict'
+
+  var SESSIONS_URL = '/_dsh/session-monitor/sessions'
+  var STATUS_URL = '/_dsh/session-monitor/status'
+  var SETTINGS_URL = '/_dsh/session-monitor/settings'
+  var JUMP_URL = '/_dsh/session-monitor/jump'
+  // Desktop-local cache: last-known shared settings + the refresh interval.
+  // The shared fields live on the Host store; only pollMs is purely local.
+  var CACHE_KEY = 'dsh.smon.desktop.settings'
+  var MAX_AUTO_TOASTS = 5
+  var MAX_CONFIRM_TOASTS = 12
+
+  // Shared defaults — mirror the web widget's DEFAULT_SETTINGS.
+  var DEFAULTS = {
+    notify: true,
+    notifyMode: 'auto',
+    autoDismissSec: 8,
+    sound: false,
+    browserNotify: false,
+    runningOnly: false,
+    timeWindowMin: 60,
+    showDone: true,
+    notifyCurrent: false,
+    showSubagents: false,
+  }
+  var POLL_DEFAULT_MS = 2000
+  var SETTINGS_SYNC_MS = 5000
+
+  var shared = {}          // effective shared settings (10 fields, from server)
+  var pollMs = POLL_DEFAULT_MS
+  var sessions = []        // latest snapshot rows
+  var reasons = {}         // sessionId -> { reason, at, round }
+  var prevRunning = {}     // sessionId -> true while running (edge detection)
+  var lastToastedRound = {} // sessionId -> round already notified
+  var failCount = 0
+  var toastSeq = 0
+  var pinOn = true
+  var pollTimer = null
+  var settingsTimer = null
+
+  // ── Tauri shell bridge (absent in a plain browser) ─────────
+  var tauri = (typeof window !== 'undefined' && window.__TAURI__) ? window.__TAURI__ : null
+
+  function currentWindow() {
+    return tauri ? tauri.window.getCurrentWindow() : null
+  }
+
+  function startDrag(event) {
+    if (!tauri || event.target.closest('button')) return
+    var w = currentWindow()
+    if (!w) return
+    w.startDragging().catch(function () {})
+  }
+
+  function togglePin() {
+    var w = currentWindow()
+    if (!w) { pinOn = !pinOn; renderPin(); return }
+    w.isAlwaysOnTop().then(function (on) {
+      return w.setAlwaysOnTop(!on)
+    }).then(function () {
+      return w.isAlwaysOnTop()
+    }).then(function (on) {
+      pinOn = on
+      renderPin()
+    }).catch(function () {})
+  }
+
+  function hideWindow() {
+    var w = currentWindow()
+    if (!w) { window.close(); return }
+    w.hide().catch(function () {})
+  }
+
+  /** Open the harness web app in the system browser (Tauri: open_in_browser
+   *  command; plain browser: new tab). Fallback only. */
+  function openBrowser(url) {
+    if (tauri) {
+      tauri.core.invoke('open_in_browser', { url: url }).catch(function () {
+        window.open(url, '_blank')
+      })
+      return
+    }
+    window.open(url, '_blank')
+  }
+
+  // ── shared settings (server-mediated) ───────────────────────
+  function loadCache() {
+    var stored = null
+    try { stored = JSON.parse(localStorage.getItem(CACHE_KEY) || 'null') } catch (e) { /* ignore */ }
+    var settings = {}
+    for (var key in DEFAULTS) settings[key] = DEFAULTS[key]
+    if (stored && typeof stored === 'object') {
+      if (stored.settings && typeof stored.settings === 'object') {
+        for (var key in DEFAULTS) {
+          var v = stored.settings[key]
+          if (typeof v === 'boolean' || typeof v === 'number' || v === 'auto' || v === 'confirm') {
+            settings[key] = v
+          }
+        }
+      }
+      if (typeof stored.pollMs === 'number') pollMs = stored.pollMs
+    }
+    shared = settings
+  }
+
+  function saveCache() {
+    try {
+      localStorage.setItem(CACHE_KEY, JSON.stringify({ settings: shared, pollMs: pollMs }))
+    } catch (e) { /* ignore */ }
+  }
+
+  function applyEffective() {
+    if (pollTimer) clearInterval(pollTimer)
+    pollTimer = setInterval(pollSessions, pollMs)
+  }
+
+  /** Merge a patch into the shared settings, persist to the Host store and
+   *  cache. The full 10-field blob is sent so untouched web-side fields
+   *  (browserNotify / showDone / notifyCurrent) survive the write. */
+  function saveSharedSettings(patch) {
+    for (var key in patch) {
+      if (key in DEFAULTS) shared[key] = patch[key]
+    }
+    saveCache()
+    fetchJSON(SETTINGS_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(shared),
+    }).catch(function () {})
+    render()
+  }
+
+  /** Pull the Host store (web-side changes) and apply when different. */
+  function pollSettings() {
+    fetchJSON(SETTINGS_URL).then(function (body) {
+      if (!body || !body.ok || !body.value || typeof body.value !== 'object') return
+      var next = body.value
+      var changed = false
+      for (var key in DEFAULTS) {
+        var v = next[key]
+        if (typeof v === 'boolean' || typeof v === 'number' || v === 'auto' || v === 'confirm') {
+          if (shared[key] !== v) { shared[key] = v; changed = true }
+        }
+      }
+      if (changed) {
+        saveCache()
+        applyPanelUI()
+        render()
+      }
+    }).catch(function () {})
+  }
+
+  function applyPanelUI() {
+    document.getElementById('setNotify').checked = !!shared.notify
+    document.getElementById('setNotifyMode').value = shared.notifyMode === 'confirm' ? 'confirm' : 'auto'
+    document.getElementById('setAutoDismiss').value = String(shared.autoDismissSec)
+    document.getElementById('setSound').checked = !!shared.sound
+    document.getElementById('setRunningOnly').checked = !!shared.runningOnly
+    document.getElementById('setSubagents').checked = !!shared.showSubagents
+    document.getElementById('setWindow').value = String(shared.timeWindowMin)
+    document.getElementById('setPoll').value = String(pollMs)
+  }
+
+  // ── polling ──────────────────────────────────────────────────
+  function fetchJSON(url, init) {
+    var controller = new AbortController()
+    var timer = setTimeout(function () { controller.abort() }, 4000)
+    return fetch(url, Object.assign({ cache: 'no-store', signal: controller.signal }, init || {}))
+      .then(function (res) {
+        if (!res.ok) throw new Error('HTTP ' + res.status)
+        return res.json()
+      })
+      .finally(function () { clearTimeout(timer) })
+  }
+
+  function pollSessions() {
+    fetchJSON(SESSIONS_URL).then(function (snap) {
+      failCount = 0
+      document.getElementById('banner').hidden = true
+      // Route envelope: { ok, value: { at, sessions } }.
+      var rows = (snap && snap.value && snap.value.sessions) || []
+      for (var i = 0; i < rows.length; i++) {
+        var row = rows[i]
+        if (prevRunning[row.sessionId] && !row.running) onRoundFinished(row)
+      }
+      prevRunning = {}
+      for (var j = 0; j < rows.length; j++) {
+        if (rows[j].running) prevRunning[rows[j].sessionId] = true
+      }
+      sessions = rows
+      render()
+    }).catch(function () {
+      failCount++
+      if (failCount >= 2) document.getElementById('banner').hidden = false
+      sessions = []
+      render()
+    })
+  }
+
+  function pollReasons() {
+    fetchJSON(STATUS_URL).then(function (snap) {
+      reasons = (snap && snap.value && snap.value.sessions) || {}
+    }).catch(function () {
+      reasons = {}
+    })
+  }
+
+  // ── round-completion toasts ──────────────────────────────────
+  var REASON_KINDS = { error: true, aborted: true, blocked: true, 'max-tokens': true, interrupted: true }
+
+  var TOAST_COPY = {
+    done:         { icon: '✓', title: '完成一轮' },
+    approval:     { icon: '⏳', title: '等待审批' },
+    question:     { icon: '❓', title: '等待回答' },
+    'plan-review':{ icon: '📋', title: '等待审阅计划' },
+    subagent:     { icon: '⇄', title: '子代理完成' },
+    error:        { icon: '✕', title: '本轮出错' },
+    aborted:      { icon: '⏹', title: '已中止' },
+    blocked:      { icon: '⚠', title: '已阻塞' },
+    'max-tokens': { icon: '⛶', title: 'Token 上限' },
+    interrupted:  { icon: '⏸', title: '已中断' },
+  }
+
+  function mapReason(reason) {
+    return reason !== undefined && REASON_KINDS[reason] ? reason : 'done'
+  }
+
+  function onRoundFinished(row) {
+    if (shared.notify === false) return
+    var record = reasons[row.sessionId]
+    var kind = row.pending === 'approval' ? 'approval' : mapReason(record ? record.reason : undefined)
+    var round = record ? record.round : undefined
+    if (round !== undefined) {
+      var last = lastToastedRound[row.sessionId] || 0
+      if (round <= last) return
+      lastToastedRound[row.sessionId] = round
+    }
+    pushToast(kind, row, round)
+  }
+
+  function pushToast(kind, row, round) {
+    var copy = TOAST_COPY[kind] || TOAST_COPY.done
+    var el = document.createElement('div')
+    el.className = 'toast toast' + kind.charAt(0).toUpperCase() + kind.slice(1).replace('-', '')
+    el.dataset.seq = String(++toastSeq)
+    el.innerHTML =
+      '<div class="toastHead">' +
+        '<span class="toastTitle"><span class="toastIcon">' + copy.icon + '</span>' + esc(copy.title) + '</span>' +
+        '<span class="toastTime">' + clock() + '</span>' +
+      '</div>' +
+      '<div class="toastBody">' + esc(row.title || row.sessionId) + (round !== undefined ? ' · 第 ' + round + ' 轮' : '') + '</div>' +
+      '<div class="toastActions">' +
+        '<button class="jumpBtn">跳转</button>' +
+        '<button class="dismissBtn">知道了</button>' +
+      '</div>'
+    el.querySelector('.jumpBtn').addEventListener('click', function () { openSession(row.sessionId) })
+    el.querySelector('.dismissBtn').addEventListener('click', function () { el.remove() })
+    document.getElementById('toasts').appendChild(el)
+
+    if (shared.sound) playChime()
+
+    if (shared.notifyMode !== 'confirm') {
+      var dismissMs = (Number(shared.autoDismissSec) || 8) * 1000
+      setTimeout(function () { if (el.isConnected) el.remove() }, dismissMs)
+    }
+    trimToasts()
+  }
+
+  function trimToasts() {
+    var box = document.getElementById('toasts')
+    var cap = shared.notifyMode === 'confirm' ? MAX_CONFIRM_TOASTS : MAX_AUTO_TOASTS
+    while (box.children.length > cap) box.removeChild(box.firstChild)
+  }
+
+  function playChime() {
+    try {
+      var AudioCtor = window.AudioContext || window.webkitAudioContext
+      if (!AudioCtor) return
+      var ctx = new AudioCtor()
+      var t = ctx.currentTime
+      ;[880, 1320].forEach(function (freq, i) {
+        var osc = ctx.createOscillator()
+        var gain = ctx.createGain()
+        osc.type = 'sine'
+        osc.frequency.value = freq
+        gain.gain.setValueAtTime(0.001, t + i * 0.14)
+        gain.gain.exponentialRampToValueAtTime(0.18, t + i * 0.14 + 0.02)
+        gain.gain.exponentialRampToValueAtTime(0.001, t + i * 0.14 + 0.28)
+        osc.connect(gain)
+        gain.connect(ctx.destination)
+        osc.start(t + i * 0.14)
+        osc.stop(t + i * 0.14 + 0.3)
+      })
+      setTimeout(function () { ctx.close() }, 1200)
+    } catch (e) { /* audio unavailable */ }
+  }
+
+  // ── rendering ─────────────────────────────────────────────────
+  var lastSig = null
+
+  /** Stable per-row signature: re-render only when something visible changed
+   *  (status, title, badges, minute-granularity recency) — otherwise a 2s poll
+   *  with many sessions would rebuild the whole DOM every cycle and the list
+   *  would flicker / jump. */
+  function rowSignature(row) {
+    var last = Math.max(row.updatedAt, row.lastActive)
+    return [
+      row.sessionId, row.running ? 1 : 0, row.title || '', row.subagents,
+      row.pending ? 1 : 0, Math.floor(last / 60000),
+    ].join('|')
+  }
+
+  function render() {
+    renderPin()
+    var rows = sessions.slice()
+    var now = Date.now()
+
+    // Filter: hide blank sessions; running-only; subagent rows unless enabled;
+    // time window (running sessions always stay visible).
+    var hidden = 0
+    rows = rows.filter(function (row) {
+      if (row.blank) { hidden++; return false }
+      if (shared.runningOnly && !row.running) { hidden++; return false }
+      if (row.origin === 'subagent' && !shared.showSubagents) { hidden++; return false }
+      var windowMs = Number(shared.timeWindowMin) * 60 * 1000
+      if (windowMs > 0 && !row.running) {
+        var last = Math.max(row.updatedAt, row.lastActive)
+        if (now - last > windowMs) { hidden++; return false }
+      }
+      return true
+    })
+
+    // Sort: running first, then most recently active.
+    rows.sort(function (a, b) {
+      if (a.running !== b.running) return a.running ? -1 : 1
+      return Math.max(b.updatedAt, b.lastActive) - Math.max(a.updatedAt, a.lastActive)
+    })
+
+    var runningCount = rows.filter(function (r) { return r.running }).length
+    document.getElementById('count').textContent = sessions.length === 0 ? '' : (runningCount + ' 运行中 · ' + sessions.length + ' 全部')
+
+    // Diff: keep the DOM untouched when the visible rows are unchanged.
+    var sig = rows.map(rowSignature).join('\n')
+    if (sig === lastSig) return
+    lastSig = sig
+
+    var list = document.getElementById('list')
+    list.innerHTML = ''
+    for (var i = 0; i < rows.length; i++) {
+      list.appendChild(rowEl(rows[i], now))
+    }
+    document.getElementById('empty').hidden = rows.length > 0
+    var footer = document.getElementById('footer')
+    if (hidden > 0) {
+      document.getElementById('footerHint').textContent = '已隐藏 ' + hidden + ' 个更早的会话'
+      footer.hidden = false
+    } else {
+      footer.hidden = true
+    }
+  }
+
+  function rowEl(row, now) {
+    var el = document.createElement('div')
+    el.className = 'row'
+    var dotClass = row.running ? 'dotRunning' : (row.pending ? 'dotPending' : 'dotDone')
+    var statusText, statusClass = ''
+    if (row.running) statusText = '运行中'
+    else if (row.subagents > 0) { statusText = '子代理运行中'; statusClass = ' statusSub' }
+    else if (row.pending) statusText = '等待审批'
+    else statusText = '空闲'
+
+    var meta = '<span class="status' + statusClass + '">' + esc(statusText) + '</span>'
+    if (row.subagents > 0) meta += '<span class="badge subBadge">子×' + row.subagents + '</span>'
+    if (row.pending) meta += '<span class="badge pendingBadge">⏳ 待审批</span>'
+
+    el.innerHTML =
+      '<span class="dot ' + dotClass + '"></span>' +
+      '<div class="rowMain">' +
+        '<div class="rowTitle">' + esc(row.title || '未命名会话') + '</div>' +
+        '<div class="rowMeta">' + meta + '</div>' +
+      '</div>' +
+      '<span class="time">' + esc(relTime(Math.max(row.updatedAt, row.lastActive), now)) + '</span>'
+    el.addEventListener('click', function () { openSession(row.sessionId) })
+    el.title = row.sessionId
+    return el
+  }
+
+  function renderPin() {
+    document.getElementById('pinBtn').classList.toggle('on', !!pinOn)
+    document.getElementById('pinBtn').title = pinOn ? '取消置顶' : '置顶'
+  }
+
+  // ── jump to a session (server-mediated) ───────────────────────
+  /** Post a jump request; the open Harness web tab consumes it and switches
+   *  in place. Fall back to the system browser (with a boot deep link) when
+   *  nothing consumed it in time — wait longer when a web tab is alive (it
+   *  polls ~1s), fall back quickly when none is. */
+  function openSession(sessionId) {
+    var url = location.origin + '/?dsh-open=' + encodeURIComponent(sessionId)
+    fetchJSON(JUMP_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ sessionId: sessionId }),
+    }).then(function (res) {
+      var webAlive = !!(res && res.webAlive)
+      // Alive: the web tab polls ~1s (long-poll, actually) — wait up to ~4.8s.
+      // Dead: give it a short 2.4s grace for a just-opened tab, then fall back.
+      var maxAttempts = webAlive ? 12 : 6
+      return new Promise(function (resolve) {
+        var attempts = 0
+        var timer = setInterval(function () {
+          attempts++
+          fetchJSON(JUMP_URL).then(function (res) {
+            var value = res && res.value
+            if (value && value.consumed) { clearInterval(timer); resolve(true) }
+            else if (attempts >= maxAttempts) { clearInterval(timer); resolve(false) }
+          }).catch(function () {
+            if (attempts >= maxAttempts) { clearInterval(timer); resolve(false) }
+          })
+        }, 400)
+      })
+    }).then(function (consumed) {
+      if (!consumed) openBrowser(url)
+    }).catch(function () {
+      openBrowser(url)
+    })
+  }
+
+  // ── helpers ───────────────────────────────────────────────────
+  function esc(text) {
+    return String(text)
+      .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;').replace(/'/g, '&#39;')
+  }
+
+  function relTime(ts, now) {
+    if (!ts) return ''
+    var diff = Math.max(0, now - ts)
+    if (diff < 60 * 1000) return '刚刚'
+    var min = Math.floor(diff / 60000)
+    if (min < 60) return min + ' 分钟前'
+    var hour = Math.floor(min / 60)
+    if (hour < 24) return hour + ' 小时前'
+    var d = new Date(ts)
+    var pad = function (n) { return (n < 10 ? '0' : '') + n }
+    return (d.getMonth() + 1) + '-' + pad(d.getDate()) + ' ' + pad(d.getHours()) + ':' + pad(d.getMinutes())
+  }
+
+  function clock() {
+    var d = new Date()
+    var pad = function (n) { return (n < 10 ? '0' : '') + n }
+    return pad(d.getHours()) + ':' + pad(d.getMinutes()) + ':' + pad(d.getSeconds())
+  }
+
+  // ── wiring ────────────────────────────────────────────────────
+  function init() {
+    var header = document.getElementById('header')
+    header.classList.add('draggable')
+    header.addEventListener('pointerdown', startDrag)
+
+    document.getElementById('pinBtn').addEventListener('click', togglePin)
+    document.getElementById('closeBtn').addEventListener('click', hideWindow)
+    document.getElementById('settingsBtn').addEventListener('click', function () {
+      var panel = document.getElementById('settingsPanel')
+      panel.hidden = !panel.hidden
+      if (!panel.hidden) { pollSettings(); applyPanelUI() }
+    })
+
+    document.getElementById('resetBtn').addEventListener('click', function () {
+      var fresh = {}
+      for (var key in DEFAULTS) fresh[key] = DEFAULTS[key]
+      saveSharedSettings(fresh)
+      pollMs = POLL_DEFAULT_MS
+      saveCache()
+      applyEffective()
+      applyPanelUI()
+    })
+
+    function bindCheck(id, key) {
+      document.getElementById(id).addEventListener('change', function (e) {
+        var patch = {}
+        patch[key] = e.target.checked
+        saveSharedSettings(patch)
+      })
+    }
+    function bindNumber(id, key) {
+      document.getElementById(id).addEventListener('change', function (e) {
+        var v = parseInt(e.target.value, 10)
+        if (!Number.isFinite(v)) return
+        var patch = {}
+        patch[key] = Math.max(0, v)
+        saveSharedSettings(patch)
+      })
+    }
+    bindCheck('setNotify', 'notify')
+    bindCheck('setSound', 'sound')
+    bindCheck('setRunningOnly', 'runningOnly')
+    bindCheck('setSubagents', 'showSubagents')
+    bindNumber('setAutoDismiss', 'autoDismissSec')
+    bindNumber('setWindow', 'timeWindowMin')
+    document.getElementById('setNotifyMode').addEventListener('change', function (e) {
+      saveSharedSettings({ notifyMode: e.target.value === 'confirm' ? 'confirm' : 'auto' })
+    })
+    document.getElementById('setPoll').addEventListener('change', function (e) {
+      pollMs = parseInt(e.target.value, 10) || POLL_DEFAULT_MS
+      saveCache()
+      applyEffective()
+    })
+
+    // Initial pin state from the window (Tauri only).
+    if (tauri) {
+      currentWindow().isAlwaysOnTop().then(function (on) {
+        pinOn = on
+        renderPin()
+      }).catch(function () {})
+    }
+
+    loadCache()
+    applyEffective()
+    applyPanelUI()
+    pollSettings()
+    pollReasons()
+    pollSessions()
+    setInterval(pollReasons, 3000)
+    if (settingsTimer) clearInterval(settingsTimer)
+    settingsTimer = setInterval(pollSettings, SETTINGS_SYNC_MS)
+  }
+
+  document.addEventListener('DOMContentLoaded', init)
+  if (document.readyState === 'interactive' || document.readyState === 'complete') init()
+})()
+</script>
+</body>
+</html>

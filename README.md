@@ -12,6 +12,10 @@
 | 会话监控看板 | `@dsh-plugins/client-ui-session-monitor` | 浮动的会话监控面板；列出正在执行的会话与运行状态，会话完成一轮时主动弹提醒（可自动消失或需确认），点击任意会话一键跳转 |
 | 卡片容器 | `@dsh-plugins/client-ui-card-container` | 浮动的卡片容器面板；开启后把其他小组件拖进一个整齐、等间距的卡片网格集中摆放（浮窗自动收起，可拖拽排序 / 移出） |
 
+除了上面四个浏览器内小组件，还有一个配套的 **Windows 桌面悬浮窗应用**
+（`desktop/dsh-session-desktop/`，Tauri 2，非 npm 包）：把「会话监控」做成无边框、
+半透明、置顶的小窗悬浮在桌面上，完成一轮时弹桌面提醒（详见文末「桌面悬浮窗」）。
+
 ## 预览
 
 | 余额看板 | Token 暴击挂件 | 会话监控看板 |
@@ -35,6 +39,7 @@
 | `@dsh-plugins/client-ui-card-container` | 卡片容器（浏览器端，纯 UI）：声明 `widgets.card` 子槽并渲染停靠卡片，用影子条目隐藏已停靠挂件的浮窗，自带 token-crit / session-monitor / balance 的紧凑卡片视图 |
 | `@dsh-plugins/client-ui-widget-manager` | 小组件管理设置页（浏览器端）：列出小组件并支持「添加 / 关闭」，为带配置的挂件提供「配置」弹窗 |
 | `@dsh-plugins/dsh-widgets-plugin` | 可安装 bundle：一层挂载以上全部插件 |
+| `desktop/dsh-session-desktop/` | Windows 桌面悬浮窗应用（Tauri 2，**非 npm 包**）：无边框/透明/置顶小窗加载会话监控独立挂件页，托盘唤回，点击行直达已打开的 Harness 标签页（未开才回退浏览器） |
 
 > 完整的组件管理列表（组件明细、插槽注册、构建产物、依赖关系、维护清单）见
 > [COMPONENTS.md](COMPONENTS.md)。
@@ -173,6 +178,26 @@ dsh plugin --profile <name> add F:/dsh-balance-plugin/bundles/dsh-widgets-plugin
 ### 卡片容器（速览）
 
 纯 UI 挂件，无需凭据。在小组件管理页启用「卡片容器」后，左上角出现容器面板：上方「可放入的小组件」托盘列出当前已启用的挂件，把 chip 拖进下方网格（或直接点击）即停靠——挂件的浮窗自动隐藏，网格内显示它的紧凑卡片（token-crit / session-monitor 为内置统计卡，balance 为通用卡）；拖动卡片可调整顺序，点 × 移出容器恢复浮窗。列数在「配置」弹窗里调（自适应 / 2 / 3 / 4 列），停靠顺序与面板位置刷新后保留。
+
+### 桌面悬浮窗（速览）
+
+「会话监控」的 Windows 桌面版（`desktop/dsh-session-desktop/`，Tauri 2 应用，
+非 npm 包）：
+
+1. 前置：本机 Harness web 服务已运行（`dsh web`，默认 `http://127.0.0.1:3080`）
+   且已安装本仓库 bundle（插件 Host 半提供数据与挂件页）。
+2. 构建（首次需拉取 crates，10–30 分钟）：`cd desktop/dsh-session-desktop &&
+   npm install && npx tauri build --no-bundle`，产物在
+   `src-tauri/target/release/dsh-session-monitor-desktop.exe`。
+3. 双击运行：窗口先显示「正在连接 Harness…」，就绪后自动进入挂件页——列出
+   运行中/刚完成的会话，完成一轮弹按状态配色的桌面提醒；点会话行（或 toast
+   「跳转」）：**已开着的 Harness 网页标签页直接切到该会话（不新开窗口）**，
+   网页没开时才回退系统浏览器；⚙ 设置与网页版（小组件管理 → 配置）**共享同一份
+   配置**（完成提醒/通知方式/提示音/只显示运行中/子代理/时间范围，双向实时同步，
+   仅刷新间隔为桌面独有）；头部可拖拽，📌 置顶、✕ 隐藏（托盘左键/菜单「显示挂件」
+   唤回，「退出」结束进程）。
+
+详细说明见 [`desktop/dsh-session-desktop/README.md`](desktop/dsh-session-desktop/README.md)。
 
 ## 许可
 
