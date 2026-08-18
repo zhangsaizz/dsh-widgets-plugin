@@ -88,6 +88,11 @@ rounds. Without the host half the widget still works (base notification kinds).
   pending and already-shown reminders are dropped automatically.
 - **Jump to session**: clicking any row — or a toast's 跳转 button — switches
   the app to that session immediately (`ctx.sessions.open`).
+- **Unread inbox badge**: the header and the collapsed pill show how many
+  notifications still need attention (polled every 5 s from `/notifications`;
+  the red badge hides at 0). Clicking it jumps to the newest unread session.
+  Read state is shared with the desktop widget through the Host, so handling
+  items on the desktop clears the web badge too.
 - **Done marks**: sessions that finished a round while the widget was open get
   a "本轮完成" badge in the list until visited (opening the session — via the
   app's own sidebar or a widget row — clears the badge and its reminders; or

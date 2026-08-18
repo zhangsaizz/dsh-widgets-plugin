@@ -96,6 +96,27 @@
   text-overflow: ellipsis;
 }
 
+/* Unread inbox badge (header): red pill, click jumps to the newest unread
+   session. Sits between the busy count and the dock/collapse buttons. */
+.inboxBadge {
+  flex: none;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 6px;
+  border: none;
+  border-radius: 999px;
+  background: #ff6b6b;
+  color: #fff;
+  font-size: 10.5px;
+  font-weight: 700;
+  line-height: 18px;
+  text-align: center;
+  cursor: pointer;
+  box-shadow: 0 0 10px rgba(255, 107, 107, 0.45);
+  transition: filter 120ms ease;
+}
+.inboxBadge:hover { filter: brightness(1.12); }
+
 .iconBtn {
   flex: none;
   width: 24px;
@@ -318,6 +339,21 @@
   background: var(--dsw-alias-state-business-primary, #4f8cff);
   border-radius: 999px;
   padding: 1px 6px;
+}
+
+/* Unread inbox badge on the collapsed pill (red, next to the blue busy count). */
+.pillBadge {
+  min-width: 16px;
+  height: 16px;
+  padding: 0 5px;
+  border-radius: 999px;
+  background: #ff6b6b;
+  color: #fff;
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 16px;
+  text-align: center;
+  box-shadow: 0 0 8px rgba(255, 107, 107, 0.45);
 }
 
 /* Toast stack (fixed, top-right, above everything) */

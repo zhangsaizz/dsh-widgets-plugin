@@ -26,7 +26,7 @@
 | 9 | balance 视图 store | 客户端状态 | `@dsh-plugins/balance` | 注入 store | 缩放 / 吸附 / 折叠视图状态（`createBalanceViewStore`） |
 | 10 | 字典 NS `balance` | 客户端 i18n | `@dsh-plugins/balance` | client locale | zh / en 双语文案 |
 | 11 | Token 暴击挂件 `TokenCritWidget` | Web 挂件 | `@dsh-plugins/client-ui-token-crit` | `shell.overlay`（order 50） | 透明可拖动/缩放的 token 用量计数器 + 暴击动效 + 设置面板 |
-| 12 | 会话监控看板 `SessionMonitorWidget` | Web 挂件 | `@dsh-plugins/client-ui-session-monitor` | `shell.overlay`（order 90） | 列出运行中/空闲/本轮完成的会话（子代理默认过滤、可配置时间范围默认 1h），完成一轮主动弹提醒（按状态配色：完成/待处理/出错/中止/阻塞/token 上限等，可自动消失或需确认），点击行一键跳转；可收起为胶囊、拖角缩放 |
+| 12 | 会话监控看板 `SessionMonitorWidget` | Web 挂件 | `@dsh-plugins/client-ui-session-monitor` | `shell.overlay`（order 90） | 列出运行中/空闲/本轮完成的会话（子代理默认过滤、可配置时间范围默认 1h），完成一轮主动弹提醒（按状态配色：完成/待处理/出错/中止/阻塞/token 上限等，可自动消失或需确认），点击行一键跳转；**未读 inbox 徽标**（头部 + 收起胶囊，5s 轮询 `/notifications`，点击跳最新未读会话）；可收起为胶囊、拖角缩放 |
 | 13 | 会话监控 Host 半 + 状态路由 + 通知 inbox | Host 插件 + Web 路由 | `@dsh-plugins/client-ui-session-monitor` | `/_dsh/session-monitor/status` 等 8 条路由 | 监听 `turn/end` 记录结束原因（completed/aborted/blocked/error/max-tokens/interrupted），浏览器半 3s 轮询取回；另把会话事件折叠为**持久化通知 inbox**（审批/回答/计划/出错/阻塞/token 上限/完成一轮/子代理完成等，已读状态存 Host，桌面与网页共享） |
 | 14 | 会话监控配置面板 `SessionSettings` | Web 配置弹窗 | `@dsh-plugins/client-ui-session-monitor` | `widgets.config`（管理器「配置」弹窗） | 提醒开关/关闭方式/秒数/音效/提醒范围与列表显示选项，localStorage 持久化 |
 | 15 | 卡片容器 `CardContainerWidget` | Web 挂件 | `@dsh-plugins/client-ui-card-container` | `shell.overlay`（order 20） | 浮动容器面板：**多分组**（顶部分组标签 + ⋯ 管理菜单），托盘列出可停靠挂件，拖入网格即停靠（影子条目隐藏浮窗）、渲染紧凑卡片视图；卡片**实时换位**（ghost 跟随 + 其余让位，拖出网格=移出）、键盘可达（Enter/空格移出、方向键排序）、触屏常显、列数可配、状态持久化 |
@@ -336,6 +336,9 @@
   权限在配置弹窗勾选时经 `requestPermission()` 请求，denied 时提示去站点设置。
   浏览器通知与挂件 toast 互相独立，且都受子代理/当前会话过滤。
 - **点击跳转**：行点击 / toast「跳转」→ `ctx.sessions.open(id)`，应用立即切会话。
+- **未读 inbox 徽标**：5s 轮询 `/_dsh/session-monitor/notifications`，头部与收起胶囊
+  显示未读数（红色徽标，0 隐藏）；点击跳到最新一条未读会话（记录已读状态经 Host
+  共享，桌面端已读后网页徽标同步消失）。Host 缺席（路由 404）时优雅保持 0。
 - 配置（`SessionSettings`，读写 `localStorage` `dsh.smon.settings`，改后经 window
   CustomEvent 通知挂件即时生效）：提醒开关、关闭方式、自动消失秒数、提示音、
   **浏览器通知（含权限状态：已授权 / 被拒 / 待授权）**、提醒当前会话开关、

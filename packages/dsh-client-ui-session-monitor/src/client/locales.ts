@@ -83,6 +83,7 @@ export type SessionMonitorKey =
   | 'ackOnJumpDesc'
   | 'autoAckOnOpenLabel'
   | 'autoAckOnOpenDesc'
+  | 'inboxBadgeTitle'
   | 'resetPosScale'
   | 'resetAll'
 
@@ -165,6 +166,7 @@ export const zh: Record<SessionMonitorKey, string> = {
   ackOnJumpDesc: '桌面端点「处理」跳转会话后，该通知自动标记为已读',
   autoAckOnOpenLabel: '打开时自动全部已读',
   autoAckOnOpenDesc: '桌面端启动时自动清空待处理通知（默认关：打开即提示是核心价值）',
+  inboxBadgeTitle: '{count} 条待处理通知，点击跳转到最新一条',
   resetPosScale: '重置位置与缩放',
   resetAll: '重置设置',
 }
@@ -248,6 +250,7 @@ export const en: Record<SessionMonitorKey, string> = {
   ackOnJumpDesc: 'Desktop: handling a notification marks it read after jumping to the session',
   autoAckOnOpenLabel: 'Auto-read all on open',
   autoAckOnOpenDesc: 'Desktop: clear all pending notifications at startup (off by default — opening the widget should surface them)',
+  inboxBadgeTitle: '{count} pending notification(s), click to jump to the newest',
   resetPosScale: 'Reset position & zoom',
   resetAll: 'Reset settings',
 }

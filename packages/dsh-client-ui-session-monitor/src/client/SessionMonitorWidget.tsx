@@ -172,6 +172,10 @@ const PANEL_W = 268
 const SYNC_CHANNEL = 'dsh-smon-sync'
 /** Poll interval for the Host turn-end reason table. */
 const POLL_INTERVAL_MS = 3000
+/** Host inbox route: the durable "not handled yet" unread count (badge). */
+const INBOX_ROUTE = '/_dsh/session-monitor/notifications'
+/** Badge poll cadence — slower than the reasons table, the count is not urgent. */
+const INBOX_POLL_MS = 5000
 /** How long a Host turn-end record may precede the client's edge detection
  *  and still count as the reason for THAT round. The Host records the turn-end
  *  at event wall time, which precedes the client's running-flip detection by a
@@ -266,6 +270,8 @@ export function SessionMonitorWidget(props: SessionMonitorWidgetProps) {
    * never age out.
    */
   const [now, setNow] = useState(() => Date.now())
+  /** Unread Host-inbox count (0 = nothing needs attention). */
+  const [inboxUnread, setInboxUnread] = useState(0)
 
   /** Last-observed running bits per session; a true→false edge = one finished round. */
   const prevRunningRef = useRef<Map<string, boolean>>(new Map())
@@ -292,6 +298,8 @@ export function SessionMonitorWidget(props: SessionMonitorWidgetProps) {
   const roundsRef = useRef<Map<string, number>>(new Map())
   /** Last-observed pending-interaction presence per session (appearance edges). */
   const prevInteractionRef = useRef<Map<string, PendingInteractionStatus | undefined>>(new Map())
+  /** Newest unread inbox record's session (badge click jumps to it). */
+  const newestUnreadRef = useRef<string | null>(null)
   /** Live BroadcastChannel for cross-tab acknowledgment sync (null when unavailable). */
   const syncChannelRef = useRef<BroadcastChannel | null>(null)
   /** Last-observed session-id set; shrinking ids = disposed sessions. */
@@ -775,6 +783,42 @@ export function SessionMonitorWidget(props: SessionMonitorWidgetProps) {
     }
   }, [])
 
+  // Unread inbox badge: poll the Host inbox count independently of the toast
+  // settings — the inbox is the durable "not handled yet" surface, so it must
+  // light up even when round-completion toasts are off. An absent host (route
+  // 404) keeps the last value (0), degrading gracefully.
+  useEffect(() => {
+    let cancelled = false
+    const tick = async (): Promise<void> => {
+      try {
+        const res = await fetch(INBOX_ROUTE, { cache: 'no-store' })
+        if (!res.ok) throw new Error(`inbox ${res.status}`)
+        const body: any = await res.json()
+        if (cancelled) return
+        const value = body && body.ok ? body.value : undefined
+        if (!value || typeof value.unread !== 'number' || !Array.isArray(value.notes)) return
+        setInboxUnread((prev) => (prev === value.unread ? prev : value.unread))
+        // Newest unread record (notes are oldest-first) for badge click-jump.
+        let newest: string | null = null
+        for (let index = value.notes.length - 1; index >= 0; index--) {
+          const note = value.notes[index]
+          if (note && typeof note.sessionId === 'string'
+            && note.ackedAt === undefined && note.resolved !== true) {
+            newest = note.sessionId
+            break
+          }
+        }
+        newestUnreadRef.current = newest
+      } catch { /* host absent → keep last */ }
+    }
+    void tick()
+    const id = window.setInterval(() => { void tick() }, INBOX_POLL_MS)
+    return () => {
+      cancelled = true
+      window.clearInterval(id)
+    }
+  }, [])
+
   // Auto-dismiss toasts in 'auto' mode (timers restart on any toast change).
   useEffect(() => {
     if (settings.notifyMode !== 'auto' || toasts.length === 0) return
@@ -1092,6 +1136,14 @@ export function SessionMonitorWidget(props: SessionMonitorWidgetProps) {
         <span className={css.pillIcon}>◫</span>
         <span className={css.pillText}>{t('title')}</span>
         <span className={css.pillCount}>{busyCount}</span>
+        {inboxUnread > 0 && (
+          <span
+            className={css.pillBadge}
+            title={t('inboxBadgeTitle', { count: String(inboxUnread) })}
+          >
+            {inboxUnread}
+          </span>
+        )}
       </div>
     )
   } else {
@@ -1101,6 +1153,21 @@ export function SessionMonitorWidget(props: SessionMonitorWidgetProps) {
           <span className={css.titleDot} />
           <span className={css.title}>{t('title')}</span>
           <span className={css.count}>{t('busyCount', { count: String(busyCount) })}</span>
+          {inboxUnread > 0 && (
+            <button
+              className={css.inboxBadge}
+              title={t('inboxBadgeTitle', { count: String(inboxUnread) })}
+              onPointerDown={(e) => e.stopPropagation()}
+              onClick={() => {
+                const target = newestUnreadRef.current
+                if (target) {
+                  try { open(target) } catch { /* unknown session */ }
+                }
+              }}
+            >
+              {inboxUnread}
+            </button>
+          )}
           <button
             className={css.iconBtn}
             title={t('dockToContainer')}
