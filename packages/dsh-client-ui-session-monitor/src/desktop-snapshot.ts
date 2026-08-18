@@ -113,18 +113,6 @@ export function eventsOf(session: Session): readonly AnyEvent[] {
   return session.events as unknown as readonly AnyEvent[]
 }
 
-/** Is the session's agent currently mid-turn? The last turn-boundary event
- *  decides — `turn/start` opens a turn, `turn/end` closes it, and everything
- *  else leaves the state unchanged. */
-function isRunning(session: Session): boolean {
-  let running = false
-  for (const event of eventsOf(session)) {
-    if (event.type === 'turn/start') running = true
-    else if (event.type === 'turn/end') running = false
-  }
-  return running
-}
-
 /** Last accepted title from the log, or undefined while untitled. */
 export function lastTitle(events: readonly AnyEvent[]): string | undefined {
   for (let index = events.length - 1; index >= 0; index--) {
@@ -134,33 +122,58 @@ export function lastTitle(events: readonly AnyEvent[]): string | undefined {
   return undefined
 }
 
-/** Is an approval decision still pending? The last approval audit event wins. */
-function approvalPending(events: readonly AnyEvent[]): boolean {
+/** Every row flag folded from one pass over a session's event log. */
+interface FoldedSession {
+  /** The last turn-boundary event wins: `turn/start` opens a turn, `turn/end`
+   *  closes it, everything else leaves the state unchanged. */
+  readonly running: boolean
+  /** No `turn/start` has ever been seen (fresh, list-hidden sessions). */
+  readonly blank: boolean
+  /** The last approval audit event wins: asked without a following decided. */
+  readonly pending: boolean
+  /** Last accepted title (absent while the session is still untitled). */
+  readonly title?: string
+  /** Wall time of the newest event in the log (creation time for an empty log). */
+  readonly lastActive: number
+  /** List-parity recency: creation time or the last user prompt, whichever is newer. */
+  readonly updatedAt: number
+}
+
+/** Single pass over a session's event log folding every derived flag at once —
+ *  the snapshot used to scan the log up to six times per session per poll
+ *  (running, blank, title, approval, last activity, updatedAt), which is real
+ *  waste for long logs on a 2s polling loop. */
+function foldSession(events: readonly AnyEvent[], createdAt: number): FoldedSession {
+  let running = false
+  let sawTurnStart = false
   let pending = false
-  for (const event of events) {
-    if (event.type === 'approval/asked') pending = true
-    else if (event.type === 'approval/decided') pending = false
-  }
-  return pending
-}
-
-/** Wall time of the newest event in the log (undefined for an empty log). */
-function lastEventTime(events: readonly AnyEvent[]): number | undefined {
-  for (let index = events.length - 1; index >= 0; index--) {
-    if (typeof events[index].time === 'number') return events[index].time
-  }
-  return undefined
-}
-
-/** List-parity recency: creation time or the last user prompt, whichever is newer. */
-function sessionUpdatedAt(events: readonly AnyEvent[], createdAt: number): number {
+  let title: string | undefined
+  let lastActive = createdAt
   let lastPromptAt: number | undefined
   for (const event of events) {
-    if (event.type === 'user/message' && event.data.source?.kind === 'user') {
-      lastPromptAt = event.time
+    if (event.type === 'turn/start') {
+      running = true
+      sawTurnStart = true
+    } else if (event.type === 'turn/end') {
+      running = false
+    } else if (event.type === 'session/title') {
+      if (typeof event.data.title === 'string' && event.data.title.length > 0) title = event.data.title
+    } else if (event.type === 'approval/asked') {
+      pending = true
+    } else if (event.type === 'approval/decided') {
+      pending = false
     }
+    if (typeof event.time === 'number' && event.time > lastActive) lastActive = event.time
+    if (event.type === 'user/message' && event.data.source?.kind === 'user') lastPromptAt = event.time
   }
-  return Math.max(createdAt, lastPromptAt ?? 0)
+  return {
+    running,
+    blank: !sawTurnStart,
+    pending,
+    ...(title === undefined ? {} : { title }),
+    lastActive,
+    updatedAt: Math.max(createdAt, lastPromptAt ?? 0),
+  }
 }
 
 // ── cold (persisted) session merging ────────────────────────────────
@@ -221,7 +234,10 @@ async function probeColdSession(
         ? !events.some((event) => event.type === 'turn/start')
         : false
     const title = lastTitle(events)
-    const lastActive = lastEventTime(events) ?? meta.createdAt
+    let lastActive = meta.createdAt
+    for (const event of events) {
+      if (typeof event.time === 'number' && event.time > lastActive) lastActive = event.time
+    }
     const updatedAt = Math.max(meta.createdAt, cachedMetadata?.lastPromptAt ?? 0)
     return {
       sessionId: meta.id,
@@ -285,6 +301,15 @@ async function mergeColdSessions(
   } catch {
     return
   }
+  // A cached row whose session is gone from persistence must not linger: the
+  // within-TTL branch below re-emits EVERY cached probe, so a stale entry
+  // would resurrect the deleted session for 8s out of every 16s forever.
+  // Prune the cache to the current listing on every fresh cycle.
+  const metasById = new Set<string>()
+  for (const meta of metas) metasById.add(meta.id)
+  for (const id of coldProbes.keys()) {
+    if (!metasById.has(id)) coldProbes.delete(id)
+  }
   const cycleStart = Date.now()
   let probed = 0
   for (const meta of metas) {
@@ -316,11 +341,19 @@ export async function buildDesktopSnapshot(ctx: Context): Promise<DesktopSnapsho
   const store = ctx.sessions as unknown as SessionStore
   const sessions = store.list()
 
+  // One pass over each attached session's log — every derived flag at once
+  // (running / blank / pending / title / updatedAt / lastActive).
+  const folded = new Map<string, FoldedSession>()
+  for (const session of sessions) {
+    folded.set(session.id, foldSession(eventsOf(session), session.header.createdAt))
+  }
+
   // Pass 1: count live running subagent children per parent (子×N badge).
   const runningSubagents = new Map<string, number>()
   for (const session of sessions) {
     const parent = session.header.parentSession
-    if (session.header.origin === 'subagent' && parent !== undefined && isRunning(session)) {
+    const info = folded.get(session.id)
+    if (session.header.origin === 'subagent' && parent !== undefined && info?.running === true) {
       runningSubagents.set(parent, (runningSubagents.get(parent) ?? 0) + 1)
     }
   }
@@ -331,20 +364,17 @@ export async function buildDesktopSnapshot(ctx: Context): Promise<DesktopSnapsho
   for (const session of sessions) {
     const header = session.header
     attachedIds.add(session.id)
-    const events = eventsOf(session)
-    const title = lastTitle(events)
-    const blank = !events.some((event) => event.type === 'turn/start')
-    const pending = approvalPending(events)
+    const info = folded.get(session.id)
     rows.push({
       sessionId: session.id,
-      ...(title === undefined ? {} : { title }),
-      running: isRunning(session),
-      blank,
-      updatedAt: sessionUpdatedAt(events, header.createdAt),
-      lastActive: lastEventTime(events) ?? header.createdAt,
+      ...(info?.title === undefined ? {} : { title: info.title }),
+      running: info?.running ?? false,
+      blank: info?.blank ?? true,
+      updatedAt: info?.updatedAt ?? header.createdAt,
+      lastActive: info?.lastActive ?? header.createdAt,
       ...(header.origin === undefined ? {} : { origin: header.origin }),
       ...(header.parentSession === undefined ? {} : { parentSessionId: header.parentSession }),
-      ...(pending ? { pending: 'approval' as const } : {}),
+      ...(info?.pending === true ? { pending: 'approval' as const } : {}),
       subagents: runningSubagents.get(session.id) ?? 0,
     })
   }

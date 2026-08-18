@@ -70,11 +70,18 @@ const JUMP_TTL_MS = 30_000
 const MAX_BODY_BYTES = 64 * 1024
 
 /**
- * CORS is intentionally permissive on these routes: the desktop shell loads
- * the widget page same-origin, but its startup probe page runs on the Tauri
- * `tauri://localhost` origin and must be able to check reachability. The data
- * is loopback-local monitor telemetry (session ids, titles, activity times,
- * UI preferences).
+ * CORS is intentionally permissive on these routes — but only for trusted
+ * consumers: the desktop shell loads the widget page same-origin, its startup
+ * probe page runs on the Tauri `tauri://localhost` origin, and the web app is
+ * served from wherever the user opened it. Every response is gated on the
+ * request `Origin`: anything else gets a bare 403 with no CORS headers, so a
+ * random website open in the user's browser can neither read the inbox
+ * (session titles!) nor ack records nor overwrite settings. `allowOpaque`
+ * additionally admits `Origin: null` — that is how the tauri://localhost →
+ * widget page top-level NAVIGATION arrives — and is only used for the HTML
+ * page; JSON data routes keep it closed so a sandboxed iframe cannot
+ * exfiltrate them. The data is loopback-local monitor telemetry (session ids,
+ * titles, activity times, UI preferences).
  */
 const CORS_HEADERS: Readonly<Record<string, string>> = {
   'Access-Control-Allow-Origin': '*',
@@ -82,7 +89,49 @@ const CORS_HEADERS: Readonly<Record<string, string>> = {
   'Access-Control-Allow-Headers': 'Content-Type',
 }
 
-function responseJson(res: import('node:http').ServerResponse, status: number, body: unknown): void {
+function requestHeader(req: import('node:http').IncomingMessage, name: string): string | undefined {
+  const raw = req.headers[name]
+  return typeof raw === 'string' ? raw : undefined
+}
+
+/** Whether a request `Origin` may read/write these routes. The web app and the
+ *  widget page are served from whatever host the user opened (127.0.0.1,
+ *  localhost, or a LAN IP), so an origin is accepted when it matches this
+ *  request's own `Host` header, plus any loopback hostname outright (the
+ *  Tauri probe page and port-forwarded dev setups). Everything else — notably
+ *  any random website open in the user's browser — is rejected. */
+function originAllowed(origin: string | undefined, host: string | undefined, allowOpaque: boolean): boolean {
+  if (origin === undefined) return true // same-origin / non-browser clients
+  if (origin === 'null') return allowOpaque
+  if (origin === 'tauri://localhost') return true
+  try {
+    const url = new URL(origin)
+    if (url.protocol !== 'http:' && url.protocol !== 'https:') return false
+    if (typeof host === 'string' && url.host === host) return true
+    const hostname = url.hostname
+    return hostname === '127.0.0.1' || hostname === 'localhost' || hostname === '::1' || hostname === '[::1]'
+  } catch {
+    return false
+  }
+}
+
+/** Reject an out-of-policy request with a bare 403 (no CORS headers, so the
+ *  browser cannot read the response nor pass a preflight). */
+function rejectForbidden(res: import('node:http').ServerResponse): void {
+  res.writeHead(403, { 'Content-Type': 'text/plain; charset=utf-8' })
+  res.end('forbidden')
+}
+
+function responseJson(
+  req: import('node:http').IncomingMessage,
+  res: import('node:http').ServerResponse,
+  status: number,
+  body: unknown,
+): void {
+  if (!originAllowed(requestHeader(req, 'origin'), requestHeader(req, 'host'), false)) {
+    rejectForbidden(res)
+    return
+  }
   const bytes = Buffer.from(JSON.stringify(body))
   res.setHeader('Content-Type', 'application/json; charset=utf-8')
   res.setHeader('Content-Length', String(bytes.length))
@@ -92,7 +141,18 @@ function responseJson(res: import('node:http').ServerResponse, status: number, b
   res.end(bytes)
 }
 
-function responseHtml(res: import('node:http').ServerResponse, html: string): void {
+function responseHtml(
+  req: import('node:http').IncomingMessage,
+  res: import('node:http').ServerResponse,
+  html: string,
+): void {
+  // The widget page must survive the tauri://localhost → 127.0.0.1 top-level
+  // navigation, whose Origin is opaque ('null') — the page itself carries no
+  // data, only the script that then fetches the gated JSON routes.
+  if (!originAllowed(requestHeader(req, 'origin'), requestHeader(req, 'host'), true)) {
+    rejectForbidden(res)
+    return
+  }
   const bytes = Buffer.from(html)
   res.setHeader('Content-Type', 'text/html; charset=utf-8')
   res.setHeader('Content-Length', String(bytes.length))
@@ -262,14 +322,19 @@ export function apply(ctx: Context): void {
     }
   }
 
-  /** Best-known title for a session: from its event log, then the cache. */
+  /** Best-known title for a session: the `session/title` handler keeps the
+   *  cache fresh, so the common path must NOT rescan the whole event log —
+   *  the log scan is only a backfill for sessions seen before any title event
+   *  arrived (or whose cached title was cleared on dispose). */
   const titleOf = (session: { id: string }): string => {
+    const cached = titles.get(session.id)
+    if (cached !== undefined && cached.length > 0) return cached
     const fromLog = lastTitle(eventsOf(session as Session))
     if (fromLog !== undefined) {
       titles.set(session.id, fromLog)
       return fromLog
     }
-    return titles.get(session.id) ?? ''
+    return ''
   }
 
   ctx.on('session/event', (session: { id: string }, event: import('@deepseek-ai/dsh-session').SessionEvent) => {
@@ -303,7 +368,16 @@ export function apply(ctx: Context): void {
         return
       }
       const kind = REASON_NOTIFY_KIND[ev.data.reason?.kind ?? ''] ?? 'done'
-      inbox.push(kind, session.id, titleOf(session), { round: ev.data.turn, at: ev.time })
+      // 'done' records coalesce per session (fixed id): a long-running session
+      // would otherwise flood the inbox with one record per round and push
+      // older, still-open P0 records (approvals / errors) past the 200-cap.
+      // Later rounds refresh the same record (round / at / title) while
+      // preserving its acked state — a read "done" stays read.
+      inbox.push(kind, session.id, titleOf(session), {
+        ...(kind === 'done' ? { id: `${session.id}:done` } : {}),
+        round: ev.data.turn,
+        at: ev.time,
+      })
       return
     }
     if (isSubagent) return // no other inbox kinds for subagent sessions
@@ -414,23 +488,29 @@ export function apply(ctx: Context): void {
         webCtx.webServer.register({
           kind: 'exact',
           path: STATUS_ROUTE,
-          handler: (_req, res) => {
-            responseJson(res, 200, { ok: true, value: { sessions: store.snapshot() } })
+          handler: (req, res) => {
+            responseJson(req, res, 200, { ok: true, value: { sessions: store.snapshot() } })
           },
         }),
         // Desktop widget data: the session snapshot (rows fold the store +
         // event logs; cold persisted rows merge through a TTL-cached probe —
-        // see desktop-snapshot.ts).
+        // see desktop-snapshot.ts) plus the turn-end reason table, so the
+        // widget needs no separate /status poll: the round-reason is fresh at
+        // the exact moment it observes a running→false edge.
         webCtx.webServer.register({
           kind: 'exact',
           path: SESSIONS_ROUTE,
-          handler: async (_req, res) => {
+          handler: async (req, res) => {
             try {
-              responseJson(res, 200, { ok: true, value: await buildDesktopSnapshot(webCtx) })
+              const snapshot = await buildDesktopSnapshot(webCtx)
+              responseJson(req, res, 200, {
+                ok: true,
+                value: { ...snapshot, reasons: store.snapshot() },
+              })
             } catch (error) {
               const message = error instanceof Error ? error.stack ?? error.message : String(error)
               webCtx.logger.warn(`session-monitor: snapshot failed: ${message}`)
-              responseJson(res, 500, { ok: false, error: message })
+              responseJson(req, res, 500, { ok: false, error: message })
             }
           },
         }),
@@ -438,8 +518,8 @@ export function apply(ctx: Context): void {
         webCtx.webServer.register({
           kind: 'exact',
           path: WIDGET_ROUTE,
-          handler: (_req, res) => {
-            responseHtml(res, pageHtml)
+          handler: (req, res) => {
+            responseHtml(req, res, pageHtml)
           },
         }),
         // Shared settings: GET the resolved section; POST replaces it. The web
@@ -452,20 +532,20 @@ export function apply(ctx: Context): void {
             if (req.method === 'POST') {
               const body = await readJsonBody(req) as Partial<MonitorSettingsWire> | null
               if (body === null || typeof body !== 'object') {
-                responseJson(res, 400, { ok: false, error: 'invalid settings body' })
+                responseJson(req, res, 400, { ok: false, error: 'invalid settings body' })
                 return
               }
               try {
                 await settingsScope.replace(body)
-                responseJson(res, 200, { ok: true, value: settingsScope.get() })
+                responseJson(req, res, 200, { ok: true, value: settingsScope.get() })
               } catch (error) {
                 const message = error instanceof Error ? error.message : String(error)
                 webCtx.logger.warn(`session-monitor: settings save failed: ${message}`)
-                responseJson(res, 400, { ok: false, error: message })
+                responseJson(req, res, 400, { ok: false, error: message })
               }
               return
             }
-            responseJson(res, 200, { ok: true, value: settingsScope.get() })
+            responseJson(req, res, 200, { ok: true, value: settingsScope.get() })
           },
         }),
         // Jump queue: the desktop posts { sessionId } when the user clicks a
@@ -483,13 +563,13 @@ export function apply(ctx: Context): void {
               if (body !== null && typeof body === 'object') {
                 if (body.ping === true) {
                   lastWebPingAt = Date.now()
-                  responseJson(res, 200, { ok: true, webAlive: isWebAlive(), value: null })
+                  responseJson(req, res, 200, { ok: true, webAlive: isWebAlive(), value: null })
                   return
                 }
                 if (body.consume === true) {
                   const pending = readPendingJump(pendingJump)
                   if (pending !== null) pending.consumed = true
-                  responseJson(res, 200, { ok: true, webAlive: isWebAlive(), value: null })
+                  responseJson(req, res, 200, { ok: true, webAlive: isWebAlive(), value: null })
                   return
                 }
                 if (typeof body.sessionId === 'string' && body.sessionId.length > 0) {
@@ -497,15 +577,15 @@ export function apply(ctx: Context): void {
                   // Wake every long-poll waiter so background tabs consume
                   // without waiting for their next timer tick.
                   releaseJumpWaiters()
-                  responseJson(res, 200, { ok: true, webAlive: isWebAlive(), value: null })
+                  responseJson(req, res, 200, { ok: true, webAlive: isWebAlive(), value: null })
                   return
                 }
               }
-              responseJson(res, 400, { ok: false, error: 'invalid jump body' })
+              responseJson(req, res, 400, { ok: false, error: 'invalid jump body' })
               return
             }
             const pending = readPendingJump(pendingJump)
-            responseJson(res, 200, {
+            responseJson(req, res, 200, {
               ok: true,
               webAlive: isWebAlive(),
               value: pending === null ? null : {
@@ -524,12 +604,12 @@ export function apply(ctx: Context): void {
           path: JUMP_POLL_ROUTE,
           handler: (req, res) => {
             if (req.method !== 'GET') {
-              responseJson(res, 405, { ok: false, error: 'GET only' })
+              responseJson(req, res, 405, { ok: false, error: 'GET only' })
               return
             }
             const existing = readPendingJump(pendingJump)
             if (existing !== null && !existing.consumed) {
-              responseJson(res, 200, {
+              responseJson(req, res, 200, {
                 ok: true,
                 webAlive: isWebAlive(),
                 value: { sessionId: existing.sessionId, at: existing.at, consumed: existing.consumed },
@@ -542,7 +622,7 @@ export function apply(ctx: Context): void {
               settled = true
               jumpWaiters.delete(release)
               if (timeout !== undefined) clearTimeout(timeout)
-              responseJson(res, 200, { ok: true, webAlive: isWebAlive(), value })
+              responseJson(req, res, 200, { ok: true, webAlive: isWebAlive(), value })
             }
             const release = (): void => {
               const pending = readPendingJump(pendingJump)
@@ -567,8 +647,8 @@ export function apply(ctx: Context): void {
         webCtx.webServer.register({
           kind: 'exact',
           path: NOTIFICATIONS_ROUTE,
-          handler: (_req, res) => {
-            responseJson(res, 200, { ok: true, value: inbox.snapshot() })
+          handler: (req, res) => {
+            responseJson(req, res, 200, { ok: true, value: inbox.snapshot() })
           },
         }),
         // Acknowledge inbox records: { ids: [...] } | { sessionId } | { all: true }.
@@ -577,13 +657,13 @@ export function apply(ctx: Context): void {
           path: NOTIFICATIONS_ACK_ROUTE,
           handler: async (req, res) => {
             if (req.method !== 'POST') {
-              responseJson(res, 405, { ok: false, error: 'POST only' })
+              responseJson(req, res, 405, { ok: false, error: 'POST only' })
               return
             }
             const body = await readJsonBody(req) as
               { ids?: unknown; sessionId?: unknown; all?: unknown } | null
             if (body === null || typeof body !== 'object') {
-              responseJson(res, 400, { ok: false, error: 'invalid ack body' })
+              responseJson(req, res, 400, { ok: false, error: 'invalid ack body' })
               return
             }
             const ids = Array.isArray(body.ids)
@@ -594,11 +674,11 @@ export function apply(ctx: Context): void {
               : undefined
             const all = body.all === true
             if (ids === undefined && sessionId === undefined && !all) {
-              responseJson(res, 400, { ok: false, error: 'nothing to ack' })
+              responseJson(req, res, 400, { ok: false, error: 'nothing to ack' })
               return
             }
             const count = inbox.ack({ ids, sessionId, all })
-            responseJson(res, 200, { ok: true, value: { count } })
+            responseJson(req, res, 200, { ok: true, value: { count } })
           },
         }),
         // Web half relay: client-transient interaction pauses (question /
@@ -611,13 +691,13 @@ export function apply(ctx: Context): void {
           path: EVENTS_ROUTE,
           handler: async (req, res) => {
             if (req.method !== 'POST') {
-              responseJson(res, 405, { ok: false, error: 'POST only' })
+              responseJson(req, res, 405, { ok: false, error: 'POST only' })
               return
             }
             const body = await readJsonBody(req) as
               { sessionId?: unknown; kind?: unknown; state?: unknown; title?: unknown } | null
             if (body === null || typeof body !== 'object') {
-              responseJson(res, 400, { ok: false, error: 'invalid event body' })
+              responseJson(req, res, 400, { ok: false, error: 'invalid event body' })
               return
             }
             const sessionId = typeof body.sessionId === 'string' && body.sessionId.length > 0
@@ -627,17 +707,17 @@ export function apply(ctx: Context): void {
               ? body.kind as 'question' | 'plan-review' | 'new-session'
               : undefined
             if (sessionId === undefined || kind === undefined) {
-              responseJson(res, 400, { ok: false, error: 'invalid sessionId/kind' })
+              responseJson(req, res, 400, { ok: false, error: 'invalid sessionId/kind' })
               return
             }
             if (body.state === 'closed') {
               inbox.resolve(sessionId, kind)
-              responseJson(res, 200, { ok: true, value: null })
+              responseJson(req, res, 200, { ok: true, value: null })
               return
             }
             const title = typeof body.title === 'string' ? body.title : ''
             inbox.pushInteraction(sessionId, kind, title)
-            responseJson(res, 200, { ok: true, value: null })
+            responseJson(req, res, 200, { ok: true, value: null })
           },
         }),
       ]

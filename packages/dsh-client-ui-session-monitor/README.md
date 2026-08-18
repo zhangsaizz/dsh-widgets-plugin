@@ -147,6 +147,20 @@ than a session list:
   an idempotent backup.
 - **Sessions tab**: the original session list is kept unchanged as the
   secondary view (running-first, time window, subagent filtering, …).
+- **Desktop shell ergonomics** (the `desktop/dsh-session-desktop` Tauri app):
+  the widget boots **to the tray** (the window starts hidden — the tray icon
+  is the entry point), a **tray left-click toggles** the window (menu: show /
+  unread count / quit), and the tray tooltip mirrors the inbox unread count.
+  While the window is hidden the page pauses its heavy polls and keeps only a
+  slow `/notifications` poll so the tray badge stays fresh. The window
+  position/size are remembered across runs, and launching the exe again just
+  brings the existing window back (single instance).
+- **Widget page UI**: unread items can be grouped **by session** (footer
+  toggle, persisted), both tabs have a **search box** (title / session id /
+  kind), the header has a **manual refresh** button, and the footers show a
+  live **connection / last-sync** status line. Before the first fetch the
+  lists show a loading placeholder (a retrying hint once the banner is up);
+  on mouse devices the inbox row actions reveal on hover; toasts animate out.
 
 ## Structure
 

@@ -15,9 +15,12 @@
  *
  * Each record is one identifiable event: `id` is stable (used for ack), the
  * `(sessionId, kind, round)` triple drives idempotency so repeated relays and
- * polls never duplicate a record. `ackedAt` marks the record read; `resolved`
- * marks a condition that already passed (e.g. an approval was decided) without
- * the user having acknowledged it.
+ * polls never duplicate a record — except `done`, which coalesces per session
+ * under the stable id `<sessionId>:done` (a long session must not flood the
+ * inbox with one record per round; later rounds refresh the same record).
+ * `ackedAt` marks the record read; `resolved` marks a condition that already
+ * passed (e.g. an approval was decided) without the user having acknowledged
+ * it.
  *
  * @module @dsh-plugins/client-ui-session-monitor/desktop-notifications
  */

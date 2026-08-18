@@ -24,6 +24,7 @@
      overridden by any author display declaration, which would leave panels
      permanently visible. */
   [hidden] { display: none !important; }
+  :focus-visible { outline: 2px solid #4f8cff; outline-offset: 1px; }
   html, body {
     background: transparent;
     height: 100%;
@@ -123,7 +124,10 @@
     transition: background 120ms ease, color 120ms ease;
   }
   .iconBtn:hover { background: rgba(255, 255, 255, 0.1); color: #e8eaf0; }
+  .iconBtn:active { transform: scale(0.9); }
+  .iconBtn.spinning { animation: spinIcon 0.5s linear; }
   .iconBtn.on { color: #4f8cff; }
+  @keyframes spinIcon { to { transform: rotate(360deg); } }
 
   /* ── tab bar ────────────────────────────────────────── */
   .tabs {
@@ -205,6 +209,7 @@
     color: rgba(232, 234, 240, 0.5);
   }
   .empty .big { font-size: 22px; display: block; margin-bottom: 6px; }
+  .empty .sub { display: block; margin-top: 3px; font-size: 10.5px; color: rgba(232, 234, 240, 0.35); }
   .footer {
     flex: none;
     padding: 6px 10px;
@@ -227,28 +232,51 @@
     background: rgba(255, 255, 255, 0.1);
   }
   .textBtn:hover { background: rgba(255, 255, 255, 0.16); }
+  .textBtn:active { background: rgba(255, 255, 255, 0.22); }
   .textBtn:disabled { opacity: 0.4; cursor: default; }
+  .footer > span:first-child {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .search {
+    flex: none;
+    margin: 6px 10px 0;
+    padding: 6px 9px;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: 8px;
+    background: rgba(255, 255, 255, 0.06);
+    color: #e8eaf0;
+    font-size: 12px;
+    outline: none;
+  }
+  .search::placeholder { color: rgba(232, 234, 240, 0.4); }
+  .search:focus { border-color: rgba(79, 140, 255, 0.55); }
 
   /* ── notification rows ──────────────────────────────── */
   .nrow {
     --accent: #f5b544;
     display: flex;
-    gap: 9px;
-    padding: 7px 8px;
-    border-radius: 9px;
+    gap: 10px;
+    padding: 9px 10px;
+    border-radius: 10px;
     cursor: pointer;
     position: relative;
+    transition: background 120ms ease;
   }
   .nrow:hover { background: rgba(255, 255, 255, 0.07); }
+  .nrow:active { background: rgba(255, 255, 255, 0.1); }
   .nrow.unread { border-left: 3px solid var(--accent); background: rgba(255, 255, 255, 0.03); }
   .nrow.read { opacity: 0.55; }
   .nrow .icon {
     flex: none;
-    width: 20px;
-    height: 20px;
-    border-radius: 6px;
-    font-size: 11px;
-    line-height: 20px;
+    width: 22px;
+    height: 22px;
+    border-radius: 7px;
+    font-size: 11.5px;
+    line-height: 22px;
     text-align: center;
     background: rgba(255, 255, 255, 0.07);
     color: var(--accent);
@@ -292,8 +320,10 @@
     background: rgba(255, 255, 255, 0.1);
   }
   .act:hover { background: rgba(255, 255, 255, 0.18); }
+  .act:active { background: rgba(255, 255, 255, 0.24); }
   .act.primary { background: #4f8cff; color: #fff; }
   .act.primary:hover { filter: brightness(1.1); }
+  .act.primary:active { filter: brightness(0.95); }
   .readGroup { border-top: 1px dashed rgba(255, 255, 255, 0.12); margin-top: 4px; padding-top: 4px; }
   .readToggle {
     width: 100%;
@@ -307,16 +337,77 @@
   }
   .readToggle:hover { color: #e8eaf0; }
 
+  /* Inbox row actions reveal on hover (always visible on touch / no-hover). */
+  @media (hover: hover) {
+    .nrow .actions {
+      opacity: 0;
+      transform: translateX(4px);
+      transition: opacity 120ms ease, transform 120ms ease;
+    }
+    .nrow:hover .actions,
+    .nrow:focus-within .actions { opacity: 1; transform: none; }
+  }
+
+  /* Inbox group-by-session mode. */
+  .ngroupHead {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    width: 100%;
+    margin: 4px 0 2px;
+    padding: 6px 9px;
+    border: none;
+    border-radius: 8px;
+    background: rgba(255, 255, 255, 0.05);
+    color: #e8eaf0;
+    font-size: 11.5px;
+    font-weight: 600;
+    cursor: pointer;
+    text-align: left;
+  }
+  .ngroupHead:hover { background: rgba(255, 255, 255, 0.09); }
+  .ngroupHead:active { background: rgba(255, 255, 255, 0.12); }
+  .ngroupChevron {
+    flex: none;
+    font-size: 10px;
+    color: rgba(232, 234, 240, 0.55);
+    transition: transform 120ms ease;
+  }
+  .ngroupHead.open .ngroupChevron { transform: rotate(90deg); }
+  .ngroupHead .gtitle {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .ngroupCount {
+    flex: none;
+    min-width: 16px;
+    height: 16px;
+    padding: 0 4px;
+    border-radius: 8px;
+    background: #ff6b6b;
+    color: #fff;
+    font-size: 10px;
+    font-weight: 700;
+    line-height: 16px;
+    text-align: center;
+  }
+  .ngroupBody { display: flex; flex-direction: column; }
+
   /* ── session rows (original monitor) ────────────────── */
   .row {
     display: flex;
     align-items: flex-start;
-    gap: 9px;
-    padding: 8px 9px;
-    border-radius: 9px;
+    gap: 10px;
+    padding: 9px 10px;
+    border-radius: 10px;
     cursor: pointer;
+    transition: background 120ms ease;
   }
   .row:hover { background: rgba(255, 255, 255, 0.07); }
+  .row:active { background: rgba(255, 255, 255, 0.1); }
   .dot {
     flex: none;
     width: 8px;
@@ -484,6 +575,11 @@
     from { opacity: 0; transform: translateY(-8px); }
     to   { opacity: 1; transform: translateY(0); }
   }
+  .toast.out {
+    opacity: 0;
+    transform: translateY(-6px) scale(0.98);
+    transition: opacity 160ms ease, transform 160ms ease;
+  }
   .toastHead { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
   .toastTitle {
     display: flex;
@@ -532,6 +628,7 @@
       <span class="title">会话监控</span>
       <span class="badge" id="unreadBadge" hidden>0</span>
       <span class="spacer"></span>
+      <button class="iconBtn" id="refreshBtn" title="立即刷新">⟳</button>
       <button class="iconBtn" id="pinBtn" title="置顶">📌</button>
       <button class="iconBtn" id="settingsBtn" title="设置">⚙</button>
       <button class="iconBtn" id="closeBtn" title="隐藏">✕</button>
@@ -542,16 +639,19 @@
     </div>
     <div class="banner" id="banner" hidden>连接 Harness 失败，正在重试…</div>
     <div class="view" id="inboxView">
+      <input class="search" id="inboxSearch" type="search" placeholder="搜索通知…" />
       <div class="list" id="inboxList"></div>
-      <div class="empty" id="inboxEmpty" hidden><span class="big">✓</span>没有需要处理的事项</div>
+      <div class="empty" id="inboxEmpty" hidden><span class="big">✓</span>没有需要处理的事项<span class="sub">待处理通知会出现在这里</span></div>
       <div class="footer" id="inboxFooter">
         <span id="inboxFooterHint"></span>
+        <button class="textBtn" id="groupBtn" title="按会话分组 / 平铺">分组</button>
         <button class="textBtn" id="ackAllBtn">全部已读</button>
       </div>
     </div>
     <div class="view" id="sessionView" hidden>
+      <input class="search" id="sessionSearch" type="search" placeholder="搜索会话…" />
       <div class="list" id="sessionList"></div>
-      <div class="empty" id="sessionEmpty" hidden>暂无活动会话</div>
+      <div class="empty" id="sessionEmpty" hidden><span class="big">·</span>暂无活动会话<span class="sub">运行中的会话会置顶显示</span></div>
       <div class="footer" id="sessionFooter">
         <span id="sessionFooterHint"></span>
       </div>
@@ -599,7 +699,6 @@
   'use strict'
 
   var SESSIONS_URL = '/_dsh/session-monitor/sessions'
-  var STATUS_URL = '/_dsh/session-monitor/status'
   var SETTINGS_URL = '/_dsh/session-monitor/settings'
   var JUMP_URL = '/_dsh/session-monitor/jump'
   var NOTIFICATIONS_URL = '/_dsh/session-monitor/notifications'
@@ -652,7 +751,7 @@
   var inboxLevels = {}     // { p0, p1, p2 } booleans (desktop-local)
   var pollMs = POLL_DEFAULT_MS
   var sessions = []        // latest snapshot rows
-  var reasons = {}         // sessionId -> { reason, at, round }
+  var reasons = {}         // sessionId -> { reason, at, round } (rides the sessions snapshot)
   var prevRunning = {}     // sessionId -> true while running (edge detection)
   var lastToastedRound = {} // sessionId -> round already notified
   var notes = []           // latest inbox records (server order, oldest first)
@@ -664,6 +763,18 @@
   var pinOn = true
   var pollTimer = null
   var settingsTimer = null
+  var paused = false       // heavy polls suspended (window hidden / tab hidden)
+  var slowTimer = null     // slow notifications-only poll while paused (tray badge)
+  var chimeCtx = null      // shared AudioContext (browsers cap ~6 per page)
+  var HIDDEN_NOTIFY_MS = 15000
+  // UI state: sync status, inbox grouping, per-view search, loading flags.
+  var lastSyncAt = 0       // last successful sessions/notifications fetch
+  var loaded = { sessions: false, inbox: false }
+  var inboxGrouped = true  // inbox grouped by session (toggle in the footer)
+  var groupOpen = {}       // sessionId -> group expanded (absent = open)
+  var search = { inbox: '', sessions: '' }
+  var lastInboxHint = ''
+  var lastSessionHint = ''
 
   // ── Tauri shell bridge (absent in a plain browser) ─────────
   var tauri = (typeof window !== 'undefined' && window.__TAURI__) ? window.__TAURI__ : null
@@ -695,7 +806,7 @@
   function hideWindow() {
     var w = currentWindow()
     if (!w) { window.close(); return }
-    w.hide().catch(function () {})
+    w.hide().then(function () { setPaused(true) }).catch(function () {})
   }
 
   /** Open the harness web app in the system browser (Tauri: open_in_browser
@@ -737,6 +848,7 @@
         }
       }
       if (typeof stored.pollMs === 'number') pollMs = stored.pollMs
+      if (typeof stored.inboxGrouped === 'boolean') inboxGrouped = stored.inboxGrouped
       if (stored.inboxLevels && typeof stored.inboxLevels === 'object') {
         for (var lvl in LEVEL_DEFAULTS) {
           var lv = stored.inboxLevels[lvl]
@@ -749,13 +861,36 @@
 
   function saveCache() {
     try {
-      localStorage.setItem(CACHE_KEY, JSON.stringify({ settings: shared, pollMs: pollMs, inboxLevels: inboxLevels }))
+      localStorage.setItem(CACHE_KEY, JSON.stringify({
+        settings: shared, pollMs: pollMs, inboxLevels: inboxLevels, inboxGrouped: inboxGrouped,
+      }))
     } catch (e) { /* ignore */ }
   }
 
   function applyEffective() {
     if (pollTimer) clearInterval(pollTimer)
     pollTimer = setInterval(pollAll, pollMs)
+  }
+
+  /** Pause the heavy polls while the widget window is hidden (Tauri hide /
+   *  tray toggle / browser tab hidden): only a slow /notifications poll keeps
+   *  the tray badge fresh. Resume on show and refresh immediately. WebView2
+   *  never fires `visibilitychange` for a hidden native window, so the pause
+   *  is driven by explicit Tauri events plus the page's own hide() calls. */
+  function setPaused(p) {
+    if (p === paused) return
+    paused = p
+    if (p) {
+      if (pollTimer) { clearInterval(pollTimer); pollTimer = null }
+      if (slowTimer) clearInterval(slowTimer)
+      slowTimer = setInterval(pollNotifications, HIDDEN_NOTIFY_MS)
+    } else {
+      if (slowTimer) { clearInterval(slowTimer); slowTimer = null }
+      applyEffective()
+      pollAll()
+      pollSettings()
+    }
+    renderStatus()
   }
 
   function pollAll() {
@@ -834,8 +969,13 @@
     fetchJSON(SESSIONS_URL).then(function (snap) {
       failCount = 0
       document.getElementById('banner').hidden = true
-      // Route envelope: { ok, value: { at, sessions } }.
-      var rows = (snap && snap.value && snap.value.sessions) || []
+      // Route envelope: { ok, value: { at, sessions, reasons } } — the turn-end
+      // reason table rides the same snapshot as the rows, so the round-reason
+      // is fresh at the exact moment the running→false edge is observed (no
+      // separate /status poll lagging up to 3s behind).
+      var value = snap && snap.value
+      var rows = (value && value.sessions) || []
+      reasons = (value && value.reasons) || {}
       for (var i = 0; i < rows.length; i++) {
         var row = rows[i]
         if (prevRunning[row.sessionId] && !row.running) onRoundFinished(row)
@@ -845,7 +985,10 @@
         if (rows[j].running) prevRunning[rows[j].sessionId] = true
       }
       sessions = rows
+      loaded.sessions = true
+      lastSyncAt = Date.now()
       renderSessions()
+      renderStatus()
     }).catch(function () {
       failCount++
       if (failCount >= 2) document.getElementById('banner').hidden = false
@@ -853,14 +996,7 @@
       // (that would flicker it to empty every network hiccup); the banner
       // already signals the trouble.
       renderSessions()
-    })
-  }
-
-  function pollReasons() {
-    fetchJSON(STATUS_URL).then(function (snap) {
-      reasons = (snap && snap.value && snap.value.sessions) || {}
-    }).catch(function () {
-      reasons = {}
+      renderStatus()
     })
   }
 
@@ -870,13 +1006,19 @@
       var value = snap && snap.value
       if (!value || !Array.isArray(value.notes)) return
       notes = value.notes
+      loaded.inbox = true
+      lastSyncAt = Date.now()
       renderInbox()
+      renderStatus()
       // One-shot: "auto-ack everything on open" (shared setting).
       if (!autoAcked && shared.autoAckOnOpen === true) {
         autoAcked = true
         ackAll()
       }
-    }).catch(function () { /* keep last list */ })
+    }).catch(function () {
+      /* keep last list */
+      renderStatus()
+    })
   }
 
   /** Is this record still waiting on the user (not acked and not resolved)? */
@@ -894,14 +1036,43 @@
     ].join('|')
   }
 
+  /** Match a record against the inbox search query (session title / id / kind label). */
+  function matchesNote(note, kind, q) {
+    return (note.title || note.sessionId).toLowerCase().indexOf(q) !== -1
+      || note.sessionId.toLowerCase().indexOf(q) !== -1
+      || (kind.label || '').toLowerCase().indexOf(q) !== -1
+  }
+
   function renderInbox() {
+    var list = document.getElementById('inboxList')
+    var empty = document.getElementById('inboxEmpty')
+    var q = (search.inbox || '').toLowerCase()
+
+    // Before the first successful fetch: loading placeholder (once the banner
+    // is up, a retrying hint instead of a fake "nothing to do").
+    if (!loaded.inbox) {
+      empty.hidden = false
+      empty.innerHTML = failCount >= 2
+        ? '<span class="big">⛔</span>连接失败<span class="sub">正在重试…</span>'
+        : '<span class="big">…</span>加载中'
+      list.innerHTML = ''
+      document.getElementById('ackAllBtn').disabled = true
+      document.getElementById('groupBtn').textContent = inboxGrouped ? '平铺' : '分组'
+      updateTrayUnread(0)
+      lastInboxHint = ''
+      renderStatus()
+      return
+    }
+
     var visible = []
     var hiddenByLevel = 0
+    var hiddenBySearch = 0
     for (var i = 0; i < notes.length; i++) {
       var note = notes[i]
       var kind = KINDS[note.kind]
       if (!kind) { hiddenByLevel++; continue }
       if (!inboxLevels[kind.level]) { hiddenByLevel++; continue }
+      if (q && !matchesNote(note, kind, q)) { hiddenBySearch++; continue }
       visible.push(note)
     }
     // Newest first.
@@ -920,28 +1091,79 @@
     document.getElementById('tabInboxBadge').hidden = unread === 0
     document.getElementById('tabInboxBadge').textContent = String(unread)
     document.getElementById('ackAllBtn').disabled = unread === 0
+    document.getElementById('groupBtn').textContent = inboxGrouped ? '平铺' : '分组'
     updateTrayUnread(unread)
 
-    var sig = visible.map(noteSignature).join('\n')
+    var hides = []
+    if (hiddenByLevel > 0) hides.push('已按级别隐藏 ' + hiddenByLevel + ' 条')
+    if (hiddenBySearch > 0) hides.push('已隐藏 ' + hiddenBySearch + ' 条匹配')
+    lastInboxHint = hides.join(' · ')
+    renderStatus()
+
+    var sig = visible.map(noteSignature).join('\n') + (inboxGrouped ? '|g' : '')
     if (sig === lastInboxSig) return
     lastInboxSig = sig
 
-    var list = document.getElementById('inboxList')
     // Preserve the scroll position across rebuilds — captured before clearing,
     // restored AFTER the rows are appended (an empty list clamps scrollTop to 0).
     var prevScroll = list.scrollTop
     list.innerHTML = ''
     if (visible.length === 0) {
-      document.getElementById('inboxEmpty').hidden = false
-      document.getElementById('inboxFooterHint').textContent = ''
+      empty.hidden = false
+      empty.innerHTML = q
+        ? '<span class="big">⌕</span>没有匹配的通知<span class="sub">换个关键词试试</span>'
+        : '<span class="big">✓</span>没有需要处理的事项<span class="sub">待处理通知会出现在这里</span>'
       return
     }
-    document.getElementById('inboxEmpty').hidden = true
+    empty.hidden = true
 
+    // All unread items regardless of position (a resolved-but-unacked record
+    // may sit above an older unread one — a plain `break` would drop it).
+    var unreadItems = []
     for (var k = 0; k < visible.length; k++) {
-      var item = visible[k]
-      if (!isUnread(item)) break
-      list.appendChild(noteRow(item))
+      if (isUnread(visible[k])) unreadItems.push(visible[k])
+    }
+
+    if (inboxGrouped && unreadItems.length > 0) {
+      // Group unread items by session, preserving first-seen order.
+      var groups = []
+      var gmap = {}
+      for (var gi = 0; gi < unreadItems.length; gi++) {
+        var gitem = unreadItems[gi]
+        var g = gmap[gitem.sessionId]
+        if (!g) {
+          g = { sessionId: gitem.sessionId, title: gitem.title || gitem.sessionId, items: [] }
+          gmap[gitem.sessionId] = g
+          groups.push(g)
+        }
+        g.items.push(gitem)
+      }
+      for (var gh = 0; gh < groups.length; gh++) {
+        var grp = groups[gh]
+        var open = groupOpen[grp.sessionId] !== false
+        var head = document.createElement('button')
+        head.className = 'ngroupHead' + (open ? ' open' : '')
+        head.innerHTML =
+          '<span class="ngroupChevron">▸</span>' +
+          '<span class="gtitle">' + esc(grp.title) + '</span>' +
+          '<span class="ngroupCount">' + grp.items.length + '</span>'
+        head.addEventListener('click', (function (sid) {
+          return function () {
+            groupOpen[sid] = !(groupOpen[sid] !== false)
+            lastInboxSig = null
+            renderInbox()
+          }
+        })(grp.sessionId))
+        list.appendChild(head)
+        if (open) {
+          var body = document.createElement('div')
+          body.className = 'ngroupBody'
+          for (var gr = 0; gr < grp.items.length; gr++) body.appendChild(noteRow(grp.items[gr]))
+          list.appendChild(body)
+        }
+      }
+    } else {
+      for (var k2 = 0; k2 < unreadItems.length; k2++) list.appendChild(noteRow(unreadItems[k2]))
     }
     if (readCount > 0) {
       var group = document.createElement('div')
@@ -967,9 +1189,6 @@
       list.appendChild(group)
     }
     list.scrollTop = prevScroll
-
-    document.getElementById('inboxFooterHint').textContent =
-      hiddenByLevel > 0 ? '已按级别隐藏 ' + hiddenByLevel + ' 条' : ''
   }
   var lastInboxSig = null
 
@@ -1109,14 +1328,14 @@
         '<button class="dismissBtn">知道了</button>' +
       '</div>'
     el.querySelector('.jumpBtn').addEventListener('click', function () { openSession(row.sessionId) })
-    el.querySelector('.dismissBtn').addEventListener('click', function () { el.remove() })
+    el.querySelector('.dismissBtn').addEventListener('click', function () { removeToast(el) })
     document.getElementById('toasts').appendChild(el)
 
     if (shared.sound) playChime()
 
     if (shared.notifyMode !== 'confirm') {
       var dismissMs = (Number(shared.autoDismissSec) || 8) * 1000
-      setTimeout(function () { if (el.isConnected) el.remove() }, dismissMs)
+      setTimeout(function () { removeToast(el) }, dismissMs)
     }
     trimToasts()
   }
@@ -1124,29 +1343,39 @@
   function trimToasts() {
     var box = document.getElementById('toasts')
     var cap = shared.notifyMode === 'confirm' ? MAX_CONFIRM_TOASTS : MAX_AUTO_TOASTS
-    while (box.children.length > cap) box.removeChild(box.firstChild)
+    while (box.children.length > cap) removeToast(box.firstChild)
   }
 
   function playChime() {
     try {
       var AudioCtor = window.AudioContext || window.webkitAudioContext
       if (!AudioCtor) return
-      var ctx = new AudioCtor()
-      var t = ctx.currentTime
+      // One shared context per page, never closed — browsers/WebView2 cap
+      // concurrent AudioContexts (~6 per page); creating one per toast would
+      // silently exhaust that pool under a toast burst.
+      var actx = chimeCtx || new AudioCtor()
+      chimeCtx = actx
+      // Chimes are not triggered by a user gesture, so the context may be
+      // suspended by the autoplay policy — request a resume (may still be
+      // refused, which is fine: the chime simply stays silent).
+      if (actx.state === 'suspended') {
+        var resume = actx.resume()
+        if (resume && typeof resume.catch === 'function') resume.catch(function () {})
+      }
+      var t = actx.currentTime
       ;[880, 1320].forEach(function (freq, i) {
-        var osc = ctx.createOscillator()
-        var gain = ctx.createGain()
+        var osc = actx.createOscillator()
+        var gain = actx.createGain()
         osc.type = 'sine'
         osc.frequency.value = freq
         gain.gain.setValueAtTime(0.001, t + i * 0.14)
         gain.gain.exponentialRampToValueAtTime(0.18, t + i * 0.14 + 0.02)
         gain.gain.exponentialRampToValueAtTime(0.001, t + i * 0.14 + 0.28)
         osc.connect(gain)
-        gain.connect(ctx.destination)
+        gain.connect(actx.destination)
         osc.start(t + i * 0.14)
         osc.stop(t + i * 0.14 + 0.3)
       })
-      setTimeout(function () { ctx.close() }, 1200)
     } catch (e) { /* audio unavailable */ }
   }
 
@@ -1168,6 +1397,29 @@
   function renderSessions() {
     var rows = sessions.slice()
     var now = Date.now()
+
+    // Before the first successful fetch: loading placeholder (once the banner
+    // is up, a retrying hint instead of a fake "no sessions").
+    if (!loaded.sessions) {
+      var list0 = document.getElementById('sessionList')
+      var empty0 = document.getElementById('sessionEmpty')
+      list0.innerHTML = ''
+      empty0.hidden = false
+      empty0.innerHTML = failCount >= 2
+        ? '<span class="big">⛔</span>连接失败<span class="sub">正在重试…</span>'
+        : '<span class="big">…</span>加载中'
+      lastSessionHint = ''
+      renderStatus()
+      return
+    }
+
+    // In-view search (session title / id).
+    var q = (search.sessions || '').toLowerCase()
+    if (q) {
+      rows = rows.filter(function (row) {
+        return (row.title || row.sessionId).toLowerCase().indexOf(q) !== -1
+      })
+    }
 
     // Base filter (mirrors the web widget's `live` set): hide blank (never-run)
     // sessions and subagent rows unless enabled.
@@ -1223,10 +1475,11 @@
     var runningCount = visible.filter(function (r) { return r.running }).length
     var parts = [runningCount + ' 运行中', visible.length + ' 显示']
     if (hidden > 0) parts.push('已隐藏 ' + hidden + ' 个更早')
-    document.getElementById('sessionFooterHint').textContent = parts.join(' · ')
+    lastSessionHint = parts.join(' · ')
+    renderStatus()
 
     // Diff: keep the DOM untouched when the visible rows are unchanged.
-    var sig = visible.map(rowSignature).join('\n')
+    var sig = visible.map(rowSignature).join('\n') + (q ? '|q' : '')
     if (sig === lastSig) return
     lastSig = sig
 
@@ -1240,7 +1493,13 @@
       list.appendChild(rowEl(visible[k], now))
     }
     list.scrollTop = prevScroll
-    document.getElementById('sessionEmpty').hidden = visible.length > 0
+    var sem = document.getElementById('sessionEmpty')
+    sem.hidden = visible.length > 0
+    if (!sem.hidden) {
+      sem.innerHTML = q
+        ? '<span class="big">⌕</span>没有匹配的会话<span class="sub">换个关键词试试</span>'
+        : '<span class="big">·</span>暂无活动会话<span class="sub">运行中的会话会置顶显示</span>'
+    }
   }
 
   function rowEl(row, now) {
@@ -1336,10 +1595,42 @@
     return (d.getMonth() + 1) + '-' + pad(d.getDate()) + ' ' + pad(d.getHours()) + ':' + pad(d.getMinutes())
   }
 
-  function clock() {
-    var d = new Date()
+  function clock(ts) {
+    var d = ts ? new Date(ts) : new Date()
     var pad = function (n) { return (n < 10 ? '0' : '') + n }
     return pad(d.getHours()) + ':' + pad(d.getMinutes()) + ':' + pad(d.getSeconds())
+  }
+
+  /** Footer status line: connection + last-sync time, appended to the hint. */
+  function statusText() {
+    if (paused) return '⏸ 暂停中'
+    if (failCount >= 2) return '⛔ 连接失败'
+    if (lastSyncAt > 0) {
+      var stale = Date.now() - lastSyncAt
+      return (stale < 8000 ? '● 已连接' : '◌ 同步中') + ' ' + clock(lastSyncAt)
+    }
+    return '◌ 连接中'
+  }
+
+  function composeHint(base) {
+    var status = statusText()
+    return base ? base + ' · ' + status : status
+  }
+
+  /** Refresh both footer hints with the current status (called after every
+   *  poll so the clock stays fresh even when the list DOM did not change). */
+  function renderStatus() {
+    var ih = document.getElementById('inboxFooterHint')
+    if (ih) ih.textContent = composeHint(lastInboxHint)
+    var sh = document.getElementById('sessionFooterHint')
+    if (sh) sh.textContent = composeHint(lastSessionHint)
+  }
+
+  /** Remove a toast with a short exit animation. */
+  function removeToast(el) {
+    if (!el || !el.isConnected) return
+    el.classList.add('out')
+    setTimeout(function () { if (el.isConnected) el.remove() }, 180)
   }
 
   // ── wiring ────────────────────────────────────────────────────
@@ -1358,6 +1649,36 @@
     document.getElementById('tabInbox').addEventListener('click', function () { setTab('inbox') })
     document.getElementById('tabSessions').addEventListener('click', function () { setTab('sessions') })
     document.getElementById('ackAllBtn').addEventListener('click', ackAll)
+
+    // Manual refresh (header): immediate re-poll with a short spin feedback.
+    var refreshBtn = document.getElementById('refreshBtn')
+    refreshBtn.addEventListener('click', function () {
+      refreshBtn.classList.add('spinning')
+      setTimeout(function () { refreshBtn.classList.remove('spinning') }, 500)
+      pollSettings()
+      pollAll()
+      renderStatus()
+    })
+
+    // Per-view search (client-side filter of the already-fetched data).
+    document.getElementById('inboxSearch').addEventListener('input', function (e) {
+      search.inbox = e.target.value
+      lastInboxSig = null
+      renderInbox()
+    })
+    document.getElementById('sessionSearch').addEventListener('input', function (e) {
+      search.sessions = e.target.value
+      lastSig = null
+      renderSessions()
+    })
+
+    // Inbox group-by-session toggle (desktop-local, persisted).
+    document.getElementById('groupBtn').addEventListener('click', function () {
+      inboxGrouped = !inboxGrouped
+      saveCache()
+      lastInboxSig = null
+      renderInbox()
+    })
 
     document.getElementById('resetBtn').addEventListener('click', function () {
       var fresh = {}
@@ -1418,22 +1739,38 @@
       applyEffective()
     })
 
-    // Initial pin state from the window (Tauri only).
+    // Initial pin state from the window (Tauri only), plus hidden-window
+    // pause wiring: the shell emits smon-window-hidden/shown on tray
+    // hide/show, and a boot-hidden window (start-to-tray) starts paused
+    // (with one immediate notifications fetch so the tray badge appears).
     if (tauri) {
       currentWindow().isAlwaysOnTop().then(function (on) {
         pinOn = on
         renderPin()
       }).catch(function () {})
+      currentWindow().isVisible().then(function (v) {
+        if (!v) { pollNotifications(); setPaused(true) }
+      }).catch(function () {})
+      tauri.event.listen('smon-window-hidden', function () { setPaused(true) }).catch(function () {})
+      tauri.event.listen('smon-window-shown', function () { setPaused(false) }).catch(function () {})
     }
+    // Plain-browser fallback: pause when the tab goes hidden, resume on return.
+    document.addEventListener('visibilitychange', function () {
+      if (document.hidden) setPaused(true)
+      else setPaused(false)
+    })
 
     loadCache()
     applyEffective()
     applyPanelUI()
     setTab('inbox')
+    // Render the loading placeholders immediately (the first polls are async;
+    // without this the static empty states flash for a moment).
+    renderInbox()
+    renderSessions()
+    renderStatus()
     pollSettings()
-    pollReasons()
     pollAll()
-    setInterval(pollReasons, 3000)
     if (settingsTimer) clearInterval(settingsTimer)
     settingsTimer = setInterval(pollSettings, SETTINGS_SYNC_MS)
   }
