@@ -349,3 +349,11 @@ pnpm 版本由 root `package.json` 的 `packageManager` 固定（当前 `pnpm@11
       超时 → 轮询中止 → 整表清空。修复：冷行**一旦缓存永久复用**（冷会话不变化，
       重新附着后即被 attachedIds 排除并逐出缓存）；探测限预算（每枚举 ≤8 个 /
       ≤1.5s，未探测的后续周期补齐）；fetch 超时 4s → 10s。
+    - **冷会话 blank 与网页对齐（隐藏数 ±1 根因）**：实测 `session.list`（网页权威
+      列表，经 `/api/session.list` 直接调用）对 >1KiB 的冷工件**保守降级为
+      blank:false**（上游 bounded-cold-blank-verification：缓存 blank:true 不可信、
+      大工件不探测、保持可见），而桌面读全量日志正确判 blank:true——一个 3.9 天前
+      从未跑过 turn 的遗留空会话使两端隐藏数差 1（网页 51 vs 桌面 50）。修复：
+      `probeColdSession` 复刻网关阈值规则——缓存 blank:false 信任；否则**只有工件
+      ≤1KiB（`locate()` + stat）才采信日志验证**，大工件/无路径/读取失败一律
+      blank:false。mock 测试覆盖 5 种情形（大/小/缓存 false/无路径/有 turn）。

@@ -43,6 +43,7 @@
 
 import type { Context } from '@deepseek-ai/cordis'
 import type { Session, SessionStore } from '@deepseek-ai/dsh-session'
+import { stat } from 'node:fs/promises'
 
 /** One row of the desktop monitor snapshot. */
 export interface DesktopSessionRow {
@@ -103,6 +104,8 @@ interface LooseHeader {
 interface LoosePersistence {
   list(): Promise<LooseHeader[]>
   readFrom(id: string, fromSeq: number): Promise<{ meta: LooseHeader; events: AnyEvent[] }>
+  /** Physical per-session artifact (JSONL backends); SQLite etc. return undefined. */
+  locate?(meta: LooseHeader): { kind?: string; path?: string } | undefined
 }
 
 /** The session's raw event log, viewed through the loose local shape. */
@@ -180,6 +183,26 @@ interface ColdProbe {
 const coldProbes = new Map<string, ColdProbe>()
 let coldListAt = 0
 
+/** Mirror the gateway's `coldBlankProbeMaxBytes` default: cold-session BLANK
+ *  is only derived from the log when the physical artifact is this small.
+ *  Larger (or location-less / unreadable) artifacts stay VISIBLE — the same
+ *  conservative degradation the web's `session.list` applies, so the desktop
+ *  and web lists agree on which never-ran sessions count as blank. */
+const COLD_BLANK_PROBE_MAX_BYTES = 1024
+
+/** Whether the gateway would probe this cold session's log for blankness
+ *  (a physical artifact at most the eligibility threshold). */
+async function coldBlankEligible(persistence: LoosePersistence, meta: LooseHeader): Promise<boolean> {
+  try {
+    const located = persistence.locate?.(meta)
+    if (!located || typeof located.path !== 'string' || located.path.length === 0) return false
+    const info = await stat(located.path)
+    return info.size <= COLD_BLANK_PROBE_MAX_BYTES
+  } catch {
+    return false
+  }
+}
+
 /** Read title / last activity / updatedAt for one cold session (cached). */
 async function probeColdSession(
   persistence: LoosePersistence,
@@ -188,9 +211,15 @@ async function probeColdSession(
 ): Promise<DesktopSessionRow | null> {
   try {
     const { events } = await persistence.readFrom(meta.id, 0)
+    // Blank parity with the web: cached `blank: false` is trusted (a prefix
+    // with a turn stays non-blank); otherwise the log decides ONLY when the
+    // artifact is small enough for the web's bounded probe — larger artifacts
+    // are reported non-blank there, so they must be non-blank here too.
     const blank = cachedMetadata?.blank === false
       ? false
-      : !events.some((event) => event.type === 'turn/start')
+      : (await coldBlankEligible(persistence, meta))
+        ? !events.some((event) => event.type === 'turn/start')
+        : false
     const title = lastTitle(events)
     const lastActive = lastEventTime(events) ?? meta.createdAt
     const updatedAt = Math.max(meta.createdAt, cachedMetadata?.lastPromptAt ?? 0)
