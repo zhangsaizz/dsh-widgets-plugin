@@ -35,6 +35,9 @@
 | 18 | 卡片容器配置面板 `CardContainerSettings` | Web 配置弹窗 | `@dsh-plugins/client-ui-card-container` | `widgets.config`（管理器「配置」弹窗） | 列数（自适应/2/3/4）+ 清空停靠/重置，localStorage 持久化 |
 | 19 | 安装 bundle | 分发层 | `@dsh-plugins/dsh-widgets-plugin` | `cordis.patch.yml` | 一次插入 5 个插件，一键挂载全部组件 |
 | 20 | 小组件管理页 `WidgetManagerSettings` | Web 设置页 | `@dsh-plugins/client-ui-widget-manager` | `settings.section`（order 10） | 实时列出小组件，支持「添加/关闭」，并为带配置的挂件提供「配置」弹窗 |
+| 21 | 会话监控桌面快照路由 | Host Web 路由 | `@dsh-plugins/client-ui-session-monitor` | `/_dsh/session-monitor/sessions` | 把实时会话存储折叠成紧凑 JSON 行（running/title/pending/子代理计数等），桌面挂件 2s 轮询 |
+| 22 | 会话监控独立挂件页 | Host 托管的独立 Web 页 | `@dsh-plugins/client-ui-session-monitor` | `/_dsh/session-monitor/widget` | 自包含 HTML（无框架）：会话列表 + 完成一轮 toast + 置顶/隐藏/设置，供桌面壳加载 |
+| 23 | 会话监控桌面悬浮窗壳 | 桌面应用（Tauri 2） | `desktop/dsh-session-desktop` | Windows 桌面 | 无边框/透明/置顶/无任务栏小窗 + 托盘（显示/退出），加载挂件页；启动时探测本机 web 服务、外部导航交系统浏览器 |
 
 > 1–10 全部由 `@dsh-plugins/balance` 一个包、一个插件行承载（原 `balance` 缝隙 +
 > `balance-vendors` + `client-ui-balance` 三个包已合并）。
@@ -216,13 +219,59 @@
 - Host 半（`src/index.ts`）：监听 `session/event` 过滤 `turn/end`，`TurnEndStore`
   维护 per-session 结束原因表（`reason.kind`：completed / aborted / blocked /
   error / max-tokens / interrupted，插入序 LRU 上限 100、TTL 5 分钟），
-  `session/disposed` 清理；经 `ctx.inject(['webServer'])` 可选挂载
-  `/_dsh/session-monitor/status` 路由（GET → `{ ok, value: { sessions: { id: {
-  reason, at } } } }`，webServer 缺席时跳过）。
+  `session/disposed` 清理；经 `ctx.inject(['webServer', 'sessions', 'settings'])`
+  可选挂载五条路由（webServer 缺席时跳过；`sessions`/`settings` 不注入会抛
+  "cannot get property without inject"——踩过）：
+  - `/_dsh/session-monitor/status`（GET → `{ ok, value: { sessions: { id: {
+    reason, at, round } } } }`）；
+  - `/_dsh/session-monitor/sessions`（GET → `{ ok, value: buildDesktopSnapshot() }`）：
+    **桌面快照**——`src/desktop-snapshot.ts` 把实时会话存储折叠成紧凑 JSON 行：
+    `sessionId / title / running / blank / updatedAt / lastActive / origin /
+    parentSessionId / pending / subagents`。全部从 `ctx.sessions.list()` +
+    事件日志推导，**零新增 peer 依赖**：`running` = 最后一个 turn 边界事件
+    （`turn/start` 开、`turn/end` 关）；`title` = 最后一个 `session/title` 事件；
+    `pending` = 最后一条审批审计事件（`approval/asked` 无配对的
+    `approval/decided`，question/plan-review 属客户端瞬时态不入日志故缺席）；
+    `subagents` = `origin==='subagent' && running && parentSessionId===本会话` 的
+    实时计数（与浏览器挂件「子×N」语义一致）；路由带 try/catch，失败回 500 +
+    错误栈（便于排障）。全部路由均带宽松 CORS（`Access-Control-Allow-Origin: *`
+    ——桌面壳的 `tauri://localhost` 启动探测页需要跨源探测）；
+  - `/_dsh/session-monitor/settings`（GET 快照 / POST 替换）：**共享设置存储**——
+    `src/desktop-settings.ts` 用 `settingsNamespace('session-monitor')` +
+    `MonitorSettingsSchema`（镜像客户端 `MonitorSettings` 全 10 字段，默认值与
+    网页版 `DEFAULT_SETTINGS` 一致）注册到 `ctx.settings`（持久化进 harness
+    settings 文档）。桌面挂件直读直写；网页客户端半镜像同步（见下）。
+  - `/_dsh/session-monitor/jump`（GET / POST）：**桌面→网页跳转队列**——单槽
+    `{ sessionId, at, consumed }`、30s TTL；POST `{sessionId}` 入队、POST
+    `{consume:true}` 标记已消费，GET 返回当前状态。桌面端点行先入队，客户端半
+    轮询消费，桌面端轮询到 `consumed` 才不回退浏览器。
+  - `/_dsh/session-monitor/widget`（GET → 独立挂件页 HTML）：**自包含页面**
+    `src/widget-page.html`，经 build.mjs 的 esbuild `text` loader 内联进 Host
+    bundle，无框架无外部资源，配色复刻浏览器挂件。功能：2s 轮询
+    `/sessions` + 3s 轮询 `/status`；运行中/空闲/子代理运行中/待审批状态点、
+    子×N 徽标、相对时间、时间窗口过滤（运行中始终显示）、子代理默认过滤、
+    **只显示运行中**（与网页版共享的 `runningOnly`）；
+    `running` true→false 边沿检测「完成一轮」toast（受共享 `notify` 开关控制，
+    kind 取 Host reason，approval 待审批优先，按状态配色、共享 `sound` 提示音、
+    共享 `notifyMode` 自动消失/需确认 + `autoDismissSec`）；
+    行点击/toast「跳转」走**服务端 jump 队列**（见下）；头部可拖拽（Tauri
+    `startDragging`）、📌 置顶开关（`setAlwaysOnTop`）、✕ 隐藏（`hide()`，托盘
+    「显示挂件」唤回）、⚙ 设置弹窗——**共享字段直读直写 Host 设置存储
+    （`/_dsh/session-monitor/settings`，与网页版实时同步）**：完成提醒/通知方式/
+    自动消失秒/提示音/只显示运行中/子代理/时间范围；仅「刷新间隔」是桌面独有
+    （`dsh.smon.desktop.settings` 缓存）；`__TAURI__` 缺席时退化为普通浏览器页
+    （`window.open` 跳转）。
 - Client 半（`src/client/index.ts`）：`inject = ['slots', 'sessions', 'locale']`，注册
   `shell.overlay`，id `session-monitor`，order **90** → `SessionMonitorWidget`；再注册
   `widgets.config`，id `session-monitor`，order 0 → `SessionSettings`（配置弹窗，
-  管理器缺席时自动跳过）。
+  管理器缺席时自动跳过）。**桌面桥（服务端中转）**：① 设置镜像——本地 save
+  （`dsh.smon.settings-changed` 事件）debounce 300ms POST
+  `/_dsh/session-monitor/settings`，启动 + 5s 轮询 GET，与 localStorage 有差异才
+  写入 + 重发事件（网页挂件/配置面板仍只读 localStorage，零改动）；
+  ② jump 消费——1s 轮询 `/_dsh/session-monitor/jump`，见未消费的
+  `{sessionId, at, consumed:false}`（at 大于上次处理）就 `ctx.sessions.open` +
+  `window.focus()` + POST `{consume:true}`，未知会话抛错则不消费（桌面回退）；
+  ③ 启动 URL `?dsh-open=<id>` 深链按 0.8s×N 重试选中该会话。
 - 数据来源：标准 `useSessions` 全局 prop（`SessionListState`：`ids` / `byId` /
   `current`）——**无 Host RPC、无轮询**，运行时经 `host/session-status` 帧实时推送
   `running` 状态。
@@ -276,6 +325,48 @@
 - 构建：Host → `lib/index.js`（ESM，外部化）；Client → `lib/client.js`
   （ModuleLoader CJS + 内联 CSS，`--loader:.css=local-css`）。
 
+### 3.7 会话监控桌面悬浮窗壳（`desktop/dsh-session-desktop`）
+
+- **不是 npm 发布包**：独立 Tauri 2（Rust）应用，位于 `desktop/dsh-session-desktop/`，
+  不在 pnpm workspace 内（workspace 只含 `packages/*`、`bundles/*`）；仅用 npm 装
+  `@tauri-apps/cli`（本地 `package-lock.json`），产物是 Windows 可执行文件
+  （`src-tauri/target/release/dsh-session-monitor-desktop.exe`）。
+- **职责边界**：壳只拥有窗口 chrome，不持有任何会话数据/UI 逻辑——
+  - 无边框（`decorations: false`）、透明（`transparent: true`）、置顶
+    （`alwaysOnTop: true`）、无任务栏（`skipTaskbar: true`）的 320×560 小窗；
+  - 启动先加载本地 `src-tauri/assets/start.html`（`frontendDist`，`tauri://localhost`）：
+    每 2s 跨源探测 `http://127.0.0.1:3080/_dsh/session-monitor/sessions`
+    （路由带 CORS 才可探测），就绪后跳转挂件页 `/_dsh/session-monitor/widget`；
+    连不上 8 次后显示「无法连接 Harness」+ 重试按钮；
+  - `withGlobalTauri: true` + `capabilities/default.json`（`windows: ["main"]` +
+    `remote.urls: ["http://127.0.0.1:*"]`，权限 `core:window:allow-start-dragging` /
+    `allow-set-always-on-top` / `allow-is-always-on-top` / `allow-hide` /
+    `allow-show` / `allow-set-focus` / `allow-close` / `allow-minimize` +
+    **无前缀 `allow-open-in-browser`** + `core:default`）——挂件页经全局
+    `__TAURI__` API 驱动拖拽/置顶/隐藏/打开浏览器；
+  - **点击跳转（服务端 jump 队列 + 回退）**：桌面与网页跨上下文不共享
+    localStorage/BroadcastChannel（WebView2 vs 浏览器各是独立存储分区），所以
+    挂件页行点击先 POST `/_dsh/session-monitor/jump` `{sessionId}`（Host 单槽、
+    30s TTL）——已开着的 Harness 标签页由插件客户端半 1s 轮询取到后
+    `ctx.sessions.open` 原位切会话 + `window.focus()` + POST `{consume:true}`
+    （**不新开窗口**）；桌面端 400ms×8 轮询 GET 直到 `consumed`，否则回退到
+    自定义命令 `open_in_browser`（`opener` crate）打开系统默认浏览器，URL 带
+    `?dsh-open=<id>` 开机深链。**ACL 要点（踩过）**：Tauri 2
+    自定义 app 命令在本地 origin（`tauri://localhost`）默认放行，但从远程 origin
+    （`http://127.0.0.1:3080`）调用必须过 ACL——`build.rs`
+    用 `tauri_build::AppManifest::new().commands(&["open_in_browser"])` 自动生成
+    `allow-open-in-browser` 权限（产物写 `src-tauri/permissions/autogenerated/`，
+    已 gitignore），capability 里以**无前缀**标识符引用（app ACL 权限不带 `key:`
+    前缀）；应用级没有 `Builder::on_navigation`（那是 `plugin::Builder` 的 API），
+    故用命令而非导航拦截；
+  - **托盘**（`tray-icon` feature）：左键单击或菜单「显示挂件」唤回隐藏的窗口，
+    「退出」结束进程；✕ 只隐藏不退出。
+- 构建：`desktop/dsh-session-desktop` 下 `npm i` 后
+  `npx tauri build --no-bundle`（cargo release + tauri-build 嵌入图标/manifest）；
+  `npx tauri icon <png>` 从 `icon-source.png` 再生成全套图标。首编需拉取 crates.io
+  （数百个 crate，10–30 分钟）。运行前提：本机 Harness web 服务
+  （`dsh web`，默认 127.0.0.1:3080）+ 会话监控插件 Host 半已挂载。
+
 ---
 
 ## 4. 依赖关系
@@ -328,7 +419,7 @@ Host 半用 esbuild，浏览器半用 **Vite library mode**（与官方 deepseek
 |---|---|---|---|
 | `@dsh-plugins/balance` | `lib/index.js`（ESM，外部化） | `lib/client.js` | ModuleLoader CJS + 内联 CSS（Vite lib mode + CSS Modules）；`lib/types/**` 由 `pnpm build` 内嵌的 tsc 步骤从 src 重新生成（js + d.ts + map）；`lib/typert.*` 为 typert codegen 产物，**已提交进 git**（仓库内无法重新生成，见 AGENTS.md），`pnpm build` 不重建 |
 | `@dsh-plugins/client-ui-token-crit` | `lib/index.js`（空 apply 壳） | `lib/client.js` | ModuleLoader CJS + 内联 CSS |
-| `@dsh-plugins/client-ui-session-monitor` | `lib/index.js`（Host 半：`turn/end` 原因跟踪 + 状态路由） | `lib/client.js` | ModuleLoader CJS + 内联 CSS |
+| `@dsh-plugins/client-ui-session-monitor` | `lib/index.js`（Host 半：`turn/end` 原因跟踪 + 状态/快照/挂件页路由；**`widget-page.html` 经 esbuild `text` loader 内联**） | `lib/client.js` | ModuleLoader CJS + 内联 CSS |
 | `@dsh-plugins/client-ui-card-container` | `lib/index.js`（空 apply 壳） | `lib/client.js` | ModuleLoader CJS + 内联 CSS |
 | `@dsh-plugins/client-ui-widget-manager` | `lib/index.js`（ESM，空 apply 壳） | `lib/client.js` | ModuleLoader CJS + 内联 CSS |
 | `@dsh-plugins/dsh-widgets-plugin` | —（仅 `cordis.patch.yml`） | — | — |
@@ -360,6 +451,11 @@ Host 半用 esbuild，浏览器半用 **Vite library mode**（与官方 deepseek
 | `shell.overlay` | `balance` / `token-crit` / `session-monitor` | label thunk | balance / client-ui-token-crit / client-ui-session-monitor | 各自注册 `label`（thunk）——卡片容器托盘/卡片头优先读它作为显示名 |
 | `remote` | balance Remote | — | balance（client 半） | `balance/query` + `balance/list` |
 | `webServer` | `/_dsh/balance/settings` | — | balance | `BalanceWebBackend` |
+| `webServer` | `/_dsh/session-monitor/status` | — | client-ui-session-monitor | turn/end 结束原因（浏览器半 + 桌面挂件轮询） |
+| `webServer` | `/_dsh/session-monitor/sessions` | — | client-ui-session-monitor | 桌面快照 JSON（`buildDesktopSnapshot`，桌面挂件轮询） |
+| `webServer` | `/_dsh/session-monitor/widget` | — | client-ui-session-monitor | 独立挂件页 HTML（桌面壳加载；esbuild `text` loader 内联进 Host bundle） |
+| `webServer` | `/_dsh/session-monitor/settings` | — | client-ui-session-monitor | 共享设置存储（`session-monitor` settings 命名空间，桌面直读直写 + 网页客户端半镜像） |
+| `webServer` | `/_dsh/session-monitor/jump` | — | client-ui-session-monitor | 桌面→网页跳转队列（POST 入队/消费，GET 查状态，30s TTL） |
 
 ---
 
@@ -388,6 +484,11 @@ Host 半用 esbuild，浏览器半用 **Vite library mode**（与官方 deepseek
 - [ ] 若重命名/新增余额相关包：同步更新 `dsh-client-ui-widget-manager/src/client/widgets.ts`
   目录里的 `packageName`
 - [ ] 补双语 README + `README.i18n.yaml`（hash 用 `git hash-object` 重算）
+- [ ] 若改会话监控 Host 半路由/挂件页：改 `src/widget-page.html` 后 `pnpm build`
+  并重启 `dsh web`；桌面壳行为改动在 `desktop/dsh-session-desktop/src-tauri/`，
+  重新 `npx tauri build --no-bundle`
+- [ ] 若改桌面壳与挂件页的通信：同步 `capabilities/default.json` 权限
+  （`remote.urls` 放行 127.0.0.1；新增窗口命令需确认是否要加权限条目）
 
 **发布前：**
 
@@ -409,5 +510,6 @@ Host 半用 esbuild，浏览器半用 **Vite library mode**（与官方 deepseek
 | 项 | 值 |
 |---|---|
 | 包版本 | 0.1.0（6 包一致） |
+| 官方 API 基线 | `@deepseek-ai/*` 0.1.0-rc.7（rc.6→rc.7 无破坏性类型变更，见 AGENTS.md 近期改动） |
 | 语言约定 | 根文档中文；包 README 双语对 + `README.i18n.yaml` hash 凭据 |
 | CI | install → build → pack → git diff 干净（ci.yml）；`v*` tag 发布（publish.yml） |
