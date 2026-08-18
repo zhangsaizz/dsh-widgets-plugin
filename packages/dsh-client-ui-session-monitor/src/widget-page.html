@@ -658,6 +658,7 @@
   var notes = []           // latest inbox records (server order, oldest first)
   var tab = 'inbox'        // 'inbox' | 'sessions'
   var autoAcked = false    // autoAckOnOpen already ran for this boot
+  var lastTrayUnread = -1  // last count sent to the Tauri tray (skip repeats)
   var failCount = 0
   var toastSeq = 0
   var pinOn = true
@@ -710,9 +711,12 @@
   }
 
   /** Mirror the inbox unread count into the Tauri tray (tooltip + menu status
-   *  item); a no-op in a plain browser. */
+   *  item); a no-op in a plain browser. Only sends on change — the 2s poll
+   *  would otherwise rewrite the tray every cycle. */
   function updateTrayUnread(count) {
     if (!tauri) return
+    if (count === lastTrayUnread) return
+    lastTrayUnread = count
     tauri.core.invoke('set_tray_unread', { count: count }).catch(function () {})
   }
 

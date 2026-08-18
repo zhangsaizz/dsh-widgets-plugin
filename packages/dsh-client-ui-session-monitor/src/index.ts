@@ -246,6 +246,10 @@ export function apply(ctx: Context): void {
   /** Open human-answer tool calls (callId → session + kind) so `tool/result`
    *  (or a turn end) can resolve the matching inbox record. */
   const openQuestions = new Map<string, { sessionId: string; kind: 'question' | 'plan-review' }>()
+  /** The persisted inbox is loaded once per plugin instance — re-activating
+   *  the inject scope (e.g. a webServer service restart) must not overwrite
+   *  the live store with a stale persisted snapshot. */
+  let inboxLoaded = false
 
   /** Resolve every open question wait of one session (answered via result, or
    *  cancelled/aborted because the turn ended). */
@@ -286,10 +290,15 @@ export function apply(ctx: Context): void {
       turnDepth.set(session.id, depth)
       if (isSubagent) {
         // A subagent's finished turn notifies its parent, not itself — and only
-        // when it closed the child's LAST open turn (the child is done).
+        // when it closed the child's LAST open turn (the child is done). The
+        // child id is part of the record id so two children completing in the
+        // same millisecond cannot collapse into one notification.
         const parent = header?.parentSession
         if (depth === 0 && parent !== undefined) {
-          inbox.push('subagent', parent, titles.get(parent) ?? parent, { at: ev.time })
+          inbox.push('subagent', parent, titles.get(parent) ?? parent, {
+            id: `${parent}:subagent:${session.id}:${ev.time}`,
+            at: ev.time,
+          })
         }
         return
       }
@@ -373,7 +382,10 @@ export function apply(ctx: Context): void {
       // webview/process restarts; shared with any future web-side consumer).
       const inboxScope = webCtx.settings.register(INBOX_NS, InboxStoreSchema)
       const storedInbox = inboxScope.get()
-      inbox.load(storedInbox.seq, storedInbox.notes)
+      if (!inboxLoaded) {
+        inbox.load(storedInbox.seq, storedInbox.notes)
+        inboxLoaded = true
+      }
       let persistTimer: ReturnType<typeof setTimeout> | undefined
       const persistInbox = (): void => {
         if (persistTimer !== undefined) return
