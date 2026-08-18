@@ -161,10 +161,16 @@ function sessionUpdatedAt(events: readonly AnyEvent[], createdAt: number): numbe
 }
 
 // ── cold (persisted) session merging ────────────────────────────────
-/** TTL for the per-session cold probe cache (title / last activity reads). */
-const COLD_PROBE_TTL_MS = 30_000
 /** Re-list persisted session metadata at most this often. */
 const COLD_LIST_TTL_MS = 8_000
+/** Per-cycle cap on cold artifact probes. Probing reads a session's WHOLE
+ *  event log from disk; without a budget, a first fill or refresh burst would
+ *  stall the snapshot far past the widget's fetch timeout (measured: ~12s for
+ *  ~72 cold sessions). Cached rows keep the list populated meanwhile. */
+const COLD_PROBE_BUDGET = 8
+/** Hard time cap for one enumeration's probing (defends against single huge
+ *  logs); leftover sessions are probed in later cycles. */
+const COLD_PROBE_TIME_BUDGET_MS = 1500
 
 interface ColdProbe {
   readonly row: DesktopSessionRow
@@ -207,7 +213,15 @@ async function probeColdSession(
 
 /** Merge cold persisted sessions into the row set (same source as the web
  *  `session.list` RPC), using the projection cache when available and a
- *  TTL-cached artifact probe otherwise. */
+ *  budgeted artifact probe otherwise.
+ *
+ *  Visibility rule: a cold row is IMMUTABLE while cold — a session only
+ *  appends events while attached, and attached sessions are excluded from the
+ *  merge — so once a row is cached it is always re-emitted, and re-probing
+ *  happens only for sessions that were never probed (first fill). This keeps
+ *  the list stable: a probe TTL expiry must never make a cold row vanish
+ *  (that produced periodic disappearances every ~30s), and a failed re-probe
+ *  must never blank a row that is already known. */
 async function mergeColdSessions(
   ctx: Context,
   attachedIds: ReadonlySet<string>,
@@ -218,11 +232,15 @@ async function mergeColdSessions(
   // Re-list the metadata at most every few seconds.
   const now = Date.now()
   if (coldListAt !== 0 && now - coldListAt < COLD_LIST_TTL_MS) {
-    // Reuse cached probes only; skip enumeration this cycle.
+    // Reuse every cached probe (no TTL filter — see the visibility rule).
     for (const probe of coldProbes.values()) {
-      if (now - probe.at < COLD_PROBE_TTL_MS && !attachedIds.has(probe.row.sessionId)) {
-        rows.push(probe.row)
+      if (attachedIds.has(probe.row.sessionId)) {
+        // Went live again: drop the stale probe; it is re-probed fresh the
+        // next time the session is cold again.
+        coldProbes.delete(probe.row.sessionId)
+        continue
       }
+      rows.push(probe.row)
     }
     return
   }
@@ -238,13 +256,18 @@ async function mergeColdSessions(
   } catch {
     return
   }
+  const cycleStart = Date.now()
+  let probed = 0
   for (const meta of metas) {
     if (attachedIds.has(meta.id) || meta.cwd === undefined) continue
     const cached = coldProbes.get(meta.id)
-    if (cached !== undefined && now - cached.at < COLD_PROBE_TTL_MS) {
-      rows.push(cached.row)
+    if (cached !== undefined) {
+      if (attachedIds.has(cached.row.sessionId)) coldProbes.delete(meta.id)
+      else rows.push(cached.row)
       continue
     }
+    // First fill only — and only within the probe budget / time cap.
+    if (probed >= COLD_PROBE_BUDGET || Date.now() - cycleStart > COLD_PROBE_TIME_BUDGET_MS) continue
     const metadata = projectionCache?.cachedSnapshot(meta)?.values?.sessionListMetadata as
       | { blank?: boolean; lastPromptAt?: number }
       | undefined
@@ -252,6 +275,7 @@ async function mergeColdSessions(
     if (row !== null) {
       coldProbes.set(meta.id, { row, at: now })
       rows.push(row)
+      probed++
     }
   }
 }
