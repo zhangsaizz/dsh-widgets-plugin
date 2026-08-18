@@ -338,3 +338,9 @@ pnpm 版本由 root `package.json` 的 `packageManager` 固定（当前 `pnpm@11
   - 设计稿/原型/冒烟测试在包内 `docs/`（`notification-inbox-design.md`、
     `inbox-prototype.html`、`store-smoke-test.cjs`——后者用 esbuild 打包
     `desktop-notifications.ts` 后跑 8 组断言）。
+  - **修复桌面「会话」列表闪烁 / 隐藏数与网页不一致**：桌面时间窗口过滤原只豁免
+    `running`，子代理在跑但本身不在回合的父会话日志静默期会被窗口藏掉、子代理
+    完成又冒出来（一会有一会没）；隐藏数把 blank/子代理/busy-only 隐藏全算进去，
+    与网页对不上。已对齐网页语义：busy（子代理>0 / 待审批）豁免窗口与 busy-only、
+    隐藏数只统计窗口隐藏（busy-only 为 0）、轮询失败保留上一次列表、列表重建保留
+    滚动位置。

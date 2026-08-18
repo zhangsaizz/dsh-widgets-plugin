@@ -846,7 +846,9 @@
     }).catch(function () {
       failCount++
       if (failCount >= 2) document.getElementById('banner').hidden = false
-      sessions = []
+      // Keep the last good list — a transient failure must not blank the list
+      // (that would flicker it to empty every network hiccup); the banner
+      // already signals the trouble.
       renderSessions()
     })
   }
@@ -922,6 +924,9 @@
     lastInboxSig = sig
 
     var list = document.getElementById('inboxList')
+    // Preserve the scroll position across rebuilds — captured before clearing,
+    // restored AFTER the rows are appended (an empty list clamps scrollTop to 0).
+    var prevScroll = list.scrollTop
     list.innerHTML = ''
     if (visible.length === 0) {
       document.getElementById('inboxEmpty').hidden = false
@@ -958,6 +963,7 @@
       group.appendChild(wrap)
       list.appendChild(group)
     }
+    list.scrollTop = prevScroll
 
     document.getElementById('inboxFooterHint').textContent =
       hiddenByLevel > 0 ? '已按级别隐藏 ' + hiddenByLevel + ' 条' : ''
@@ -1160,43 +1166,78 @@
     var rows = sessions.slice()
     var now = Date.now()
 
-    // Filter: hide blank sessions; running-only; subagent rows unless enabled;
-    // time window (running sessions always stay visible).
-    var hidden = 0
-    rows = rows.filter(function (row) {
-      if (row.blank) { hidden++; return false }
-      if (shared.runningOnly && !row.running) { hidden++; return false }
-      if (row.origin === 'subagent' && !shared.showSubagents) { hidden++; return false }
-      var windowMs = Number(shared.timeWindowMin) * 60 * 1000
-      if (windowMs > 0 && !row.running) {
-        var last = Math.max(row.updatedAt, row.lastActive)
-        if (now - last > windowMs) { hidden++; return false }
-      }
+    // Base filter (mirrors the web widget's `live` set): hide blank (never-run)
+    // sessions and subagent rows unless enabled.
+    var live = rows.filter(function (row) {
+      if (row.blank) return false
+      if (row.origin === 'subagent' && !shared.showSubagents) return false
       return true
     })
 
-    // Sort: running first, then most recently active.
-    rows.sort(function (a, b) {
-      if (a.running !== b.running) return a.running ? -1 : 1
+    // Busy rows (still doing work while the session itself is not in a turn:
+    // running subagents, or a pending approval) are treated like running rows —
+    // ranked on top and never hidden by the time window or busy-only. Same
+    // semantics as the web widget's busyIds (the snapshot only carries the
+    // approval pending; question/plan-review are covered by the inbox).
+    var busy = {}
+    for (var i = 0; i < live.length; i++) {
+      var b = live[i]
+      if (b.running) continue
+      if (b.pending || (b.subagents || 0) > 0) busy[b.sessionId] = true
+    }
+
+    // Time window: running and busy sessions are always recent; the rest keep
+    // only sessions active within the window ("recent" = max(updatedAt,
+    // lastActive), the newest log event — the same rule the web widget applies
+    // with its own observed-activity map).
+    var windowMs = Number(shared.timeWindowMin) * 60 * 1000
+    var inWindow = windowMs > 0
+      ? live.filter(function (row) {
+          if (row.running || busy[row.sessionId]) return true
+          var last = Math.max(row.updatedAt, row.lastActive)
+          return now - last <= windowMs
+        })
+      : live
+
+    // Busy-only keeps running AND busy rows, hiding only genuinely idle ones.
+    var visible = shared.runningOnly
+      ? inWindow.filter(function (row) { return row.running || busy[row.sessionId] })
+      : inWindow
+
+    // Sort: running (and busy) first, then most recently active.
+    visible.sort(function (a, b) {
+      var aBusy = a.running || busy[a.sessionId]
+      var bBusy = b.running || busy[b.sessionId]
+      if (aBusy !== bBusy) return aBusy ? -1 : 1
       return Math.max(b.updatedAt, b.lastActive) - Math.max(a.updatedAt, a.lastActive)
     })
 
-    var runningCount = rows.filter(function (r) { return r.running }).length
-    var parts = [runningCount + ' 运行中', rows.length + ' 显示']
+    // The "hidden" hint counts time-window hides only — in busy-only mode idle
+    // rows are hidden by that switch, not by time (same rule as the web
+    // widget; blank/subagent filters are not "older sessions" either).
+    var hidden = shared.runningOnly ? 0 : live.length - visible.length
+
+    var runningCount = visible.filter(function (r) { return r.running }).length
+    var parts = [runningCount + ' 运行中', visible.length + ' 显示']
     if (hidden > 0) parts.push('已隐藏 ' + hidden + ' 个更早')
     document.getElementById('sessionFooterHint').textContent = parts.join(' · ')
 
     // Diff: keep the DOM untouched when the visible rows are unchanged.
-    var sig = rows.map(rowSignature).join('\n')
+    var sig = visible.map(rowSignature).join('\n')
     if (sig === lastSig) return
     lastSig = sig
 
+    // Preserve the scroll position across rebuilds — the signature changes
+    // every minute (minute-granularity recency), and a full rebuild without
+    // this would jump a scrolled list back to the top.
     var list = document.getElementById('sessionList')
+    var prevScroll = list.scrollTop
     list.innerHTML = ''
-    for (var i = 0; i < rows.length; i++) {
-      list.appendChild(rowEl(rows[i], now))
+    for (var k = 0; k < visible.length; k++) {
+      list.appendChild(rowEl(visible[k], now))
     }
-    document.getElementById('sessionEmpty').hidden = rows.length > 0
+    list.scrollTop = prevScroll
+    document.getElementById('sessionEmpty').hidden = visible.length > 0
   }
 
   function rowEl(row, now) {
