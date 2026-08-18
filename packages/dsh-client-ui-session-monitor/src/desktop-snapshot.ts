@@ -105,7 +105,8 @@ interface LoosePersistence {
   readFrom(id: string, fromSeq: number): Promise<{ meta: LooseHeader; events: AnyEvent[] }>
 }
 
-function eventsOf(session: Session): readonly AnyEvent[] {
+/** The session's raw event log, viewed through the loose local shape. */
+export function eventsOf(session: Session): readonly AnyEvent[] {
   return session.events as unknown as readonly AnyEvent[]
 }
 
@@ -122,7 +123,7 @@ function isRunning(session: Session): boolean {
 }
 
 /** Last accepted title from the log, or undefined while untitled. */
-function lastTitle(events: readonly AnyEvent[]): string | undefined {
+export function lastTitle(events: readonly AnyEvent[]): string | undefined {
   for (let index = events.length - 1; index >= 0; index--) {
     const event = events[index]
     if (event.type === 'session/title') return event.data.title

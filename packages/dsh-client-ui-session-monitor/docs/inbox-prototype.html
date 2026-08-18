@@ -1,0 +1,424 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>通知列表 · 交互原型</title>
+<style>
+  /* 交互原型：320×560 桌面挂件模拟，验证「通知列表」重构的布局与交互。
+     仅演示，非真实实现。配色与文案对齐 widget-page.html。 */
+  :root { color-scheme: dark; }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  [hidden] { display: none !important; }
+  body {
+    background: #1a1c22;
+    display: flex; flex-direction: column; align-items: center; gap: 10px;
+    padding: 22px 12px 30px;
+    font-family: "Segoe UI", "Microsoft YaHei", system-ui, sans-serif;
+    font-size: 13px; color: #e8eaf0;
+    user-select: none; -webkit-user-select: none;
+    min-height: 100vh;
+  }
+  h1 { font-size: 15px; font-weight: 600; color: #aeb4c2; }
+  h1 small { display: block; font-size: 11px; font-weight: 400; color: #5c6270; margin-top: 4px; }
+  .note { max-width: 340px; font-size: 11.5px; line-height: 1.6; color: #8b91a0; text-align: center; }
+  .note code { color: #b388ff; }
+
+  /* ── 挂件窗口 ───────────────────────────── */
+  .win {
+    width: 320px; height: 560px;
+    display: flex; flex-direction: column;
+    border: 1px solid rgba(255, 255, 255, 0.14);
+    border-radius: 14px;
+    background:
+      linear-gradient(180deg, rgba(255, 255, 255, 0.06), rgba(255, 255, 255, 0) 42%),
+      rgba(24, 26, 32, 0.95);
+    box-shadow: 0 8px 20px rgba(0,0,0,.25), 0 24px 56px rgba(0,0,0,.35);
+    overflow: hidden; position: relative;
+  }
+  .win::before {
+    content: ''; position: absolute; inset: 0 0 auto 0; height: 1px;
+    background: linear-gradient(90deg, transparent, rgba(255,255,255,.22), transparent);
+  }
+
+  /* ── 头部 ───────────────────────────────── */
+  .header {
+    display: flex; align-items: center; gap: 7px;
+    padding: 8px 8px 7px 12px; border-bottom: 1px solid rgba(255,255,255,.08);
+    flex: none;
+  }
+  .dot { flex: none; width: 8px; height: 8px; border-radius: 3px; background: #4f8cff;
+    box-shadow: 0 0 8px rgba(79,140,255,.45); }
+  .title { font-size: 12.5px; font-weight: 600; letter-spacing: .02em; }
+  .badge {
+    flex: none; min-width: 17px; height: 17px; padding: 0 5px;
+    border-radius: 9px; background: #ff6b6b; color: #fff;
+    font-size: 10.5px; font-weight: 700; line-height: 17px; text-align: center;
+    box-shadow: 0 0 10px rgba(255,107,107,.5);
+  }
+  .spacer { flex: 1; }
+  .iconBtn {
+    flex: none; width: 24px; height: 24px; border: none; border-radius: 8px;
+    background: transparent; color: rgba(232,234,240,.62); font-size: 14px; cursor: pointer;
+  }
+  .iconBtn:hover { background: rgba(255,255,255,.1); color: #e8eaf0; }
+  .iconBtn.on { color: #4f8cff; }
+
+  /* ── Tab 栏 ─────────────────────────────── */
+  .tabs {
+    flex: none; display: flex; gap: 4px; padding: 6px 10px 4px;
+    border-bottom: 1px solid rgba(255,255,255,.08);
+  }
+  .tab {
+    flex: 1; padding: 5px 0; border: none; border-radius: 8px;
+    background: transparent; color: rgba(232,234,240,.6);
+    font-size: 12px; font-weight: 600; cursor: pointer; position: relative;
+  }
+  .tab:hover { background: rgba(255,255,255,.06); }
+  .tab.active { background: rgba(255,255,255,.1); color: #e8eaf0; }
+  .tab.active::after {
+    content: ''; position: absolute; left: 30%; right: 30%; bottom: -5px; height: 2px;
+    border-radius: 1px; background: #4f8cff;
+  }
+  .tab .tabBadge {
+    display: inline-block; min-width: 15px; height: 15px; padding: 0 4px; margin-left: 5px;
+    border-radius: 8px; background: #ff6b6b; color: #fff; font-size: 10px; font-weight: 700; line-height: 15px;
+  }
+
+  /* ── 通知列表 ───────────────────────────── */
+  .list { flex: 1 1 auto; min-height: 0; overflow-y: auto; padding: 6px;
+    scrollbar-width: thin; scrollbar-color: rgba(255,255,255,.18) transparent; }
+  .list::-webkit-scrollbar { width: 6px; }
+  .list::-webkit-scrollbar-thumb { background: rgba(255,255,255,.18); border-radius: 3px; }
+  .empty { padding: 30px 12px; text-align: center; font-size: 12px; color: rgba(232,234,240,.5); }
+  .empty .big { font-size: 22px; display: block; margin-bottom: 6px; }
+
+  .nrow {
+    --accent: #f5b544;
+    display: flex; gap: 9px; padding: 7px 8px; border-radius: 9px; cursor: pointer;
+    border-left: 3px solid transparent; position: relative;
+  }
+  .nrow:hover { background: rgba(255,255,255,.06); }
+  .nrow.unread { border-left-color: var(--accent); background: rgba(255,255,255,.03); }
+  .nrow.read { opacity: .58; }
+  .nrow .unreadDot {
+    position: absolute; left: -1px; top: 50%; margin-top: -2px;
+    width: 4px; height: 4px; border-radius: 50%; background: var(--accent);
+  }
+  .nrow .icon { flex: none; width: 22px; height: 22px; border-radius: 7px; font-size: 12px; line-height: 22px;
+    text-align: center; background: rgba(255,255,255,.07); color: var(--accent); font-style: normal; }
+  .nrow .main { flex: 1; min-width: 0; }
+  .nrow .kindRow { display: flex; align-items: center; gap: 6px; }
+  .nrow .kind { font-size: 11.5px; font-weight: 700; color: var(--accent); }
+  .nrow .tag { font-size: 9.5px; padding: 0 4px; border-radius: 3px; font-weight: 600; }
+  .tag.p0 { background: rgba(255,107,107,.18); color: #ff8f8f; }
+  .tag.p1 { background: rgba(245,181,68,.16); color: #f5b544; }
+  .nrow .round { font-size: 10px; color: rgba(232,234,240,.45); }
+  .nrow .sessTitle { font-size: 12px; margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .nrow .meta { display: flex; align-items: center; gap: 8px; margin-top: 3px; }
+  .nrow .time { font-size: 10.5px; color: rgba(232,234,240,.4); }
+  .nrow .actions { margin-left: auto; display: flex; gap: 5px; flex: none; }
+  .act {
+    border: none; border-radius: 6px; padding: 3px 9px; font-size: 11px; font-weight: 600;
+    cursor: pointer; color: #e8eaf0; background: rgba(255,255,255,.1);
+  }
+  .act:hover { background: rgba(255,255,255,.18); }
+  .act.primary { background: #4f8cff; color: #fff; }
+  .act.primary:hover { filter: brightness(1.1); }
+  .nrow.p0 .act.primary { background: var(--accent); color: #1a1410; }
+  .nrow.read .act { opacity: .7; }
+
+  .readGroup { border-top: 1px dashed rgba(255,255,255,.12); margin-top: 4px; padding-top: 4px; }
+  .readToggle {
+    width: 100%; border: none; background: none; cursor: pointer;
+    padding: 5px 8px; text-align: left; font-size: 11px; color: rgba(232,234,240,.5);
+  }
+  .readToggle:hover { color: #e8eaf0; }
+
+  .footer { flex: none; display: flex; align-items: center; gap: 8px; padding: 6px 12px;
+    border-top: 1px solid rgba(255,255,255,.08); font-size: 11px; color: rgba(232,234,240,.5); }
+  .footer .link { margin-left: auto; }
+
+  /* ── 会话 Tab（现状原样） ────────────────── */
+  .srow { display: flex; align-items: flex-start; gap: 9px; padding: 8px 9px; border-radius: 9px; cursor: pointer; }
+  .srow:hover { background: rgba(255,255,255,.07); }
+  .sdot { flex: none; width: 8px; height: 8px; margin-top: 4px; border-radius: 50%; background: rgba(232,234,240,.35); }
+  .sdot.run { background: #3dd68c; animation: pulse 1.4s ease-in-out infinite; }
+  .sdot.pend { background: #ff9f43; }
+  .sdot.done { background: #f5b544; }
+  @keyframes pulse { 0%,100% { opacity:1; box-shadow: 0 0 0 0 rgba(61,214,140,.4); } 50% { opacity:.55; box-shadow: 0 0 0 4px transparent; } }
+  .srow .main { flex: 1; min-width: 0; }
+  .srow .t { font-size: 12.5px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .srow .m { display: flex; align-items: center; gap: 6px; margin-top: 3px; flex-wrap: wrap; }
+  .st { font-size: 11px; color: rgba(232,234,240,.72); }
+  .st.sub { color: #b388ff; }
+  .bd { flex: none; font-size: 10px; padding: 0 5px; border-radius: 4px; background: rgba(255,255,255,.1); color: rgba(232,234,240,.62); }
+  .bd.sub { background: rgba(179,136,255,.16); color: #b388ff; font-weight: 600; }
+  .bd.pend { background: rgba(255,159,67,.16); color: #ff9f43; font-weight: 600; }
+  .srow .tm { font-size: 11px; color: rgba(232,234,240,.4); white-space: nowrap; }
+
+  /* ── 设置弹层 ───────────────────────────── */
+  .settings {
+    position: absolute; right: 10px; top: 86px; z-index: 20; width: 250px; max-height: 440px;
+    overflow-y: auto; padding: 12px; border: 1px solid rgba(255,255,255,.14); border-radius: 12px;
+    background: rgba(30,32,40,.98); box-shadow: 0 10px 28px rgba(0,0,0,.3);
+    display: flex; flex-direction: column; gap: 8px; font-size: 11.5px;
+  }
+  .settings .sec { font-size: 10px; color: rgba(232,234,240,.4); text-transform: uppercase; letter-spacing: .06em; margin-top: 4px; }
+  .settings label.check { display: flex; align-items: center; gap: 6px; cursor: pointer; color: rgba(232,234,240,.8); }
+  .settings input[type="checkbox"] { accent-color: #4f8cff; }
+  .settings .hint { font-size: 10px; color: rgba(232,234,240,.45); }
+
+  /* ── toast 模拟（演示双通道） ─────────────── */
+  .toast {
+    position: absolute; right: 8px; top: 100px; z-index: 30; width: 250px;
+    border: 1px solid rgba(255,255,255,.16); border-radius: 12px;
+    background: rgba(30,32,40,.97); padding: 9px 11px; box-shadow: 0 10px 28px rgba(0,0,0,.3);
+    animation: in 200ms ease-out; --accent: #f5b544; border-left: 3px solid var(--accent);
+  }
+  @keyframes in { from { opacity: 0; transform: translateY(-8px); } to { opacity: 1; transform: none; } }
+  .toast .head { display: flex; justify-content: space-between; font-size: 11.5px; font-weight: 700; }
+  .toast .head .icon { color: var(--accent); margin-right: 4px; }
+  .toast .body { margin-top: 3px; font-size: 11.5px; color: #e8eaf0; }
+  .toast .acts { display: flex; gap: 6px; margin-top: 8px; }
+  .toast .acts .act { flex: 1; }
+</style>
+</head>
+<body>
+  <h1>会话监控 · 通知列表 交互原型<small>仅演示布局与交互，非真实实现 · 配合 notification-inbox-design.md 评审</small></h1>
+  <div class="win" id="win">
+    <div class="header">
+      <span class="dot"></span>
+      <span class="title">会话监控</span>
+      <span class="badge" id="unreadBadge" hidden>0</span>
+      <span class="spacer"></span>
+      <button class="iconBtn on" id="pinBtn" title="置顶">📌</button>
+      <button class="iconBtn" id="settingsBtn" title="设置">⚙</button>
+      <button class="iconBtn" title="隐藏">✕</button>
+    </div>
+
+    <div class="tabs">
+      <button class="tab active" id="tabInbox">待处理<span class="tabBadge" id="tabInboxBadge" hidden>0</span></button>
+      <button class="tab" id="tabSessions">会话</button>
+    </div>
+
+    <div class="list" id="inboxList"></div>
+
+    <div class="list" id="sessionList" hidden>
+      <div class="srow"><span class="sdot run"></span><div class="main"><div class="t">重构余额看板的数据链路</div>
+        <div class="m"><span class="st">运行中</span><span class="bd sub">子×2</span></div></div><span class="tm">2 分钟前</span></div>
+      <div class="srow"><span class="sdot pend"></span><div class="main"><div class="t">迁移旧会话数据</div>
+        <div class="m"><span class="st">等待审批</span><span class="bd pend">⏳ 待审批</span></div></div><span class="tm">3 分钟前</span></div>
+      <div class="srow"><span class="sdot done"></span><div class="main"><div class="t">联调 token 暴击挂件</div>
+        <div class="m"><span class="st">空闲</span></div></div><span class="tm">1 小时前</span></div>
+      <div class="srow"><span class="sdot done"></span><div class="main"><div class="t">整理发布清单</div>
+        <div class="m"><span class="st">空闲</span></div></div><span class="tm">昨天</span></div>
+      <div class="srow"><span class="sdot done"></span><div class="main"><div class="t">编写组件文档</div>
+        <div class="m"><span class="st">空闲</span></div></div><span class="tm">2 天前</span></div>
+      <div class="empty" style="display:none"></div>
+    </div>
+
+    <div class="footer" id="footer">
+      <span id="footerText">双击任意行 → 模拟跳转</span>
+      <button class="act" id="clearAllBtn" style="margin-left:auto;padding:2px 10px">全部已读</button>
+      <button class="act" id="demoToastBtn" title="演示 toast 与 inbox 双通道">+ 演示通知</button>
+    </div>
+
+    <div class="settings" id="settingsPanel" hidden>
+      <span class="sec">待处理列表</span>
+      <label class="check"><input type="checkbox" checked /> 等待审批 / 回答 / 审计划（P0）</label>
+      <label class="check"><input type="checkbox" checked /> 出错 / 阻塞 / Token 上限（P0）</label>
+      <label class="check"><input type="checkbox" checked /> 完成一轮 / 子代理完成（P1）</label>
+      <label class="check"><input type="checkbox" /> 标题变更 / 新会话（P2）</label>
+      <label class="check"><input type="checkbox" checked /> 点「处理」跳转后自动已读</label>
+      <label class="check"><input type="checkbox" /> 打开窗口时自动全部已读</label>
+      <span class="sec">其他（现状保留）</span>
+      <label class="check"><input type="checkbox" checked /> 完成提醒 toast</label>
+      <label class="check"><input type="checkbox" /> 提示音</label>
+      <label class="check"><input type="checkbox" /> 只显示运行中</label>
+      <label class="check"><input type="checkbox" /> 显示子代理会话</label>
+      <span class="hint">这些项经 Host 与网页版共享（现有机制）</span>
+    </div>
+  </div>
+  <p class="note">设计要点：<b>toast = 提醒「响了」</b>（瞬时）＋ <b>inbox = 提醒「还没处理完」</b>（持久可已读）；
+  未读徽标在头部与「待处理」Tab 上同步；P0 需要处理、P1 值得看、P2 默认关；
+  已读状态存 Host，桌面与网页版同源。</p>
+
+<script>
+(function () {
+  'use strict'
+
+  // kind → 展示配置（配色沿用现有 toast 体系）
+  var KINDS = {
+    approval:     { label: '等待审批',     icon: '⏳', accent: '#ff9f43', pri: 'P0' },
+    question:     { label: '等待回答',     icon: '❓', accent: '#4f8cff', pri: 'P0' },
+    'plan-review':{ label: '等待审阅计划', icon: '📋', accent: '#b388ff', pri: 'P0' },
+    error:        { label: '本轮出错',     icon: '✕',  accent: '#ff6b6b', pri: 'P0' },
+    blocked:      { label: '已阻塞',       icon: '⚠',  accent: '#ff9f43', pri: 'P0' },
+    'max-tokens': { label: 'Token 上限',   icon: '⛶',  accent: '#4dd0e1', pri: 'P0' },
+    subagent:     { label: '子代理完成',   icon: '⇄',  accent: '#b388ff', pri: 'P1' },
+    done:         { label: '完成一轮',     icon: '✓',  accent: '#f5b544', pri: 'P1' },
+    aborted:      { label: '已中止',       icon: '⏹',  accent: '#9aa0ab', pri: 'P1' },
+    interrupted:  { label: '已中断',       icon: '⏸',  accent: '#7d93c4', pri: 'P1' },
+  }
+
+  // 模拟数据：id 升序即时间顺序（新在后）
+  var notes = [
+    { id: 1, kind: 'done',      sess: '联调 token 暴击挂件', at: '1 小时前', round: 5 },
+    { id: 2, kind: 'subagent',  sess: '重构余额看板的数据链路', at: '18 分钟前', round: 2 },
+    { id: 3, kind: 'error',     sess: '数据迁移脚本', at: '12 分钟前', round: 3 },
+    { id: 4, kind: 'approval',  sess: '迁移旧会话数据', at: '3 分钟前', round: 1 },
+  ]
+  var acked = {}
+
+  function esc(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;') }
+
+  function unreadCount() { return notes.filter(function (n) { return !acked[n.id] }).length }
+
+  function renderBadges() {
+    var n = unreadCount()
+    document.getElementById('unreadBadge').hidden = n === 0
+    document.getElementById('unreadBadge').textContent = String(n)
+    document.getElementById('tabInboxBadge').hidden = n === 0
+    document.getElementById('tabInboxBadge').textContent = String(n)
+  }
+
+  function renderInbox() {
+    var unread = notes.filter(function (n) { return !acked[n.id] }).reverse()   // 新在上
+    var read = notes.filter(function (n) { return acked[n.id] }).reverse()
+    var list = document.getElementById('inboxList')
+    list.innerHTML = ''
+
+    if (unread.length === 0 && read.length === 0) {
+      var e = document.createElement('div')
+      e.className = 'empty'
+      e.innerHTML = '<span class="big">✓</span>没有需要处理的事项'
+      list.appendChild(e)
+      renderBadges()
+      return
+    }
+
+    unread.forEach(function (n) { list.appendChild(row(n)) })
+
+    if (read.length > 0) {
+      var g = document.createElement('div')
+      g.className = 'readGroup'
+      var tg = document.createElement('button')
+      tg.className = 'readToggle'
+      tg.id = 'readToggle'
+      var open = false
+      tg.textContent = '── 已读 (' + read.length + ') ▸'
+      g.appendChild(tg)
+      var wrap = document.createElement('div')
+      wrap.hidden = true
+      read.forEach(function (n) { wrap.appendChild(row(n)) })
+      g.appendChild(wrap)
+      tg.addEventListener('click', function () {
+        open = !open
+        wrap.hidden = !open
+        tg.textContent = '── 已读 (' + read.length + ') ' + (open ? '▾' : '▸')
+      })
+      list.appendChild(g)
+    }
+    renderBadges()
+  }
+
+  function row(n) {
+    var k = KINDS[n.kind] || KINDS.done
+    var isRead = !!acked[n.id]
+    var el = document.createElement('div')
+    el.className = 'nrow ' + (isRead ? 'read' : 'unread')
+    el.style.setProperty('--accent', k.accent)
+    var round = n.round ? '<span class="round">第 ' + n.round + ' 轮</span>' : ''
+    el.innerHTML =
+      '<span class="unreadDot"></span>' +
+      '<span class="icon">' + k.icon + '</span>' +
+      '<div class="main">' +
+        '<div class="kindRow"><span class="kind">' + esc(k.label) + '</span>' +
+          '<span class="tag ' + k.pri.toLowerCase() + '">' + k.pri + '</span>' + round + '</div>' +
+        '<div class="sessTitle">' + esc(n.sess) + '</div>' +
+        '<div class="meta"><span class="time">' + esc(n.at) + '</span>' +
+          '<span class="actions">' +
+            (isRead ? '' : '<button class="act primary">处理</button><button class="act">忽略</button>') +
+          '</span></div>' +
+      '</div>'
+    el.addEventListener('dblclick', function () { flashJump(n) })
+    var primary = el.querySelector('.act.primary')
+    if (primary) primary.addEventListener('click', function (ev) {
+      ev.stopPropagation()
+      acked[n.id] = true
+      renderInbox()
+    })
+    var ignore = el.querySelector('.act:not(.primary)')
+    if (ignore) ignore.addEventListener('click', function (ev) {
+      ev.stopPropagation()
+      acked[n.id] = true
+      renderInbox()
+    })
+    return el
+  }
+
+  // 模拟跳转：在窗口中央闪一条“已跳转到会话”提示
+  function flashJump(n) {
+    var k = KINDS[n.kind] || KINDS.done
+    var t = document.createElement('div')
+    t.className = 'toast'
+    t.style.setProperty('--accent', k.accent)
+    t.innerHTML = '<div class="head"><span><span class="icon">↪</span>已跳转会话</span></div>' +
+      '<div class="body">' + esc(n.sess) + '</div>'
+    document.getElementById('win').appendChild(t)
+    setTimeout(function () { t.remove() }, 1600)
+  }
+
+  function demoToast() {
+    var n = { id: Date.now(), kind: 'question', sess: '并行迁移方案确认', at: '刚刚', round: 1 }
+    notes.push(n)
+    // 同时弹一个 toast（演示双通道：toast 响了 + inbox 多一条未读）
+    var t = document.createElement('div')
+    t.className = 'toast'
+    t.style.setProperty('--accent', '#4f8cff')
+    t.innerHTML = '<div class="head"><span><span class="icon">❓</span>等待回答</span><span class="time">刚刚</span></div>' +
+      '<div class="body">并行迁移方案确认</div>' +
+      '<div class="acts"><button class="act primary">跳转</button><button class="act">知道了</button></div>'
+    document.getElementById('win').appendChild(t)
+    var primary = t.querySelector('.act.primary')
+    var dismiss = t.querySelector('.act:not(.primary)')
+    primary.addEventListener('click', function () { t.remove(); flashJump(n) })
+    dismiss.addEventListener('click', function () { t.remove() })
+    setTimeout(function () { if (t.isConnected) t.remove() }, 6000)
+    renderInbox()
+  }
+
+  // ── wiring ──
+  document.getElementById('tabInbox').addEventListener('click', function () {
+    document.getElementById('tabInbox').classList.add('active')
+    document.getElementById('tabSessions').classList.remove('active')
+    document.getElementById('inboxList').hidden = false
+    document.getElementById('sessionList').hidden = true
+    document.getElementById('footer').hidden = false
+  })
+  document.getElementById('tabSessions').addEventListener('click', function () {
+    document.getElementById('tabSessions').classList.add('active')
+    document.getElementById('tabInbox').classList.remove('active')
+    document.getElementById('inboxList').hidden = true
+    document.getElementById('sessionList').hidden = false
+    document.getElementById('footer').hidden = true
+  })
+  document.getElementById('settingsBtn').addEventListener('click', function () {
+    var p = document.getElementById('settingsPanel')
+    p.hidden = !p.hidden
+  })
+  document.getElementById('clearAllBtn').addEventListener('click', function () {
+    notes.forEach(function (n) { acked[n.id] = true })
+    renderInbox()
+  })
+  document.getElementById('demoToastBtn').addEventListener('click', demoToast)
+  document.getElementById('pinBtn').addEventListener('click', function () {
+    this.classList.toggle('on')
+  })
+
+  renderInbox()
+})()
+</script>
+</body>
+</html>

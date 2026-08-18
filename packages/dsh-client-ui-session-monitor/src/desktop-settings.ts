@@ -40,6 +40,11 @@ export interface MonitorSettingsWire {
   readonly notifyCurrent: boolean
   /** Show (and notify about) subagent sessions in the dashboard. */
   readonly showSubagents: boolean
+  /** Desktop inbox: mark a notification read automatically after 处理 jumps to it. */
+  readonly ackOnJump: boolean
+  /** Desktop inbox: auto-ack everything when the widget starts (default off —
+   *  opening the widget should surface what still needs attention). */
+  readonly autoAckOnOpen: boolean
 }
 
 /** Settings namespace owning the shared session-monitor options. */
@@ -58,4 +63,6 @@ export const MonitorSettingsSchema: z<MonitorSettingsWire> = z.object({
   showDone: z.boolean().default(true),
   notifyCurrent: z.boolean().default(false),
   showSubagents: z.boolean().default(false),
+  ackOnJump: z.boolean().default(true),
+  autoAckOnOpen: z.boolean().default(false),
 })

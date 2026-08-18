@@ -67,17 +67,44 @@
   所有设置与面板位置都持久化到 `localStorage`。开启「只显示忙碌中」时时间范围
   暂不生效——配置面板会淡化该选项并提示"关掉后立即生效"，值仍可预先配置。
 
+## 桌面挂件（通知列表）
+
+Host 半另托管一个**独立挂件页**（`/_dsh/session-monitor/widget`，无框架自包含 HTML），
+供桌面壳（`desktop/dsh-session-desktop`，Tauri 小窗）加载，也兼容普通浏览器标签页。
+主功能是**会话通知列表（inbox）**，而不是会话状态列表：
+
+- **持久待办**：会话事件（等待审批 / 等待回答 / 等待审阅计划 / 出错 / 阻塞 / Token 上限 /
+  完成一轮 / 子代理完成 / 中止 / 中断，以及可选的标题变更、新会话）由 **Host 半折叠成
+  通知记录**（`src/desktop-notifications.ts`：幂等、上限 200、已读/已解决 7 天归档、
+  持久化到 harness settings 文档），窗口隐藏或重启后回来仍能看到——toast 负责「响了」，
+  inbox 负责「还没处理完」。
+- **分级排序**：P0 需要处理（审批/回答/计划/出错/阻塞/Token 上限）→ P1 值得看
+  （完成一轮/子代理/中止/中断）→ P2 信息流（默认关）；头部与 Tab 显示**未读徽标**。
+- **可已读**：行「处理」（跳转会话 + 默认自动已读）或「忽略」单条，底部「全部已读」；
+  已读 / 已解决（如审批已决定）折叠进「已读 (N)」区；`ackOnJump`（处理后自动已读）与
+  `autoAckOnOpen`（打开时自动全部已读）经 Host 与网页版共享。
+- **补盲区（host 检测）**：`question` / `plan-review` 不写会话日志，但必然经由工具调用
+  进入——Host 监听 `ask_user_question` / `exit_plan_mode` 的 `tool/call` → `tool/result`
+  即能自行看到这两类「等你处理」项（**纯桌面使用、网页未开也可见**）；网页客户端半的
+  relay（`dsh.smon.relay` 窗口事件 → `/_dsh/session-monitor/events`）保留为幂等备份。
+- **会话 Tab**：原会话列表原样保留为副视图（运行中置顶、时间窗口、子代理过滤等不变）。
+
 ## 结构
 
 ```
-src/index.ts                  # Host 半：turn/end 结束原因跟踪 + 状态路由
-src/client/index.ts           # 浏览器 apply + inject
+src/index.ts                  # Host 半：turn/end 原因跟踪 + 通知 inbox + 路由
+src/desktop-snapshot.ts       # 桌面会话快照折叠（/sessions 路由）
+src/desktop-settings.ts       # 共享设置命名空间 + schema（/settings 路由）
+src/desktop-notifications.ts  # 通知 inbox 存储（/notifications、ack、events 路由）
+src/widget-page.html          # 独立挂件页（inbox + 会话 Tab，内联进 Host bundle）
+src/client/index.ts           # 浏览器 apply + inject（设置镜像 / jump 消费 / relay）
 src/client/SessionMonitorWidget.tsx
 src/client/SessionMonitorWidget.module.css
 src/client/SessionSettings.tsx
 src/client/SessionSettings.module.css
 src/client/settings.ts        # 共享设置 / 位置持久化 + 提示音
 src/client/locales.ts         # 字典 NS `session-monitor`（zh / en）
+docs/                         # 通知列表重构设计稿 + 交互原型
 lib/index.js                  # Host 构建产物（ESM）
 lib/client.js                 # 浏览器构建产物（ModuleLoader CJS bundle）
 ```

@@ -108,17 +108,57 @@ rounds. Without the host half the widget still works (base notification kinds).
   once that switch is off (its value is still pre-configurable); all settings
   and the panel position persist to `localStorage`.
 
+## Desktop widget (notification inbox)
+
+The host half also serves a **standalone widget page**
+(`/_dsh/session-monitor/widget`, framework-free self-contained HTML) used by
+the desktop shell (`desktop/dsh-session-desktop`, a Tauri window) and usable as
+a plain browser tab. Its main view is a **session notification inbox** rather
+than a session list:
+
+- **Durable to-dos**: session events (approval / question / plan review /
+  error / blocked / token limit / round done / subagent done / aborted /
+  interrupted, plus optional title change and new-session) are folded into
+  notification records **on the Host** (`src/desktop-notifications.ts`:
+  idempotent, capped at 200, acked/resolved records archived after 7 days,
+  persisted into the harness settings document). Toasts tell you something
+  "happened"; the inbox keeps what you "haven't handled yet" across window
+  hides and restarts.
+- **Prioritized**: P0 needs your action (approval / question / plan review /
+  error / blocked / token limit) → P1 worth a glance (round done / subagent /
+  aborted / interrupted) → P2 info feed (off by default). An **unread badge**
+  sits in the header and on the tab.
+- **Ackable**: 处理 jumps to the session (auto-acking by default) or 忽略
+  acks one; 全部已读 clears everything. Acked / resolved records (e.g. an
+  approval that was decided) collapse into a "已读 (N)" group. `ackOnJump`
+  (auto-read after handle) and `autoAckOnOpen` (auto-read all on open) are
+  shared with the web side through the Host store.
+- **Blind spot closed (host-detected)**: `question` / `plan-review` never hit
+  the session log, but they are always entered through a model tool call — the
+  Host watches the `tool/call` → `tool/result` edges of `ask_user_question` and
+  `exit_plan_mode` and sees these "waiting for you" items itself (**visible in
+  pure-desktop use with no open web tab**). The web client half's relay
+  (`dsh.smon.relay` window event → `/_dsh/session-monitor/events`) remains as
+  an idempotent backup.
+- **Sessions tab**: the original session list is kept unchanged as the
+  secondary view (running-first, time window, subagent filtering, …).
+
 ## Structure
 
 ```
-src/index.ts                  # Host half: turn/end reason tracking + status route
-src/client/index.ts           # Browser apply + inject
+src/index.ts                  # Host half: turn/end reason tracking + inbox + routes
+src/desktop-snapshot.ts       # Desktop session snapshot folding (/sessions route)
+src/desktop-settings.ts       # Shared settings namespace + schema (/settings route)
+src/desktop-notifications.ts  # Notification inbox store (/notifications, ack, events routes)
+src/widget-page.html          # Standalone widget page (inbox + sessions tab, inlined into the host bundle)
+src/client/index.ts           # Browser apply + inject (settings mirror / jump consume / relay)
 src/client/SessionMonitorWidget.tsx
 src/client/SessionMonitorWidget.module.css
 src/client/SessionSettings.tsx
 src/client/SessionSettings.module.css
 src/client/settings.ts        # Shared settings / position persistence + chime
 src/client/locales.ts         # Dictionary namespace `session-monitor` (zh/en)
+docs/                         # Inbox redesign doc + interactive prototype
 lib/index.js                  # Host build artifact (ESM)
 lib/client.js                 # Browser build artifact (ModuleLoader CJS bundle)
 ```

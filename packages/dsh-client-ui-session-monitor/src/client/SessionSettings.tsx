@@ -153,6 +153,20 @@ export function SessionSettings({ t }: SessionSettingsInjected) {
           onChange={(e) => update({ showSubagents: e.target.checked })}
         />
       </Row>
+      <Row label={t('ackOnJumpLabel')} hint={t('ackOnJumpDesc')}>
+        <input
+          type="checkbox"
+          checked={settings.ackOnJump}
+          onChange={(e) => update({ ackOnJump: e.target.checked })}
+        />
+      </Row>
+      <Row label={t('autoAckOnOpenLabel')} hint={t('autoAckOnOpenDesc')}>
+        <input
+          type="checkbox"
+          checked={settings.autoAckOnOpen}
+          onChange={(e) => update({ autoAckOnOpen: e.target.checked })}
+        />
+      </Row>
       <Row label={t('runningOnlyLabel')} hint={t('runningOnlyDesc')}>
         <input
           type="checkbox"

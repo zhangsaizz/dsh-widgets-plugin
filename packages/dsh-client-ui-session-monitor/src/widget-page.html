@@ -11,9 +11,12 @@
      monitors read the same. The page is designed for a transparent,
      frameless, always-on-top desktop window (Tauri shell), but also works
      as a plain browser tab.
+     Main view: the notification INBOX (session events that may need the
+     user's attention, durable + ackable — see desktop-notifications.ts).
+     Secondary view: the session list (the original monitor, unchanged).
      Settings are SHARED with the web widget via the Host store
-     (/_dsh/session-monitor/settings); only the refresh interval is
-     desktop-local. */
+     (/_dsh/session-monitor/settings); only the refresh interval and the
+     inbox level toggles are desktop-local. */
   :root { color-scheme: dark; }
   * { box-sizing: border-box; margin: 0; padding: 0; }
   /* The hidden attribute must always win, even against class rules that set
@@ -71,7 +74,7 @@
     display: flex;
     align-items: center;
     gap: 8px;
-    padding: 9px 8px 9px 14px;
+    padding: 9px 8px 8px 14px;
     border-bottom: 1px solid rgba(255, 255, 255, 0.08);
     flex: none;
   }
@@ -91,16 +94,21 @@
     font-weight: 600;
     letter-spacing: 0.02em;
   }
-  .count {
-    flex: 1;
-    min-width: 0;
-    text-align: right;
-    font-size: 11px;
-    color: rgba(232, 234, 240, 0.62);
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
+  .badge {
+    flex: none;
+    min-width: 17px;
+    height: 17px;
+    padding: 0 5px;
+    border-radius: 9px;
+    background: #ff6b6b;
+    color: #fff;
+    font-size: 10.5px;
+    font-weight: 700;
+    line-height: 17px;
+    text-align: center;
+    box-shadow: 0 0 10px rgba(255, 107, 107, 0.45);
   }
+  .spacer { flex: 1; }
   .iconBtn {
     flex: none;
     width: 24px;
@@ -117,6 +125,50 @@
   .iconBtn:hover { background: rgba(255, 255, 255, 0.1); color: #e8eaf0; }
   .iconBtn.on { color: #4f8cff; }
 
+  /* ── tab bar ────────────────────────────────────────── */
+  .tabs {
+    flex: none;
+    display: flex;
+    gap: 4px;
+    padding: 6px 10px 4px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  }
+  .tab {
+    flex: 1;
+    padding: 5px 0;
+    border: none;
+    border-radius: 8px;
+    background: transparent;
+    color: rgba(232, 234, 240, 0.6);
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    position: relative;
+  }
+  .tab:hover { background: rgba(255, 255, 255, 0.06); }
+  .tab.active { background: rgba(255, 255, 255, 0.1); color: #e8eaf0; }
+  .tab.active::after {
+    content: '';
+    position: absolute;
+    left: 30%; right: 30%; bottom: -5px;
+    height: 2px;
+    border-radius: 1px;
+    background: #4f8cff;
+  }
+  .tab .tabBadge {
+    display: inline-block;
+    min-width: 15px;
+    height: 15px;
+    padding: 0 4px;
+    margin-left: 5px;
+    border-radius: 8px;
+    background: #ff6b6b;
+    color: #fff;
+    font-size: 10px;
+    font-weight: 700;
+    line-height: 15px;
+  }
+
   /* ── status banner ──────────────────────────────────── */
   .banner {
     flex: none;
@@ -129,7 +181,13 @@
     border: 1px solid rgba(255, 107, 107, 0.25);
   }
 
-  /* ── session list ───────────────────────────────────── */
+  /* ── views ──────────────────────────────────────────── */
+  .view {
+    flex: 1 1 auto;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+  }
   .list {
     flex: 1 1 auto;
     min-height: 0;
@@ -146,6 +204,110 @@
     font-size: 12px;
     color: rgba(232, 234, 240, 0.5);
   }
+  .empty .big { font-size: 22px; display: block; margin-bottom: 6px; }
+  .footer {
+    flex: none;
+    padding: 6px 10px;
+    border-top: 1px solid rgba(255, 255, 255, 0.08);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    font-size: 10.5px;
+    color: rgba(232, 234, 240, 0.5);
+  }
+  .textBtn {
+    border: none;
+    border-radius: 6px;
+    padding: 3px 10px;
+    font-size: 10.5px;
+    font-weight: 600;
+    cursor: pointer;
+    color: #e8eaf0;
+    background: rgba(255, 255, 255, 0.1);
+  }
+  .textBtn:hover { background: rgba(255, 255, 255, 0.16); }
+  .textBtn:disabled { opacity: 0.4; cursor: default; }
+
+  /* ── notification rows ──────────────────────────────── */
+  .nrow {
+    --accent: #f5b544;
+    display: flex;
+    gap: 9px;
+    padding: 7px 8px;
+    border-radius: 9px;
+    cursor: pointer;
+    position: relative;
+  }
+  .nrow:hover { background: rgba(255, 255, 255, 0.07); }
+  .nrow.unread { border-left: 3px solid var(--accent); background: rgba(255, 255, 255, 0.03); }
+  .nrow.read { opacity: 0.55; }
+  .nrow .icon {
+    flex: none;
+    width: 20px;
+    height: 20px;
+    border-radius: 6px;
+    font-size: 11px;
+    line-height: 20px;
+    text-align: center;
+    background: rgba(255, 255, 255, 0.07);
+    color: var(--accent);
+    font-style: normal;
+  }
+  .nrow .main { flex: 1; min-width: 0; }
+  .nrow .kindRow { display: flex; align-items: center; gap: 6px; }
+  .nrow .kind { font-size: 11px; font-weight: 700; color: var(--accent); }
+  .nrow .tag {
+    font-size: 9px;
+    line-height: 1.5;
+    padding: 0 4px;
+    border-radius: 3px;
+    font-weight: 600;
+    background: rgba(255, 255, 255, 0.1);
+    color: rgba(232, 234, 240, 0.62);
+  }
+  .nrow .tag.p0 { background: rgba(255, 107, 107, 0.16); color: #ff8f8f; }
+  .nrow .tag.p1 { background: rgba(245, 181, 68, 0.14); color: #f5b544; }
+  .nrow .tag.p2 { background: rgba(255, 255, 255, 0.1); color: rgba(232, 234, 240, 0.55); }
+  .nrow .tag.resolved { background: rgba(61, 214, 140, 0.14); color: #3dd68c; }
+  .nrow .round { font-size: 9.5px; color: rgba(232, 234, 240, 0.45); }
+  .nrow .sessTitle {
+    font-size: 11.5px;
+    margin-top: 2px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .nrow .meta { display: flex; align-items: center; gap: 8px; margin-top: 3px; }
+  .nrow .time { font-size: 10px; color: rgba(232, 234, 240, 0.4); }
+  .nrow .actions { margin-left: auto; display: flex; gap: 5px; flex: none; }
+  .act {
+    border: none;
+    border-radius: 6px;
+    padding: 3px 9px;
+    font-size: 10.5px;
+    font-weight: 600;
+    cursor: pointer;
+    color: #e8eaf0;
+    background: rgba(255, 255, 255, 0.1);
+  }
+  .act:hover { background: rgba(255, 255, 255, 0.18); }
+  .act.primary { background: #4f8cff; color: #fff; }
+  .act.primary:hover { filter: brightness(1.1); }
+  .readGroup { border-top: 1px dashed rgba(255, 255, 255, 0.12); margin-top: 4px; padding-top: 4px; }
+  .readToggle {
+    width: 100%;
+    border: none;
+    background: none;
+    cursor: pointer;
+    padding: 5px 8px;
+    text-align: left;
+    font-size: 10.5px;
+    color: rgba(232, 234, 240, 0.5);
+  }
+  .readToggle:hover { color: #e8eaf0; }
+
+  /* ── session rows (original monitor) ────────────────── */
   .row {
     display: flex;
     align-items: flex-start;
@@ -188,7 +350,7 @@
     margin-top: 3px;
     flex-wrap: wrap;
   }
-  .badge {
+  .badgeSm {
     flex: none;
     font-size: 10px;
     line-height: 1.4;
@@ -215,26 +377,15 @@
     margin-left: auto;
     white-space: nowrap;
   }
-  .footer {
-    flex: none;
-    padding: 6px 10px;
-    border-top: 1px solid rgba(255, 255, 255, 0.08);
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 8px;
-    font-size: 10.5px;
-    color: rgba(232, 234, 240, 0.5);
-  }
 
   /* ── settings popover ───────────────────────────────── */
   .settings {
     position: absolute;
     right: 10px;
-    top: 44px;
+    top: 76px;
     z-index: 20;
-    width: 236px;
-    max-height: calc(100% - 56px);
+    width: 240px;
+    max-height: calc(100% - 88px);
     overflow-y: auto;
     padding: 12px;
     border: 1px solid rgba(255, 255, 255, 0.14);
@@ -249,6 +400,13 @@
     font-size: 12px;
     scrollbar-width: thin;
     scrollbar-color: rgba(255, 255, 255, 0.18) transparent;
+  }
+  .settings .sec {
+    font-size: 10px;
+    color: rgba(232, 234, 240, 0.4);
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    margin-top: 4px;
   }
   .settings label { display: flex; flex-direction: column; gap: 4px; color: rgba(232, 234, 240, 0.72); }
   .settings label.check { flex-direction: row; align-items: center; gap: 6px; cursor: pointer; }
@@ -372,16 +530,31 @@
     <header class="header" id="header">
       <span class="titleDot"></span>
       <span class="title">会话监控</span>
-      <span class="count" id="count"></span>
+      <span class="badge" id="unreadBadge" hidden>0</span>
+      <span class="spacer"></span>
       <button class="iconBtn" id="pinBtn" title="置顶">📌</button>
       <button class="iconBtn" id="settingsBtn" title="设置">⚙</button>
       <button class="iconBtn" id="closeBtn" title="隐藏">✕</button>
     </header>
+    <div class="tabs">
+      <button class="tab active" id="tabInbox">待处理<span class="tabBadge" id="tabInboxBadge" hidden>0</span></button>
+      <button class="tab" id="tabSessions">会话</button>
+    </div>
     <div class="banner" id="banner" hidden>连接 Harness 失败，正在重试…</div>
-    <div class="list" id="list"></div>
-    <div class="empty" id="empty" hidden>暂无活动会话</div>
-    <div class="footer" id="footer" hidden>
-      <span id="footerHint"></span>
+    <div class="view" id="inboxView">
+      <div class="list" id="inboxList"></div>
+      <div class="empty" id="inboxEmpty" hidden><span class="big">✓</span>没有需要处理的事项</div>
+      <div class="footer" id="inboxFooter">
+        <span id="inboxFooterHint"></span>
+        <button class="textBtn" id="ackAllBtn">全部已读</button>
+      </div>
+    </div>
+    <div class="view" id="sessionView" hidden>
+      <div class="list" id="sessionList"></div>
+      <div class="empty" id="sessionEmpty" hidden>暂无活动会话</div>
+      <div class="footer" id="sessionFooter">
+        <span id="sessionFooterHint"></span>
+      </div>
     </div>
     <div class="settings" id="settingsPanel" hidden>
       <span class="hint">以下选项与网页版共享，两边改动实时同步</span>
@@ -401,6 +574,12 @@
       <label>时间范围（分钟，0=全部）
         <input type="number" id="setWindow" min="0" step="5" />
       </label>
+      <span class="sec">待处理通知</span>
+      <label class="check"><input type="checkbox" id="setInboxP0" /> 需要处理（审批/回答/计划/出错等）</label>
+      <label class="check"><input type="checkbox" id="setInboxP1" /> 值得看（完成一轮/子代理等）</label>
+      <label class="check"><input type="checkbox" id="setInboxP2" /> 信息流（标题变更/新会话）</label>
+      <label class="check"><input type="checkbox" id="setAckOnJump" /> 处理后自动已读</label>
+      <label class="check"><input type="checkbox" id="setAutoAckOnOpen" /> 打开时自动全部已读</label>
       <span class="hint">以下为本挂件独有</span>
       <label>刷新间隔
         <select id="setPoll">
@@ -423,8 +602,11 @@
   var STATUS_URL = '/_dsh/session-monitor/status'
   var SETTINGS_URL = '/_dsh/session-monitor/settings'
   var JUMP_URL = '/_dsh/session-monitor/jump'
-  // Desktop-local cache: last-known shared settings + the refresh interval.
-  // The shared fields live on the Host store; only pollMs is purely local.
+  var NOTIFICATIONS_URL = '/_dsh/session-monitor/notifications'
+  var NOTIFICATIONS_ACK_URL = '/_dsh/session-monitor/notifications/ack'
+  // Desktop-local cache: last-known shared settings + the refresh interval +
+  // the inbox level toggles. The shared fields live on the Host store; only
+  // pollMs and inboxLevels are purely local.
   var CACHE_KEY = 'dsh.smon.desktop.settings'
   var MAX_AUTO_TOASTS = 5
   var MAX_CONFIRM_TOASTS = 12
@@ -441,16 +623,41 @@
     showDone: true,
     notifyCurrent: false,
     showSubagents: false,
+    ackOnJump: true,
+    autoAckOnOpen: false,
   }
+  // Desktop-local: which notification levels enter the inbox.
+  var LEVEL_DEFAULTS = { p0: true, p1: true, p2: false }
   var POLL_DEFAULT_MS = 2000
   var SETTINGS_SYNC_MS = 5000
 
-  var shared = {}          // effective shared settings (10 fields, from server)
+  // Inbox kind metadata: label / icon / accent color / level. Colors reuse the
+  // toast palette so the two surfaces read the same.
+  var KINDS = {
+    approval:      { label: '等待审批',     icon: '⏳', color: '#ff9f43', level: 'p0' },
+    question:      { label: '等待回答',     icon: '❓', color: '#4f8cff', level: 'p0' },
+    'plan-review': { label: '等待审阅计划', icon: '📋', color: '#b388ff', level: 'p0' },
+    error:         { label: '本轮出错',     icon: '✕',  color: '#ff6b6b', level: 'p0' },
+    blocked:       { label: '已阻塞',       icon: '⚠',  color: '#ff9f43', level: 'p0' },
+    'max-tokens':  { label: 'Token 上限',   icon: '⛶',  color: '#4dd0e1', level: 'p0' },
+    subagent:      { label: '子代理完成',   icon: '⇄',  color: '#b388ff', level: 'p1' },
+    done:          { label: '完成一轮',     icon: '✓',  color: '#f5b544', level: 'p1' },
+    aborted:       { label: '已中止',       icon: '⏹',  color: '#9aa0ab', level: 'p1' },
+    interrupted:   { label: '已中断',       icon: '⏸',  color: '#7d93c4', level: 'p1' },
+    title:         { label: '标题变更',     icon: '✎',  color: '#8b91a0', level: 'p2' },
+    'new-session': { label: '新会话',       icon: '＋', color: '#7d93c4', level: 'p2' },
+  }
+
+  var shared = {}          // effective shared settings (12 fields, from server)
+  var inboxLevels = {}     // { p0, p1, p2 } booleans (desktop-local)
   var pollMs = POLL_DEFAULT_MS
   var sessions = []        // latest snapshot rows
   var reasons = {}         // sessionId -> { reason, at, round }
   var prevRunning = {}     // sessionId -> true while running (edge detection)
   var lastToastedRound = {} // sessionId -> round already notified
+  var notes = []           // latest inbox records (server order, oldest first)
+  var tab = 'inbox'        // 'inbox' | 'sessions'
+  var autoAcked = false    // autoAckOnOpen already ran for this boot
   var failCount = 0
   var toastSeq = 0
   var pinOn = true
@@ -508,6 +715,7 @@
     try { stored = JSON.parse(localStorage.getItem(CACHE_KEY) || 'null') } catch (e) { /* ignore */ }
     var settings = {}
     for (var key in DEFAULTS) settings[key] = DEFAULTS[key]
+    for (var lvl in LEVEL_DEFAULTS) inboxLevels[lvl] = LEVEL_DEFAULTS[lvl]
     if (stored && typeof stored === 'object') {
       if (stored.settings && typeof stored.settings === 'object') {
         for (var key in DEFAULTS) {
@@ -518,24 +726,35 @@
         }
       }
       if (typeof stored.pollMs === 'number') pollMs = stored.pollMs
+      if (stored.inboxLevels && typeof stored.inboxLevels === 'object') {
+        for (var lvl in LEVEL_DEFAULTS) {
+          var lv = stored.inboxLevels[lvl]
+          if (typeof lv === 'boolean') inboxLevels[lvl] = lv
+        }
+      }
     }
     shared = settings
   }
 
   function saveCache() {
     try {
-      localStorage.setItem(CACHE_KEY, JSON.stringify({ settings: shared, pollMs: pollMs }))
+      localStorage.setItem(CACHE_KEY, JSON.stringify({ settings: shared, pollMs: pollMs, inboxLevels: inboxLevels }))
     } catch (e) { /* ignore */ }
   }
 
   function applyEffective() {
     if (pollTimer) clearInterval(pollTimer)
-    pollTimer = setInterval(pollSessions, pollMs)
+    pollTimer = setInterval(pollAll, pollMs)
+  }
+
+  function pollAll() {
+    pollSessions()
+    pollNotifications()
   }
 
   /** Merge a patch into the shared settings, persist to the Host store and
-   *  cache. The full 10-field blob is sent so untouched web-side fields
-   *  (browserNotify / showDone / notifyCurrent) survive the write. */
+   *  cache. The full 12-field blob is sent so untouched web-side fields
+   *  survive the write. */
   function saveSharedSettings(patch) {
     for (var key in patch) {
       if (key in DEFAULTS) shared[key] = patch[key]
@@ -577,6 +796,11 @@
     document.getElementById('setRunningOnly').checked = !!shared.runningOnly
     document.getElementById('setSubagents').checked = !!shared.showSubagents
     document.getElementById('setWindow').value = String(shared.timeWindowMin)
+    document.getElementById('setInboxP0').checked = !!inboxLevels.p0
+    document.getElementById('setInboxP1').checked = !!inboxLevels.p1
+    document.getElementById('setInboxP2').checked = !!inboxLevels.p2
+    document.getElementById('setAckOnJump').checked = shared.ackOnJump !== false
+    document.getElementById('setAutoAckOnOpen').checked = !!shared.autoAckOnOpen
     document.getElementById('setPoll').value = String(pollMs)
   }
 
@@ -607,12 +831,12 @@
         if (rows[j].running) prevRunning[rows[j].sessionId] = true
       }
       sessions = rows
-      render()
+      renderSessions()
     }).catch(function () {
       failCount++
       if (failCount >= 2) document.getElementById('banner').hidden = false
       sessions = []
-      render()
+      renderSessions()
     })
   }
 
@@ -622,6 +846,197 @@
     }).catch(function () {
       reasons = {}
     })
+  }
+
+  // ── inbox ────────────────────────────────────────────────────
+  function pollNotifications() {
+    fetchJSON(NOTIFICATIONS_URL).then(function (snap) {
+      var value = snap && snap.value
+      if (!value || !Array.isArray(value.notes)) return
+      notes = value.notes
+      renderInbox()
+      // One-shot: "auto-ack everything on open" (shared setting).
+      if (!autoAcked && shared.autoAckOnOpen === true) {
+        autoAcked = true
+        ackAll()
+      }
+    }).catch(function () { /* keep last list */ })
+  }
+
+  /** Is this record still waiting on the user (not acked and not resolved)? */
+  function isUnread(note) {
+    return !note.ackedAt && !note.resolved
+  }
+
+  /** Stable per-record signature — re-render only when something visible
+   *  changed (status, kind, minute-granularity recency). */
+  function noteSignature(note) {
+    return [
+      note.id, note.kind, note.title || '',
+      isUnread(note) ? 1 : 0, note.resolved ? 1 : 0,
+      Math.floor(note.at / 60000),
+    ].join('|')
+  }
+
+  function renderInbox() {
+    var visible = []
+    var hiddenByLevel = 0
+    for (var i = 0; i < notes.length; i++) {
+      var note = notes[i]
+      var kind = KINDS[note.kind]
+      if (!kind) { hiddenByLevel++; continue }
+      if (!inboxLevels[kind.level]) { hiddenByLevel++; continue }
+      visible.push(note)
+    }
+    // Newest first.
+    visible.reverse()
+
+    var unread = 0
+    var readCount = 0
+    for (var j = 0; j < visible.length; j++) {
+      if (isUnread(visible[j])) unread++
+      else readCount++
+    }
+
+    // Unread badge (header + tab).
+    document.getElementById('unreadBadge').hidden = unread === 0
+    document.getElementById('unreadBadge').textContent = String(unread)
+    document.getElementById('tabInboxBadge').hidden = unread === 0
+    document.getElementById('tabInboxBadge').textContent = String(unread)
+    document.getElementById('ackAllBtn').disabled = unread === 0
+
+    var sig = visible.map(noteSignature).join('\n')
+    if (sig === lastInboxSig) return
+    lastInboxSig = sig
+
+    var list = document.getElementById('inboxList')
+    list.innerHTML = ''
+    if (visible.length === 0) {
+      document.getElementById('inboxEmpty').hidden = false
+      document.getElementById('inboxFooterHint').textContent = ''
+      return
+    }
+    document.getElementById('inboxEmpty').hidden = true
+
+    for (var k = 0; k < visible.length; k++) {
+      var item = visible[k]
+      if (!isUnread(item)) break
+      list.appendChild(noteRow(item))
+    }
+    if (readCount > 0) {
+      var group = document.createElement('div')
+      group.className = 'readGroup'
+      var toggle = document.createElement('button')
+      toggle.className = 'readToggle'
+      var open = false
+      toggle.textContent = '── 已读 (' + readCount + ') ▸'
+      var wrap = document.createElement('div')
+      wrap.hidden = true
+      for (var m = 0; m < visible.length; m++) {
+        var done = visible[m]
+        if (isUnread(done)) continue
+        wrap.appendChild(noteRow(done))
+      }
+      toggle.addEventListener('click', function () {
+        open = !open
+        wrap.hidden = !open
+        toggle.textContent = '── 已读 (' + readCount + ') ' + (open ? '▾' : '▸')
+      })
+      group.appendChild(toggle)
+      group.appendChild(wrap)
+      list.appendChild(group)
+    }
+
+    document.getElementById('inboxFooterHint').textContent =
+      hiddenByLevel > 0 ? '已按级别隐藏 ' + hiddenByLevel + ' 条' : ''
+  }
+  var lastInboxSig = null
+
+  function noteRow(note) {
+    var kind = KINDS[note.kind] || KINDS.done
+    var read = !isUnread(note)
+    var el = document.createElement('div')
+    el.className = 'nrow ' + (read ? 'read' : 'unread')
+    el.style.setProperty('--accent', kind.color)
+    var round = note.round ? '<span class="round">第 ' + note.round + ' 轮</span>' : ''
+    var resolvedTag = note.resolved ? '<span class="tag resolved">已处理</span>' : ''
+    var actions = read ? ''
+      : '<button class="act primary">处理</button><button class="act">忽略</button>'
+    el.innerHTML =
+      '<span class="icon">' + kind.icon + '</span>' +
+      '<div class="main">' +
+        '<div class="kindRow"><span class="kind">' + esc(kind.label) + '</span>' +
+          '<span class="tag ' + kind.level + '">' + kind.level.toUpperCase() + '</span>' +
+          round + resolvedTag + '</div>' +
+        '<div class="sessTitle">' + esc(note.title || note.sessionId) + '</div>' +
+        '<div class="meta"><span class="time">' + esc(relTime(note.at, Date.now())) + '</span>' +
+          '<span class="actions">' + actions + '</span></div>' +
+      '</div>'
+    var primary = el.querySelector('.act.primary')
+    if (primary) primary.addEventListener('click', function (ev) {
+      ev.stopPropagation()
+      handleNote(note)
+    })
+    var ignore = el.querySelector('.act:not(.primary)')
+    if (ignore) ignore.addEventListener('click', function (ev) {
+      ev.stopPropagation()
+      ackNote(note.id)
+    })
+    el.addEventListener('click', function () {
+      if (!read) handleNote(note)
+    })
+    el.title = note.sessionId
+    return el
+  }
+
+  /** 处理: jump to the session (existing jump queue), then ack per setting. */
+  function handleNote(note) {
+    openSession(note.sessionId)
+    if (shared.ackOnJump !== false) ackNote(note.id)
+  }
+
+  /** Ack one record locally + persist to the Host store. */
+  function ackNote(id) {
+    for (var i = 0; i < notes.length; i++) {
+      if (notes[i].id === id && !notes[i].ackedAt) {
+        notes[i] = Object.assign({}, notes[i], { ackedAt: Date.now() })
+      }
+    }
+    lastInboxSig = null
+    renderInbox()
+    fetchJSON(NOTIFICATIONS_ACK_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ids: [id] }),
+    }).catch(function () {})
+  }
+
+  /** Ack every record (button + autoAckOnOpen). */
+  function ackAll() {
+    var now = Date.now()
+    var changed = false
+    notes = notes.map(function (note) {
+      if (note.ackedAt || note.resolved) return note
+      changed = true
+      return Object.assign({}, note, { ackedAt: now })
+    })
+    if (changed) {
+      lastInboxSig = null
+      renderInbox()
+    }
+    fetchJSON(NOTIFICATIONS_ACK_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ all: true }),
+    }).catch(function () {})
+  }
+
+  function setTab(next) {
+    tab = next
+    document.getElementById('tabInbox').classList.toggle('active', next === 'inbox')
+    document.getElementById('tabSessions').classList.toggle('active', next === 'sessions')
+    document.getElementById('inboxView').hidden = next !== 'inbox'
+    document.getElementById('sessionView').hidden = next !== 'sessions'
   }
 
   // ── round-completion toasts ──────────────────────────────────
@@ -714,7 +1129,7 @@
     } catch (e) { /* audio unavailable */ }
   }
 
-  // ── rendering ─────────────────────────────────────────────────
+  // ── sessions rendering (original monitor) ────────────────────
   var lastSig = null
 
   /** Stable per-row signature: re-render only when something visible changed
@@ -729,8 +1144,7 @@
     ].join('|')
   }
 
-  function render() {
-    renderPin()
+  function renderSessions() {
     var rows = sessions.slice()
     var now = Date.now()
 
@@ -756,26 +1170,21 @@
     })
 
     var runningCount = rows.filter(function (r) { return r.running }).length
-    document.getElementById('count').textContent = sessions.length === 0 ? '' : (runningCount + ' 运行中 · ' + sessions.length + ' 全部')
+    var parts = [runningCount + ' 运行中', rows.length + ' 显示']
+    if (hidden > 0) parts.push('已隐藏 ' + hidden + ' 个更早')
+    document.getElementById('sessionFooterHint').textContent = parts.join(' · ')
 
     // Diff: keep the DOM untouched when the visible rows are unchanged.
     var sig = rows.map(rowSignature).join('\n')
     if (sig === lastSig) return
     lastSig = sig
 
-    var list = document.getElementById('list')
+    var list = document.getElementById('sessionList')
     list.innerHTML = ''
     for (var i = 0; i < rows.length; i++) {
       list.appendChild(rowEl(rows[i], now))
     }
-    document.getElementById('empty').hidden = rows.length > 0
-    var footer = document.getElementById('footer')
-    if (hidden > 0) {
-      document.getElementById('footerHint').textContent = '已隐藏 ' + hidden + ' 个更早的会话'
-      footer.hidden = false
-    } else {
-      footer.hidden = true
-    }
+    document.getElementById('sessionEmpty').hidden = rows.length > 0
   }
 
   function rowEl(row, now) {
@@ -789,8 +1198,8 @@
     else statusText = '空闲'
 
     var meta = '<span class="status' + statusClass + '">' + esc(statusText) + '</span>'
-    if (row.subagents > 0) meta += '<span class="badge subBadge">子×' + row.subagents + '</span>'
-    if (row.pending) meta += '<span class="badge pendingBadge">⏳ 待审批</span>'
+    if (row.subagents > 0) meta += '<span class="badgeSm subBadge">子×' + row.subagents + '</span>'
+    if (row.pending) meta += '<span class="badgeSm pendingBadge">⏳ 待审批</span>'
 
     el.innerHTML =
       '<span class="dot ' + dotClass + '"></span>' +
@@ -807,6 +1216,12 @@
   function renderPin() {
     document.getElementById('pinBtn').classList.toggle('on', !!pinOn)
     document.getElementById('pinBtn').title = pinOn ? '取消置顶' : '置顶'
+  }
+
+  function render() {
+    renderPin()
+    renderSessions()
+    renderInbox()
   }
 
   // ── jump to a session (server-mediated) ───────────────────────
@@ -884,15 +1299,20 @@
       panel.hidden = !panel.hidden
       if (!panel.hidden) { pollSettings(); applyPanelUI() }
     })
+    document.getElementById('tabInbox').addEventListener('click', function () { setTab('inbox') })
+    document.getElementById('tabSessions').addEventListener('click', function () { setTab('sessions') })
+    document.getElementById('ackAllBtn').addEventListener('click', ackAll)
 
     document.getElementById('resetBtn').addEventListener('click', function () {
       var fresh = {}
       for (var key in DEFAULTS) fresh[key] = DEFAULTS[key]
       saveSharedSettings(fresh)
+      for (var lvl in LEVEL_DEFAULTS) inboxLevels[lvl] = LEVEL_DEFAULTS[lvl]
       pollMs = POLL_DEFAULT_MS
       saveCache()
       applyEffective()
       applyPanelUI()
+      render()
     })
 
     function bindCheck(id, key) {
@@ -915,11 +1335,27 @@
     bindCheck('setSound', 'sound')
     bindCheck('setRunningOnly', 'runningOnly')
     bindCheck('setSubagents', 'showSubagents')
+    bindCheck('setAckOnJump', 'ackOnJump')
+    bindCheck('setAutoAckOnOpen', 'autoAckOnOpen')
     bindNumber('setAutoDismiss', 'autoDismissSec')
     bindNumber('setWindow', 'timeWindowMin')
     document.getElementById('setNotifyMode').addEventListener('change', function (e) {
       saveSharedSettings({ notifyMode: e.target.value === 'confirm' ? 'confirm' : 'auto' })
     })
+
+    // Desktop-local inbox level toggles.
+    function bindLevel(id, lvl) {
+      document.getElementById(id).addEventListener('change', function (e) {
+        inboxLevels[lvl] = e.target.checked
+        saveCache()
+        lastInboxSig = null
+        renderInbox()
+      })
+    }
+    bindLevel('setInboxP0', 'p0')
+    bindLevel('setInboxP1', 'p1')
+    bindLevel('setInboxP2', 'p2')
+
     document.getElementById('setPoll').addEventListener('change', function (e) {
       pollMs = parseInt(e.target.value, 10) || POLL_DEFAULT_MS
       saveCache()
@@ -937,9 +1373,10 @@
     loadCache()
     applyEffective()
     applyPanelUI()
+    setTab('inbox')
     pollSettings()
     pollReasons()
-    pollSessions()
+    pollAll()
     setInterval(pollReasons, 3000)
     if (settingsTimer) clearInterval(settingsTimer)
     settingsTimer = setInterval(pollSettings, SETTINGS_SYNC_MS)

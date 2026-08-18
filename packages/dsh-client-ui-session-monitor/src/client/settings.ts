@@ -34,6 +34,11 @@ export interface MonitorSettings {
   notifyCurrent: boolean
   /** Show (and notify about) subagent sessions in the dashboard; off filters them out. */
   showSubagents: boolean
+  /** Desktop inbox: mark a notification read automatically after 处理 jumps to it. */
+  ackOnJump: boolean
+  /** Desktop inbox: auto-ack everything when the widget starts (default off —
+   *  opening the widget should surface what still needs attention). */
+  autoAckOnOpen: boolean
 }
 
 /** Factory defaults — the config panel's "重置设置" target. */
@@ -48,6 +53,8 @@ export const DEFAULT_SETTINGS: MonitorSettings = {
   showDone: true,
   notifyCurrent: false,
   showSubagents: false,
+  ackOnJump: true,
+  autoAckOnOpen: false,
 }
 
 /** localStorage key holding the whole settings blob. */
@@ -83,6 +90,8 @@ export function loadSettings(): MonitorSettings {
       showDone: typeof s.showDone === 'boolean' ? s.showDone : DEFAULT_SETTINGS.showDone,
       notifyCurrent: typeof s.notifyCurrent === 'boolean' ? s.notifyCurrent : DEFAULT_SETTINGS.notifyCurrent,
       showSubagents: typeof s.showSubagents === 'boolean' ? s.showSubagents : DEFAULT_SETTINGS.showSubagents,
+      ackOnJump: typeof s.ackOnJump === 'boolean' ? s.ackOnJump : DEFAULT_SETTINGS.ackOnJump,
+      autoAckOnOpen: typeof s.autoAckOnOpen === 'boolean' ? s.autoAckOnOpen : DEFAULT_SETTINGS.autoAckOnOpen,
     }
   } catch {
     return { ...DEFAULT_SETTINGS }

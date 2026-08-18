@@ -14,9 +14,12 @@
 import type { Context } from '@deepseek-ai/cordis'
 // Type-only: pulls the `webServer` service merge onto Context (dsh-host-webserver).
 import type {} from '@deepseek-ai/dsh-host-webserver'
-import { buildDesktopSnapshot } from './desktop-snapshot.ts'
+import type { Session } from '@deepseek-ai/dsh-session'
+import { buildDesktopSnapshot, eventsOf, lastTitle } from './desktop-snapshot.ts'
 import { MONITOR_SETTINGS_NS, MonitorSettingsSchema } from './desktop-settings.ts'
 import type { MonitorSettingsWire } from './desktop-settings.ts'
+import { INBOX_NS, InboxStoreSchema, NotificationStore } from './desktop-notifications.ts'
+import type { NotifyKind } from './desktop-notifications.ts'
 // Inlined by the host bundle build (esbuild `text` loader) — the standalone
 // desktop widget page (see ./widget-page.html for the full doc comment).
 import pageHtml from './widget-page.html'
@@ -49,6 +52,13 @@ export const JUMP_ROUTE = '/_dsh/session-monitor/jump'
  *  throttle `setInterval` (Chrome clamps it to ~1/min after a few minutes), so
  *  the jump consumer cannot rely on timers — a held fetch is never throttled. */
 export const JUMP_POLL_ROUTE = '/_dsh/session-monitor/jump/poll'
+/** Exact route for the desktop widget's notification inbox (GET snapshot). */
+export const NOTIFICATIONS_ROUTE = '/_dsh/session-monitor/notifications'
+/** Exact route acknowledging inbox records (POST { ids | sessionId | all }). */
+export const NOTIFICATIONS_ACK_ROUTE = '/_dsh/session-monitor/notifications/ack'
+/** Exact route relaying client-transient interaction pauses (question /
+ *  plan-review) from the web half to the inbox (POST, idempotent). */
+export const EVENTS_ROUTE = '/_dsh/session-monitor/events'
 
 /** Max remembered sessions; the oldest entry is dropped beyond this. */
 const MAX_RECORDS = 100
@@ -160,22 +170,197 @@ class TurnEndStore {
   }
 }
 
+/** Loose event view covering plugin-merged event types (`approval/asked`,
+ *  `approval/decided`, `session/title`) that are intentionally not in this
+ *  package's typecheck graph (see desktop-snapshot.ts). */
+interface LooseSessionEvent {
+  readonly type: string
+  readonly time: number
+  readonly data: {
+    readonly title?: string
+    readonly reason?: { readonly kind?: string }
+    readonly turn?: number
+    readonly name?: string
+    readonly callId?: string
+    readonly arguments?: string
+  }
+}
+
+/** Loose view of the parts of a session header the event handlers need. */
+interface LooseSessionHeader {
+  readonly origin?: 'subagent'
+  readonly parentSession?: string
+}
+
+/** Map a turn-end reason onto its inbox notification kind. */
+const REASON_NOTIFY_KIND: Record<string, NotifyKind> = {
+  completed: 'done',
+  aborted: 'aborted',
+  blocked: 'blocked',
+  error: 'error',
+  'max-tokens': 'max-tokens',
+  interrupted: 'interrupted',
+}
+
+/** Model tool names that block on a human answer (host-side question /
+ *  plan-review detection — these waits never hit the session log otherwise). */
+const ASK_TOOL_NAME = 'ask_user_question'
+const PLAN_REVIEW_TOOL_NAME = 'exit_plan_mode'
+
+/** Classify an ask_user_question call's pending kind from its arguments JSON:
+ *  a question item declaring `intent: { kind: 'plan-review', … }` is a plan
+ *  review (the same predicate the client applies at the wire boundary);
+ *  everything else is a plain question. */
+function questionKindFromArgs(raw: string | undefined): 'question' | 'plan-review' {
+  if (typeof raw !== 'string' || raw.length === 0) return 'question'
+  try {
+    const parsed = JSON.parse(raw) as { questions?: unknown }
+    if (!Array.isArray(parsed.questions)) return 'question'
+    for (const item of parsed.questions) {
+      if (item === null || typeof item !== 'object') continue
+      const intent = (item as { intent?: { kind?: unknown } }).intent
+      if (intent !== null && typeof intent === 'object' && intent.kind === 'plan-review') return 'plan-review'
+    }
+    return 'question'
+  } catch {
+    return 'question'
+  }
+}
+
 /**
- * Mount the monitoring half: record every `turn/end` reason, drop records for
- * disposed sessions, and attach the optional status route whenever a
- * `webServer` service is present (skipped on non-web profiles).
+ * Mount the monitoring half: record every `turn/end` reason, fold session
+ * events into the notification inbox (turn ends, approvals, titles, subagent
+ * completions), drop records for disposed sessions, and attach the optional
+ * routes whenever a `webServer` service is present (skipped on non-web
+ * profiles).
  * @param ctx - host context.
  */
 export function apply(ctx: Context): void {
   const store = new TurnEndStore()
+  const inbox = new NotificationStore()
+  /** Open-turn depth per session (turn/start +1, turn/end −1) — drives the
+   *  "subagent finished" edge (only the LAST turn end of a child notifies). */
+  const turnDepth = new Map<string, number>()
+  /** Last-seen title per session (used for the parent row of subagent notes). */
+  const titles = new Map<string, string>()
+  /** Open human-answer tool calls (callId → session + kind) so `tool/result`
+   *  (or a turn end) can resolve the matching inbox record. */
+  const openQuestions = new Map<string, { sessionId: string; kind: 'question' | 'plan-review' }>()
+
+  /** Resolve every open question wait of one session (answered via result, or
+   *  cancelled/aborted because the turn ended). */
+  const resolveOpenQuestions = (sessionId: string): void => {
+    for (const [callId, open] of openQuestions) {
+      if (open.sessionId === sessionId) {
+        openQuestions.delete(callId)
+        inbox.resolve(sessionId, open.kind)
+      }
+    }
+  }
+
+  /** Best-known title for a session: from its event log, then the cache. */
+  const titleOf = (session: { id: string }): string => {
+    const fromLog = lastTitle(eventsOf(session as Session))
+    if (fromLog !== undefined) {
+      titles.set(session.id, fromLog)
+      return fromLog
+    }
+    return titles.get(session.id) ?? ''
+  }
 
   ctx.on('session/event', (session: { id: string }, event: import('@deepseek-ai/dsh-session').SessionEvent) => {
-    if (event.type !== 'turn/end') return
-    store.upsert(session.id, { reason: event.data.reason.kind, at: event.time })
+    const ev = event as unknown as LooseSessionEvent
+    const header = (session as { header?: LooseSessionHeader }).header
+    const isSubagent = header?.origin === 'subagent'
+
+    if (ev.type === 'turn/start') {
+      turnDepth.set(session.id, (turnDepth.get(session.id) ?? 0) + 1)
+      return
+    }
+    if (ev.type === 'turn/end') {
+      store.upsert(session.id, { reason: ev.data.reason?.kind ?? 'completed', at: ev.time })
+      // A turn that ends closes every still-open human-answer wait (answered,
+      // cancelled, or aborted) — resolve them so no record dangles.
+      resolveOpenQuestions(session.id)
+      const depth = Math.max(0, (turnDepth.get(session.id) ?? 1) - 1)
+      turnDepth.set(session.id, depth)
+      if (isSubagent) {
+        // A subagent's finished turn notifies its parent, not itself — and only
+        // when it closed the child's LAST open turn (the child is done).
+        const parent = header?.parentSession
+        if (depth === 0 && parent !== undefined) {
+          inbox.push('subagent', parent, titles.get(parent) ?? parent, { at: ev.time })
+        }
+        return
+      }
+      const kind = REASON_NOTIFY_KIND[ev.data.reason?.kind ?? ''] ?? 'done'
+      inbox.push(kind, session.id, titleOf(session), { round: ev.data.turn, at: ev.time })
+      return
+    }
+    if (isSubagent) return // no other inbox kinds for subagent sessions
+
+    // Host-side question / plan-review detection: these waits are mux frames
+    // (never session-log events), but they are always entered through a model
+    // tool call — ask_user_question for questions, exit_plan_mode for plan
+    // review — so the tool call/result edges are the host signal. The web
+    // relay stays as a redundant backup (deduped by pushInteraction).
+    if (ev.type === 'tool/call') {
+      if (typeof ev.data.callId !== 'string') return
+      if (ev.data.name === PLAN_REVIEW_TOOL_NAME) {
+        if (openQuestions.has(ev.data.callId)) return
+        openQuestions.set(ev.data.callId, { sessionId: session.id, kind: 'plan-review' })
+        inbox.pushInteraction(session.id, 'plan-review', titleOf(session), ev.time)
+        return
+      }
+      if (ev.data.name === ASK_TOOL_NAME) {
+        if (openQuestions.has(ev.data.callId)) return
+        const kind = questionKindFromArgs(ev.data.arguments)
+        openQuestions.set(ev.data.callId, { sessionId: session.id, kind })
+        inbox.pushInteraction(session.id, kind, titleOf(session), ev.time)
+        return
+      }
+      return
+    }
+    if (ev.type === 'tool/result') {
+      if (typeof ev.data.callId !== 'string') return
+      const open = openQuestions.get(ev.data.callId)
+      if (open !== undefined) {
+        openQuestions.delete(ev.data.callId)
+        inbox.resolve(open.sessionId, open.kind)
+      }
+      return
+    }
+
+    if (ev.type === 'approval/asked') {
+      inbox.push('approval', session.id, titleOf(session), { at: ev.time })
+      return
+    }
+    if (ev.type === 'approval/decided') {
+      inbox.resolve(session.id, 'approval')
+      return
+    }
+    if (ev.type === 'session/title') {
+      const title = ev.data.title
+      if (typeof title === 'string' && title.length > 0) {
+        titles.set(session.id, title)
+        inbox.push('title', session.id, title, { id: `${session.id}:title`, at: ev.time })
+      }
+    }
+  })
+
+  ctx.on('session/created', (session: { id: string }) => {
+    const header = (session as { header?: LooseSessionHeader }).header
+    if (header?.origin === 'subagent') return
+    inbox.push('new-session', session.id, '', { id: `${session.id}:new-session` })
   })
 
   ctx.on('session/disposed', (session: { id: string }) => {
     store.remove(session.id)
+    turnDepth.delete(session.id)
+    titles.delete(session.id)
+    for (const [callId, open] of openQuestions) {
+      if (open.sessionId === session.id) openQuestions.delete(callId)
+    }
   })
 
   ctx.inject(['webServer', 'sessions', 'settings'], (webCtx) => {
@@ -184,6 +369,23 @@ export function apply(ctx: Context): void {
       // web half mirrors it into its localStorage, the desktop reads/writes it
       // directly — see desktop-settings.ts).
       const settingsScope = webCtx.settings.register(MONITOR_SETTINGS_NS, MonitorSettingsSchema)
+      // Notification inbox: persisted in its own settings section (survives
+      // webview/process restarts; shared with any future web-side consumer).
+      const inboxScope = webCtx.settings.register(INBOX_NS, InboxStoreSchema)
+      const storedInbox = inboxScope.get()
+      inbox.load(storedInbox.seq, storedInbox.notes)
+      let persistTimer: ReturnType<typeof setTimeout> | undefined
+      const persistInbox = (): void => {
+        if (persistTimer !== undefined) return
+        persistTimer = setTimeout(() => {
+          persistTimer = undefined
+          const payload = inbox.toJSON()
+          inboxScope.replace({ seq: payload.seq, notes: payload.notes }).catch((error) => {
+            webCtx.logger.warn(`session-monitor: inbox persist failed: ${String(error)}`)
+          })
+        }, 1000)
+      }
+      inbox.attach(persistInbox)
       let pendingJump: PendingJump | null = null
       /** Last heartbeat from an open Harness web tab (the client half pings). */
       let lastWebPingAt: number | null = null
@@ -346,10 +548,97 @@ export function apply(ctx: Context): void {
             })
           },
         }),
+        // Notification inbox: GET returns the full snapshot (seq + unread count
+        // + records). The desktop widget polls it like the session snapshot and
+        // diffs by record signature; a future web-side badge can read the same
+        // list. Records are capped/archived in the store.
+        webCtx.webServer.register({
+          kind: 'exact',
+          path: NOTIFICATIONS_ROUTE,
+          handler: (_req, res) => {
+            responseJson(res, 200, { ok: true, value: inbox.snapshot() })
+          },
+        }),
+        // Acknowledge inbox records: { ids: [...] } | { sessionId } | { all: true }.
+        webCtx.webServer.register({
+          kind: 'exact',
+          path: NOTIFICATIONS_ACK_ROUTE,
+          handler: async (req, res) => {
+            if (req.method !== 'POST') {
+              responseJson(res, 405, { ok: false, error: 'POST only' })
+              return
+            }
+            const body = await readJsonBody(req) as
+              { ids?: unknown; sessionId?: unknown; all?: unknown } | null
+            if (body === null || typeof body !== 'object') {
+              responseJson(res, 400, { ok: false, error: 'invalid ack body' })
+              return
+            }
+            const ids = Array.isArray(body.ids)
+              ? body.ids.filter((value): value is string => typeof value === 'string')
+              : undefined
+            const sessionId = typeof body.sessionId === 'string' && body.sessionId.length > 0
+              ? body.sessionId
+              : undefined
+            const all = body.all === true
+            if (ids === undefined && sessionId === undefined && !all) {
+              responseJson(res, 400, { ok: false, error: 'nothing to ack' })
+              return
+            }
+            const count = inbox.ack({ ids, sessionId, all })
+            responseJson(res, 200, { ok: true, value: { count } })
+          },
+        }),
+        // Web half relay: client-transient interaction pauses (question /
+        // plan-review) never hit the session log, so the browser half posts
+        // them here. { sessionId, kind, state: 'open'|'closed', title? } —
+        // idempotent: 'open' is a no-op while an open record exists; 'closed'
+        // resolves the latest open record of that kind.
+        webCtx.webServer.register({
+          kind: 'exact',
+          path: EVENTS_ROUTE,
+          handler: async (req, res) => {
+            if (req.method !== 'POST') {
+              responseJson(res, 405, { ok: false, error: 'POST only' })
+              return
+            }
+            const body = await readJsonBody(req) as
+              { sessionId?: unknown; kind?: unknown; state?: unknown; title?: unknown } | null
+            if (body === null || typeof body !== 'object') {
+              responseJson(res, 400, { ok: false, error: 'invalid event body' })
+              return
+            }
+            const sessionId = typeof body.sessionId === 'string' && body.sessionId.length > 0
+              ? body.sessionId
+              : undefined
+            const kind = body.kind === 'question' || body.kind === 'plan-review' || body.kind === 'new-session'
+              ? body.kind as 'question' | 'plan-review' | 'new-session'
+              : undefined
+            if (sessionId === undefined || kind === undefined) {
+              responseJson(res, 400, { ok: false, error: 'invalid sessionId/kind' })
+              return
+            }
+            if (body.state === 'closed') {
+              inbox.resolve(sessionId, kind)
+              responseJson(res, 200, { ok: true, value: null })
+              return
+            }
+            const title = typeof body.title === 'string' ? body.title : ''
+            inbox.pushInteraction(sessionId, kind, title)
+            responseJson(res, 200, { ok: true, value: null })
+          },
+        }),
       ]
       return () => {
+        if (persistTimer !== undefined) {
+          clearTimeout(persistTimer)
+          persistTimer = undefined
+        }
+        // Final flush so the last mutations survive a plugin stop.
+        const payload = inbox.toJSON()
+        void inboxScope.replace({ seq: payload.seq, notes: payload.notes }).catch(() => undefined)
         for (const dispose of disposers) dispose()
       }
-    }, 'session-monitor: status/snapshot/widget/settings/jump routes')
+    }, 'session-monitor: status/snapshot/widget/settings/jump/inbox routes')
   })
 }

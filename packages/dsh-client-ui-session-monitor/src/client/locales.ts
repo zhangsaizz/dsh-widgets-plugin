@@ -79,6 +79,10 @@ export type SessionMonitorKey =
   | 'notifyCurrentDesc'
   | 'showSubagentsLabel'
   | 'showSubagentsDesc'
+  | 'ackOnJumpLabel'
+  | 'ackOnJumpDesc'
+  | 'autoAckOnOpenLabel'
+  | 'autoAckOnOpenDesc'
   | 'resetPosScale'
   | 'resetAll'
 
@@ -157,6 +161,10 @@ export const zh: Record<SessionMonitorKey, string> = {
   notifyCurrentDesc: '当前会话完成一轮时也提醒（默认关：你正在看它，无需再弹提醒；但停下等你输入/确认时仍会提醒）',
   showSubagentsLabel: '显示子代理',
   showSubagentsDesc: '默认过滤子代理会话；开启后在列表中显示并提醒',
+  ackOnJumpLabel: '处理后自动已读',
+  ackOnJumpDesc: '桌面端点「处理」跳转会话后，该通知自动标记为已读',
+  autoAckOnOpenLabel: '打开时自动全部已读',
+  autoAckOnOpenDesc: '桌面端启动时自动清空待处理通知（默认关：打开即提示是核心价值）',
   resetPosScale: '重置位置与缩放',
   resetAll: '重置设置',
 }
@@ -236,6 +244,10 @@ export const en: Record<SessionMonitorKey, string> = {
   notifyCurrentDesc: 'Also notify when the current session finishes (off by default — you are already looking at it; rounds waiting for your input/confirmation still notify)',
   showSubagentsLabel: 'Show subagents',
   showSubagentsDesc: 'Subagent sessions are filtered out by default; enable to list and notify them',
+  ackOnJumpLabel: 'Auto-read on handle',
+  ackOnJumpDesc: 'Desktop: handling a notification marks it read after jumping to the session',
+  autoAckOnOpenLabel: 'Auto-read all on open',
+  autoAckOnOpenDesc: 'Desktop: clear all pending notifications at startup (off by default — opening the widget should surface them)',
   resetPosScale: 'Reset position & zoom',
   resetAll: 'Reset settings',
 }

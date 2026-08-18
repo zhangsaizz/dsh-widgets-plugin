@@ -101,6 +101,31 @@ function interactionKind(status: PendingInteractionStatus | undefined): ToastKin
   return 'question'
 }
 
+/** Window event the widget dispatches for client-transient interaction pauses
+ *  (question / plan-review) so the browser half can relay them into the Host
+ *  inbox — those states never hit the session log, so without this relay the
+ *  desktop widget could never see "waiting for you" items. */
+export const RELAY_EVENT = 'dsh.smon.relay'
+
+/** Narrow a pending-interaction status to the kinds the Host relay accepts
+ *  (`approval` is host-side via the approval audit log). */
+function interactionRelayKind(status: PendingInteractionStatus | undefined): 'question' | 'plan-review' | undefined {
+  return status === 'question' || status === 'plan-review' ? status : undefined
+}
+
+/** Dispatch an interaction-pause relay event (open = appeared, closed = gone). */
+function relayInteraction(
+  sessionId: string,
+  kind: 'question' | 'plan-review' | undefined,
+  state: 'open' | 'closed',
+  title?: string,
+): void {
+  if (kind === undefined) return
+  try {
+    window.dispatchEvent(new CustomEvent(RELAY_EVENT, { detail: { sessionId, kind, state, title } }))
+  } catch { /* events unavailable */ }
+}
+
 /** Per-kind notification copy (title + body builder), shared by toasts and system notifications. */
 function toastCopy(t: TranslateNS<'session-monitor'>, kind: ToastKind): { title: string; body: (title: string, round?: number) => string } {
   switch (kind) {
@@ -266,7 +291,7 @@ export function SessionMonitorWidget(props: SessionMonitorWidgetProps) {
    *  the Host is absent; the Host's cumulative count is preferred when fresh). */
   const roundsRef = useRef<Map<string, number>>(new Map())
   /** Last-observed pending-interaction presence per session (appearance edges). */
-  const prevInteractionRef = useRef<Map<string, boolean>>(new Map())
+  const prevInteractionRef = useRef<Map<string, PendingInteractionStatus | undefined>>(new Map())
   /** Live BroadcastChannel for cross-tab acknowledgment sync (null when unavailable). */
   const syncChannelRef = useRef<BroadcastChannel | null>(null)
   /** Last-observed session-id set; shrinking ids = disposed sessions. */
@@ -371,6 +396,10 @@ export function SessionMonitorWidget(props: SessionMonitorWidgetProps) {
     for (const id of prev) if (!next.has(id)) removed.push(id)
     if (removed.length === 0) return
     for (const id of removed) {
+      // A pending interaction vanished with the session — resolve it in the
+      // Host inbox (otherwise a "waiting for you" record would dangle forever).
+      const prevKind = prevInteractionRef.current.get(id)
+      if (prevKind === 'question' || prevKind === 'plan-review') relayInteraction(id, prevKind, 'closed')
       pendingRef.current.delete(id)
       roundsRef.current.delete(id)
       prevInteractionRef.current.delete(id)
@@ -591,17 +620,26 @@ export function SessionMonitorWidget(props: SessionMonitorWidgetProps) {
     for (const id of next.keys()) {
       const row = byId[id]
       if (!row) continue
+      const prevKind = prevInteractionRef.current.get(id)
+      const wasPending = prevKind !== undefined
       const nowPending = row.pendingInteraction !== undefined
       const tracked = prevInteractionRef.current.has(id)
-      const wasPending = prevInteractionRef.current.get(id) ?? false
-      prevInteractionRef.current.set(id, nowPending)
+      prevInteractionRef.current.set(id, row.pendingInteraction)
+      // Closed edge: a pause ended (or changed kind) while the widget is open —
+      // relay it so the Host inbox resolves the record.
+      if (tracked && wasPending && !nowPending) {
+        relayInteraction(id, interactionRelayKind(prevKind), 'closed')
+        continue
+      }
       if (!tracked || !nowPending || wasPending) continue
       if (finishedIds.has(id)) continue
       if (row.origin === 'subagent' && !cfg.showSubagents) continue
       // Interaction toasts are exempt from the current-session suppression —
       // "your turn" must not be missed even while looking at the page (same
       // rule as the round-edge path). Emitted immediately: no turn/end record
-      // exists to wait for.
+      // exists to wait for. Also relay the pause into the Host inbox so the
+      // desktop widget sees it.
+      relayInteraction(id, interactionRelayKind(row.pendingInteraction), 'open', row.displayTitle || row.id)
       pendingRef.current.set(row.id, {
         at: now,
         baseKind: interactionKind(row.pendingInteraction),
