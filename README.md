@@ -19,21 +19,29 @@
 
 ## 预览
 
-| 余额看板 | Token 暴击挂件 | 会话监控看板 |
-| :---: | :---: | :---: |
-| ![余额看板：展开 / 多账户 / 收起胶囊 / 悬停提示 / 加载中（浅色与深色主题）](docs/previews/balance-widget.png) | ![Token 暴击挂件：实时用量计数与暴击动效](docs/previews/token-crit-widget.png) | ![会话监控看板：会话列表 / 完成提醒（按状态配色）/ 收起胶囊](docs/previews/session-monitor-widget.png) |
+> 动图（GIF）演示实际交互与动效，静态图为多状态拼图；全部预览来自真实运行中的
+> Harness 实例。挂件均可拖动、缩放、折叠，完整操作见 [使用](#使用) 及各子包 README。
 
-| 小组件管理设置页 |
-| :---: |
-| ![小组件管理设置页：添加 / 关闭 / 配置弹窗](docs/previews/widget-manager-settings.png) |
+### 浮动挂件
+
+| 余额看板 | Token 暴击挂件 | 会话监控看板 | 卡片容器 |
+| :---: | :---: | :---: | :---: |
+| <img src="docs/previews/balance-widget.png" width="210" alt="余额看板：单/多账户、收起胶囊、悬停提示、加载中（浅色/深色主题）"> | <img src="docs/previews/token-crit.gif" width="210" alt="Token 暴击挂件：实时用量计数与暴击动效"> | <img src="docs/previews/session-monitor-widget.png" width="210" alt="会话监控看板：会话列表、完成提醒、收起胶囊"> | <img src="docs/previews/card-container.gif" width="210" alt="卡片容器：把其他小组件拖入网格停靠成卡片"> |
+| 单 / 多账户、趋势涨跌、缩放吸附 | 实时用量 + 暴击动效 | 会话列表、完成提醒、点击跳转 | 拖入网格停靠成卡片，可排序 / 移出 |
+
+### 输入框装饰
 
 | 彩虹流光 |
 | :---: |
-| ![彩虹流光：会话运行时输入框四周的描边环与光晕](docs/previews/rainbow-flow.png) |
+| <img src="docs/previews/rainbow-flow.gif" width="480" alt="彩虹流光：会话运行时输入框四周的流动彩虹描边环与光晕，速度随输出 token 速率变化"> |
+| 会话运行时输入框四周的流动彩虹描边环 + 柔光光晕，旋转速度随输出 token 速率变化 |
 
-> 前三张为挂件的静态状态预览；实际挂件可拖动、缩放、折叠，动效与完整交互见
-> [使用](#使用) 及各子包 README。最后一张是 Web 设置里的「小组件管理」设置页，
-> 彩虹流光是输入框装饰（非浮窗），静态图展示其环绕效果。
+### 设置页
+
+| 小组件管理 |
+| :---: |
+| <img src="docs/previews/widget-manager-settings.png" width="480" alt="小组件管理设置页：添加 / 关闭 / 配置弹窗"> |
+| Web 设置里启用 / 关闭小组件；带配置的挂件（如余额看板）通过「配置」弹窗单独设置 |
 
 ## 结构
 

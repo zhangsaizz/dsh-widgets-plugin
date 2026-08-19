@@ -22,6 +22,9 @@ packages/dsh-balance/lib/*
 .dsh-vision-toolkit/
 .agents/
 
+# --- gif recording workdir (record-browser-gif skill) ---
+.playwright-mcp/
+
 # --- IDE / OS ---
 .idea/
 .vscode/
