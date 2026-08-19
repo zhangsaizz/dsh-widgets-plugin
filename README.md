@@ -24,10 +24,10 @@
 
 ### 浮动挂件
 
-| 余额看板 | Token 暴击挂件 | 会话监控看板 | 卡片容器 |
-| :---: | :---: | :---: | :---: |
-| <img src="docs/previews/balance-widget.png" width="210" alt="余额看板：单/多账户、收起胶囊、悬停提示、加载中（浅色/深色主题）"> | <img src="docs/previews/token-crit.gif" width="210" alt="Token 暴击挂件：实时用量计数与暴击动效"> | <img src="docs/previews/session-monitor-widget.png" width="210" alt="会话监控看板：会话列表、完成提醒、收起胶囊"> | <img src="docs/previews/card-container.gif" width="210" alt="卡片容器：把其他小组件拖入网格停靠成卡片"> |
-| 单 / 多账户、趋势涨跌、缩放吸附 | 实时用量 + 暴击动效 | 会话列表、完成提醒、点击跳转 | 拖入网格停靠成卡片，可排序 / 移出 |
+| 余额看板 |                                        Token 暴击挂件                                        | 会话监控看板 | 卡片容器 |
+| :---: |:--------------------------------------------------------------------------------------------:| :---: | :---: |
+| <img src="docs/previews/balance-widget.png" width="210" alt="余额看板：单/多账户、收起胶囊、悬停提示、加载中（浅色/深色主题）"> | <img src="docs/previews/token.gif" width="210" alt="Token 暴击挂件：实时用量计数与暴击动效"> | <img src="docs/previews/session-monitor-widget.png" width="210" alt="会话监控看板：会话列表、完成提醒、收起胶囊"> | <img src="docs/previews/card-container.gif" width="210" alt="卡片容器：把其他小组件拖入网格停靠成卡片"> |
+| 单 / 多账户、趋势涨跌、缩放吸附 |                                     实时用量 + 暴击动效                                      | 会话列表、完成提醒、点击跳转 | 拖入网格停靠成卡片，可排序 / 移出 |
 
 ### 输入框装饰
 
