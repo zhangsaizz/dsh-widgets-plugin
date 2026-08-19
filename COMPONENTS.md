@@ -33,11 +33,13 @@
 | 16 | 卡片容器控制器 `CardContainerController` | 客户端数据层 | `@dsh-plugins/client-ui-card-container` | 注入 hook | 多分组停靠（groups/active 持久化，旧单列表自动迁移）+ 可用托盘投影，注册/释放 priority -2 停靠影子，针对 overlay 台账自我修复 |
 | 17 | 卡片视图（内置） | Web 卡片视图 | `@dsh-plugins/client-ui-card-container` | `widgets.card`（容器声明子槽，priority 10 兜底） | token-crit / session-monitor 紧凑统计卡（标准 `useSessions` 数据）+ balance 通用卡；**标准接入规范**（`WidgetCardProps` + 槽级注入面 `CardSlotInject`，见 WIDGET-DEVELOPMENT.md §2.5）：挂件自己的卡片注册进 `widgets.card`（id = shell.overlay id、priority 默认 0、显示名优先读 shell.overlay 的 label）即优先渲染，不注册则用占位卡；卡片可声明**规格**（静态 `spec`：small 1 列 / medium 2 列 / large 整行） |
 | 18 | 卡片容器配置面板 `CardContainerSettings` | Web 配置弹窗 | `@dsh-plugins/client-ui-card-container` | `widgets.config`（管理器「配置」弹窗） | 列数（自适应/2/3/4）+ 清空停靠/重置，localStorage 持久化 |
-| 19 | 安装 bundle | 分发层 | `@dsh-plugins/dsh-widgets-plugin` | `cordis.patch.yml` | 一次插入 5 个插件，一键挂载全部组件 |
+| 19 | 安装 bundle | 分发层 | `@dsh-plugins/dsh-widgets-plugin` | `cordis.patch.yml` | 一次插入 6 个插件，一键挂载全部组件 |
 | 20 | 小组件管理页 `WidgetManagerSettings` | Web 设置页 | `@dsh-plugins/client-ui-widget-manager` | `settings.section`（order 10） | 实时列出小组件，支持「添加/关闭」，并为带配置的挂件提供「配置」弹窗 |
 | 21 | 会话监控桌面快照路由 | Host Web 路由 | `@dsh-plugins/client-ui-session-monitor` | `/_dsh/session-monitor/sessions` | 把实时会话存储折叠成紧凑 JSON 行（running/title/pending/子代理计数等），桌面挂件 2s 轮询 |
 | 22 | 会话监控独立挂件页 | Host 托管的独立 Web 页 | `@dsh-plugins/client-ui-session-monitor` | `/_dsh/session-monitor/widget` | 自包含 HTML（无框架）：**「待处理」通知列表（主视图，未读徽标 + 处理/忽略/全部已读 + 级别开关）+ 「会话」列表副 Tab** + 完成一轮 toast + 置顶/隐藏/设置，供桌面壳加载 |
 | 23 | 会话监控桌面悬浮窗壳 | 桌面应用（Tauri 2） | `desktop/dsh-session-desktop` | Windows 桌面 | 无边框/透明/置顶/无任务栏小窗 + 托盘（显示/退出），加载挂件页；启动时探测本机 web 服务、外部导航交系统浏览器 |
+| 24 | 彩虹流光 `RainbowFlowGlow` | Web 输入框装饰 | `@dsh-plugins/client-ui-rainbow-flow` | `conversation.input.left`（order 99） | 会话运行时输入框卡片四周流动的彩虹描边环 + 柔光光晕（mask 挖空、内部透明），旋转速度随每秒输出 token 速率动态变化（采样流式 partial 估算，EMA 平滑） |
+| 25 | 彩虹流光开关 `RainbowFlowToggle` | Web 输入框控制 | `@dsh-plugins/client-ui-rainbow-flow` | `conversation.input.left`（order 100） | 输入框工具行左端彩虹小圆点开关（开/关持久化 localStorage），右上角状态点随会话运行变绿 |
 
 > 1–10 全部由 `@dsh-plugins/balance` 一个包、一个插件行承载（原 `balance` 缝隙 +
 > `balance-vendors` + `client-ui-balance` 三个包已合并）。
@@ -46,7 +48,7 @@
 
 ## 2. 发布包清单
 
-6 个包版本号保持一致（当前 **0.1.0**），全部带 `"publishConfig": { "access": "public" }`，
+7 个包版本号保持一致（当前 **0.1.0**），全部带 `"publishConfig": { "access": "public" }`，
 包间依赖一律 `workspace:*`（禁止 `link:`）。
 
 | 包 | 版本 | 角色 | 发布内容（files） | 关键 exports | 维护来源 |
@@ -55,6 +57,7 @@
 | `@dsh-plugins/client-ui-token-crit` | 0.1.0 | Token 暴击挂件（浏览器端，纯 UI） | `lib` | `.`、`./client` | 独立维护 |
 | `@dsh-plugins/client-ui-session-monitor` | 0.1.0 | 会话监控看板（Host 半：turn/end 原因跟踪 + 通知 inbox + 路由；浏览器端看板） | `lib` | `.`、`./client` | 独立维护 |
 | `@dsh-plugins/client-ui-card-container` | 0.1.0 | 卡片容器（浏览器端，纯 UI：声明 `widgets.card` 子槽、停靠影子、内置卡片视图） | `lib` | `.`、`./client` | 独立维护 |
+| `@dsh-plugins/client-ui-rainbow-flow` | 0.1.0 | 彩虹流光（浏览器端，纯 UI：`conversation.input.left` 注册光环 + 开关） | `lib` | `.`、`./client` | 独立维护 |
 | `@dsh-plugins/client-ui-widget-manager` | 0.1.0 | 小组件管理设置页（浏览器端，纯 UI） | `lib` | `.`、`./client` | 独立维护 |
 | `@dsh-plugins/dsh-widgets-plugin` | 0.1.0 | 可安装 bundle | `cordis.patch.yml` | `./cordis.patch.yml` | 独立维护 |
 
@@ -186,9 +189,10 @@
 ### 3.4 安装 bundle（`dsh-widgets-plugin`）
 
 - 包：`@dsh-plugins/dsh-widgets-plugin`（`bundles/dsh-widgets-plugin`）。
-- `dsh.bundle.patch = ./cordis.patch.yml`；依赖 5 个 `workspace:*` 包。
+- `dsh.bundle.patch = ./cordis.patch.yml`；依赖 6 个 `workspace:*` 包。
 - `cordis.patch.yml` 插入顺序：`balance`（requestTimeoutMs / newApiBaseURL / bindings）→
-  `ui-token-crit` → `ui-session-monitor` → `ui-card-container` → `ui-widget-manager`。
+  `ui-token-crit` → `ui-session-monitor` → `ui-card-container` → `ui-rainbow-flow` →
+  `ui-widget-manager`。
 
 ### 3.5 小组件管理页（`client-ui-widget-manager`）
 
@@ -363,7 +367,52 @@
 - 构建：Host → `lib/index.js`（ESM，外部化）；Client → `lib/client.js`
   （ModuleLoader CJS + 内联 CSS，`--loader:.css=local-css`）。
 
-### 3.7 会话监控桌面悬浮窗壳（`desktop/dsh-session-desktop`）
+### 3.7 彩虹流光（`client-ui-rainbow-flow`）
+
+- 包：`@dsh-plugins/client-ui-rainbow-flow`（`packages/dsh-client-ui-rainbow-flow`），**纯 UI**。
+- Host 半（`src/index.ts`）：空 apply（surface 占位）。
+- Client 半（`src/client/index.ts`）：`inject = ['slots']`，在
+  `conversation.input.left`（ui-conversation 声明的输入框工具行席位，
+  `InputZone` owner 契约）注册两个条目：
+  - id `rainbow-flow-glow`，order **99** → `RainbowFlowGlow`：会话运行中时，
+    输入框卡片四周渲染**彩虹流光**——mask 挖空的流动彩虹描边环（2px）+ 模糊
+    光晕（6px），内部完全透明不遮输入；层是卡片内的绝对定位元素
+    （`inset: -5px`，containing block = 卡片的 `position:relative`），
+    自动跟随卡片高度，无需测量；
+  - id `rainbow-flow-toggle`，order **100** → `RainbowFlowToggle`：工具行左端
+    彩虹小圆点开关（关闭时圆点变灰），右上角状态点随 `session.running` 变绿；
+    开关状态经模块级 store + `useSyncExternalStore` 与光环共享，持久化到
+    `localStorage`（`dsh.rnglow.enabled`，默认开）。
+- **速度随 token 速率**：光环组件内 500ms 采样 `session.partial`（流式输出
+  内容）文本长度增量 → 估算每秒输出 token 数（约 2 字符/token，EMA 平滑）
+  → 映射旋转周期 3.2s（慢）↔ 0.45s（快）——模型输出越快彩虹转得越快，
+  思考/工具调用间隙平滑回落；运动模型抽在纯模块 `src/client/rate.ts`
+  （`rateToDuration` / `rateToSpeed` / `easeSpeed`，无 DOM 依赖）。
+- **转速变化平滑过渡**：rAF 循环里角速度以指数缓动（`easeSpeed`，
+  `1 - exp(-dt/τ)`，帧率无关——`(exp(-dt/τ))^n = exp(-t/τ)`）逼近采样目标
+  并连续积分旋转角，把 `--rf-angle` 逐帧写到**环层**（conic-gradient `from`
+  随之旋转；角度取 `toFixed(1)`、值未变时跳过写）；**模糊光晕保持静态**
+  （固定 `from 0deg`，只渲染一次，免去每帧 blur 重算）。不再直接改
+  `animation-duration`（那样会重置动画当前时间、彩虹相位跳变）。
+- **性能**：循环**按可见性门控**（effect deps `[on, running]`，运动状态存
+  refs）——开关关闭或会话空闲时不调度任何 rAF 回调，空闲输入框零成本；
+  开关/回合切换间角度与速度经 refs 无缝衔接；`.flow` 加
+  `will-change: transform` 提升合成层，逐帧重绘不污染底层输入卡片；
+  彩虹配色收敛到 `--rf-palette`（环/光晕/开关圆点共用）。
+- **运动模型冒烟测试**：`docs/speed-smoke-test.cjs` 用 esbuild 打包真实
+  源码，断言帧率无关（float-exact）/ 单调收敛无过冲 / 边界钳制；
+  运行 `node packages/dsh-client-ui-rainbow-flow/docs/speed-smoke-test.cjs`。
+- **降级**：`@media not all and (mask-composite: exclude)` 下隐藏挖空层，
+  改用多色 `box-shadow` 外发光（同样不遮输入）；`prefers-reduced-motion`
+  下 JS 跳过 rAF 循环，彩虹保持静态（matchMedia `change` 监听实时响应
+  系统设置切换）。
+- 依赖：`@deepseek-ai/cordis`、`dsh-client-runtime`、
+  `dsh-client-ui-conversation`（`conversation.input.left` 类型合并，peer）、
+  `dsh-client-ui-slots`、`react`（peer）。
+- 构建：Host → `lib/index.js`（ESM，外部化，空 apply）；Client →
+  `lib/client.js`（ModuleLoader CJS + 内联 CSS，Vite library mode）。
+
+### 3.8 会话监控桌面悬浮窗壳（`desktop/dsh-session-desktop`）
 
 - **不是 npm 发布包**：独立 Tauri 2（Rust）应用，位于 `desktop/dsh-session-desktop/`，
   不在 pnpm workspace 内（workspace 只含 `packages/*`、`bundles/*`）；仅用 npm 装
@@ -421,12 +470,14 @@ graph LR
   UI_CRIT[@dsh-plugins/client-ui-token-crit]
   UI_SMON[@dsh-plugins/client-ui-session-monitor]
   UI_CARD[@dsh-plugins/client-ui-card-container]
+  UI_RF[@dsh-plugins/client-ui-rainbow-flow]
   UI_MANAGER[@dsh-plugins/client-ui-widget-manager]
 
   BUNDLE --> BALANCE
   BUNDLE --> UI_CRIT
   BUNDLE --> UI_SMON
   BUNDLE --> UI_CARD
+  BUNDLE --> UI_RF
   BUNDLE --> UI_MANAGER
   BALANCE -. peer（type-only） .-> UI_MANAGER
   UI_SMON -. peer（type-only） .-> UI_MANAGER
@@ -437,18 +488,19 @@ graph LR
 
 | 依赖 | 被谁需要 |
 |---|---|
-| `@deepseek-ai/cordis` | 全部 5 个可运行包 |
+| `@deepseek-ai/cordis` | 全部 6 个可运行包 |
 | `@deepseek-ai/dsh-invariants` | balance（invariant 伴侣） |
 | `@deepseek-ai/dsh-credentials` / `dsh-typert-protocol` | balance |
 | `@deepseek-ai/dsh-settings` | balance（设置区 + Web 后端） |
 | `@deepseek-ai/dsh-api-remotes` | balance（client） |
-| `@deepseek-ai/dsh-client-runtime` | balance、client-ui-token-crit、client-ui-session-monitor、client-ui-card-container、client-ui-widget-manager |
+| `@deepseek-ai/dsh-client-runtime` | balance、client-ui-token-crit、client-ui-session-monitor、client-ui-card-container、client-ui-rainbow-flow、client-ui-widget-manager |
 | `@deepseek-ai/dsh-client-ui-layout` | balance、client-ui-token-crit、client-ui-session-monitor、client-ui-card-container、client-ui-widget-manager（`shell.overlay` 类型合并） |
+| `@deepseek-ai/dsh-client-ui-conversation` | client-ui-rainbow-flow（`conversation.input.left` 类型合并） |
 | `@deepseek-ai/dsh-client-locale` | balance、client-ui-session-monitor、client-ui-card-container、client-ui-widget-manager |
 | `@deepseek-ai/dsh-session` | client-ui-session-monitor（Host 半 `session/event` 类型） |
 | `@deepseek-ai/dsh-client-ui-settings` | client-ui-widget-manager（`settings.section`） |
-| `@deepseek-ai/dsh-client-ui-slots` | balance、client-ui-token-crit、client-ui-session-monitor、client-ui-card-container、client-ui-widget-manager |
-| `react` | balance、client-ui-token-crit、client-ui-session-monitor、client-ui-card-container、client-ui-widget-manager |
+| `@deepseek-ai/dsh-client-ui-slots` | balance、client-ui-token-crit、client-ui-session-monitor、client-ui-card-container、client-ui-rainbow-flow、client-ui-widget-manager |
+| `react` | balance、client-ui-token-crit、client-ui-session-monitor、client-ui-card-container、client-ui-rainbow-flow、client-ui-widget-manager |
 
 ---
 
@@ -464,6 +516,7 @@ Host 半用 esbuild，浏览器半用 **Vite library mode**（与官方 deepseek
 | `@dsh-plugins/client-ui-token-crit` | `lib/index.js`（空 apply 壳） | `lib/client.js` | ModuleLoader CJS + 内联 CSS |
 | `@dsh-plugins/client-ui-session-monitor` | `lib/index.js`（Host 半：`turn/end` 原因跟踪 + 状态/快照/挂件页路由；**`widget-page.html` 经 esbuild `text` loader 内联**） | `lib/client.js` | ModuleLoader CJS + 内联 CSS |
 | `@dsh-plugins/client-ui-card-container` | `lib/index.js`（空 apply 壳） | `lib/client.js` | ModuleLoader CJS + 内联 CSS |
+| `@dsh-plugins/client-ui-rainbow-flow` | `lib/index.js`（空 apply 壳） | `lib/client.js` | ModuleLoader CJS + 内联 CSS |
 | `@dsh-plugins/client-ui-widget-manager` | `lib/index.js`（ESM，空 apply 壳） | `lib/client.js` | ModuleLoader CJS + 内联 CSS |
 | `@dsh-plugins/dsh-widgets-plugin` | —（仅 `cordis.patch.yml`） | — | — |
 
@@ -492,6 +545,8 @@ Host 半用 esbuild，浏览器半用 **Vite library mode**（与官方 deepseek
 | `widgets.config` | `card-container` | 0 | client-ui-card-container | `CardContainerSettings`（管理页「配置」弹窗内容） |
 | `widgets.card` | `token-crit` / `session-monitor` / `balance` | priority 10（兜底） | client-ui-card-container | 内置紧凑卡片视图（挂件自己的卡片 priority 0 优先；槽级注入面 `CardSlotInject`：useContainer + dock/undock；标准接入规范见 WIDGET-DEVELOPMENT.md §2.5） |
 | `shell.overlay` | `balance` / `token-crit` / `session-monitor` | label thunk | balance / client-ui-token-crit / client-ui-session-monitor | 各自注册 `label`（thunk）——卡片容器托盘/卡片头优先读它作为显示名 |
+| `conversation.input.left` | `rainbow-flow-glow` | 99 | client-ui-rainbow-flow | `RainbowFlowGlow`（彩虹流光：挖空描边环 + 光晕，速度随 token 速率） |
+| `conversation.input.left` | `rainbow-flow-toggle` | 100 | client-ui-rainbow-flow | `RainbowFlowToggle`（开/关开关 + 运行状态点） |
 | `remote` | balance Remote | — | balance（client 半） | `balance/query` + `balance/list` |
 | `webServer` | `/_dsh/balance/settings` | — | balance | `BalanceWebBackend` |
 | `webServer` | `/_dsh/session-monitor/status` | — | client-ui-session-monitor | turn/end 结束原因（浏览器半 + 桌面挂件轮询） |

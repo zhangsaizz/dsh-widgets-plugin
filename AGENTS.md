@@ -7,7 +7,7 @@
 
 `dsh-widgets-plugin` 是一个 **DeepSeek Harness 小组件（widgets）monorepo**：
 制作可独立发布、可安装到任意 Harness 实例的插件。浏览器端以 `shell.overlay`
-浮动挂件或 Web 设置页呈现。当前四个小组件：
+浮动挂件或 Web 设置页呈现。当前五个小组件：
 
 | 小组件 | 包 |
 |---|---|
@@ -15,6 +15,7 @@
 | Token 暴击挂件 | `@dsh-plugins/client-ui-token-crit` |
 | 会话监控看板 | `@dsh-plugins/client-ui-session-monitor` |
 | 卡片容器 | `@dsh-plugins/client-ui-card-container` |
+| 彩虹流光 | `@dsh-plugins/client-ui-rainbow-flow` |
 
 其余包是支撑：`@dsh-plugins/client-ui-widget-manager`（小组件管理设置页）、
 `@dsh-plugins/dsh-widgets-plugin`（可安装 bundle，一层挂载全部插件）。
@@ -34,9 +35,11 @@ packages/
                              检测「完成一轮」提醒、点击跳转会话）
   dsh-client-ui-card-container/ 卡片容器（纯 UI，浏览器端：声明 widgets.card 子槽、
                              停靠影子条目隐藏浮窗、自带紧凑卡片视图）
+  dsh-client-ui-rainbow-flow/ 彩虹流光（纯 UI，浏览器端：conversation.input.left
+                             注册输入框彩虹流光 + 开关，速度随 token 速率）
   dsh-client-ui-widget-manager/ 小组件管理设置页（声明 widgets.config 子槽）
 bundles/
-  dsh-widgets-plugin/        可安装 bundle：cordis.patch.yml 插入 5 个插件
+  dsh-widgets-plugin/        可安装 bundle：cordis.patch.yml 插入 6 个插件
 scripts/
   build.mjs                   用 esbuild 构建 Host 产物、用 Vite library mode 构建
                              浏览器 client bundle（官方 deepseek-harness 同款工具链）

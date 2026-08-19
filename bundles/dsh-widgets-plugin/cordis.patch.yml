@@ -35,5 +35,8 @@
     - id: ui-card-container
       name: '@dsh-plugins/client-ui-card-container'
 
+    - id: ui-rainbow-flow
+      name: '@dsh-plugins/client-ui-rainbow-flow'
+
     - id: ui-widget-manager
       name: '@dsh-plugins/client-ui-widget-manager'

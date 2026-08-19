@@ -3,7 +3,7 @@
 一个面向 DeepSeek Harness 的小组件（挂件 / widgets）monorepo。这里主要制作一些
 「小组件」：每个组件都是可独立发布、可在任意 DeepSeek Harness 实例中安装的插件，
 浏览器端通常以 `shell.overlay` 浮动挂件或 Web 设置页的形式呈现，可拖动、可缩放、
-可折叠、可配置。当前仓库包含四个小组件：
+可折叠、可配置。当前仓库包含五个小组件：
 
 | 小组件 | 包 | 说明 |
 |---|---|---|
@@ -11,8 +11,9 @@
 | Token 暴击挂件 | `@dsh-plugins/client-ui-token-crit` | 浮动的 token 用量计量挂件；实时显示当前会话累计 token 用量，增长时触发网游风格暴击动效，附带可配置面板 |
 | 会话监控看板 | `@dsh-plugins/client-ui-session-monitor` | 浮动的会话监控面板；列出正在执行的会话与运行状态，会话完成一轮时主动弹提醒（可自动消失或需确认），点击任意会话一键跳转 |
 | 卡片容器 | `@dsh-plugins/client-ui-card-container` | 浮动的卡片容器面板；开启后把其他小组件拖进一个整齐、等间距的卡片网格集中摆放（浮窗自动收起，可拖拽排序 / 移出） |
+| 彩虹流光 | `@dsh-plugins/client-ui-rainbow-flow` | 输入框装饰（非浮窗）：会话运行时输入框四周环绕流动的彩虹描边环 + 柔光光晕（内部透明不遮输入），旋转速度随每秒输出 token 数动态变化，工具行带开/关开关 |
 
-除了上面四个浏览器内小组件，还有一个配套的 **Windows 桌面悬浮窗应用**
+除了上面五个浏览器内小组件，还有一个配套的 **Windows 桌面悬浮窗应用**
 （`desktop/dsh-session-desktop/`，Tauri 2，非 npm 包）：把「会话监控」做成无边框、
 半透明、置顶的小窗悬浮在桌面上，完成一轮时弹桌面提醒（详见文末「桌面悬浮窗」）。
 
@@ -26,8 +27,13 @@
 | :---: |
 | ![小组件管理设置页：添加 / 关闭 / 配置弹窗](docs/previews/widget-manager-settings.png) |
 
+| 彩虹流光 |
+| :---: |
+| ![彩虹流光：会话运行时输入框四周的描边环与光晕](docs/previews/rainbow-flow.png) |
+
 > 前三张为挂件的静态状态预览；实际挂件可拖动、缩放、折叠，动效与完整交互见
-> [使用](#使用) 及各子包 README。最后一张是 Web 设置里的「小组件管理」设置页。
+> [使用](#使用) 及各子包 README。最后一张是 Web 设置里的「小组件管理」设置页，
+> 彩虹流光是输入框装饰（非浮窗），静态图展示其环绕效果。
 
 ## 结构
 
@@ -37,6 +43,7 @@
 | `@dsh-plugins/client-ui-token-crit` | Token 暴击挂件（浏览器端，纯 UI） |
 | `@dsh-plugins/client-ui-session-monitor` | 会话监控看板（双半：Host 半 turn/end 原因跟踪 + 状态路由；浏览器端列出运行中会话、按状态提醒、点击跳转） |
 | `@dsh-plugins/client-ui-card-container` | 卡片容器（浏览器端，纯 UI）：声明 `widgets.card` 子槽并渲染停靠卡片，用影子条目隐藏已停靠挂件的浮窗，自带 token-crit / session-monitor / balance 的紧凑卡片视图 |
+| `@dsh-plugins/client-ui-rainbow-flow` | 彩虹流光（浏览器端，纯 UI）：会话运行时输入框四周的流动彩虹描边环 + 光晕（`conversation.input.left`），旋转速度随输出 token 速率变化，工具行带开/关开关 |
 | `@dsh-plugins/client-ui-widget-manager` | 小组件管理设置页（浏览器端）：列出小组件并支持「添加 / 关闭」，为带配置的挂件提供「配置」弹窗 |
 | `@dsh-plugins/dsh-widgets-plugin` | 可安装 bundle：一层挂载以上全部插件 |
 | `desktop/dsh-session-desktop/` | Windows 桌面悬浮窗应用（Tauri 2，**非 npm 包**）：无边框/透明/置顶小窗加载会话监控独立挂件页，托盘唤回，点击行直达已打开的 Harness 标签页（未开才回退浏览器） |

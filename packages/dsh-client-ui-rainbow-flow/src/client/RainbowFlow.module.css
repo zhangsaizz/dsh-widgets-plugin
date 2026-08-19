@@ -1,0 +1,113 @@
+/* Rainbow flow around the composer card — all layers are mask-carved rings
+   (border only, interior transparent) so the input stays fully visible.
+   Only the crisp ring rotates: the glow component writes `--rf-angle` (deg)
+   onto the ring per frame via its rAF loop. The blurred halo is intentionally
+   static (ambient tint) — its own `from 0deg` paints once, so no per-frame
+   blur recompute. `.flow` is promoted to its own compositor layer so the
+   per-frame ring repaint never dirties the composer card beneath. */
+
+:root {
+  /* Shared rainbow palette (ring + halo + toggle dot). */
+  --rf-palette: #ff3b3b, #ff9f1a, #ffd60a, #22d3ee, #3b82f6, #a855f7, #ec4899, #ff3b3b;
+}
+
+.flow {
+  position: absolute;
+  inset: -5px;
+  border-radius: 27px;
+  pointer-events: none;
+  z-index: 2;
+  will-change: transform; /* isolate per-frame repaints onto a compositor layer */
+}
+
+.ring,
+.glow {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: conic-gradient(from var(--rf-angle, 0deg), var(--rf-palette));
+  -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  mask-composite: exclude;
+}
+
+.ring {
+  padding: 2px;
+}
+
+/* Static halo: fixed `from 0deg` (never inherits the ring's --rf-angle),
+   painted once, blurred. */
+.glow {
+  padding: 6px;
+  background: conic-gradient(from 0deg, var(--rf-palette));
+  filter: blur(5px);
+  opacity: 0.55;
+}
+
+/* No mask support: hide the carved rings and use a soft outer box-shadow
+   glow instead, so nothing ever covers the input. */
+@media not all and (mask-composite: exclude) {
+  .ring,
+  .glow {
+    display: none;
+  }
+
+  .flow {
+    box-shadow:
+      0 0 18px 5px rgba(168, 85, 247, 0.32),
+      0 0 12px 3px rgba(255, 214, 10, 0.25),
+      0 0 8px 1px rgba(34, 211, 238, 0.22);
+  }
+}
+
+/* Toggle switch: small rainbow dot button at the left end of the tool row. */
+.toggle {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  border: 1px solid var(--dsw-alias-border-l2, rgba(127, 127, 127, 0.4));
+  border-radius: 8px;
+  background: transparent;
+  cursor: pointer;
+  flex: none;
+  transition: border-color 0.15s ease, background-color 0.15s ease;
+}
+
+.toggle:hover {
+  border-color: var(--dsw-alias-label-secondary, #888);
+  background: var(--dsw-alias-interactive-bg-hover, rgba(127, 127, 127, 0.12));
+}
+
+.dot {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: conic-gradient(from 0deg, var(--rf-palette));
+  transition: filter 0.2s ease, opacity 0.2s ease;
+}
+
+.toggleOff .dot {
+  filter: grayscale(1);
+  opacity: 0.4;
+}
+
+/* Live running indicator: green while the session runs, gray while idle. */
+.status {
+  position: absolute;
+  top: -2px;
+  right: -2px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--dsw-alias-label-secondary, #999);
+  border: 1px solid var(--dsw-specific-input-major, #fff);
+}
+
+.toggleRunning .status {
+  background: var(--dsw-alias-state-success-primary, #34d399);
+}

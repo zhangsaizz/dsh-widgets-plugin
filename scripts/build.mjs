@@ -42,6 +42,7 @@ for (const pkg of [
   'packages/dsh-client-ui-session-monitor',
   'packages/dsh-client-ui-widget-manager',
   'packages/dsh-client-ui-card-container',
+  'packages/dsh-client-ui-rainbow-flow',
 ]) {
   buildSync({
     entryPoints: ['src/index.ts'],
@@ -101,6 +102,7 @@ const CLIENT_PACKAGES = [
   { pkg: 'packages/dsh-client-ui-session-monitor', id: '@dsh-plugins/client-ui-session-monitor' },
   { pkg: 'packages/dsh-client-ui-widget-manager', id: '@dsh-plugins/client-ui-widget-manager' },
   { pkg: 'packages/dsh-client-ui-card-container', id: '@dsh-plugins/client-ui-card-container' },
+  { pkg: 'packages/dsh-client-ui-rainbow-flow', id: '@dsh-plugins/client-ui-rainbow-flow' },
 ]
 
 /** Exact-glob matcher over the EXTERNAL_CLIENT list (function form, so Vite's
@@ -170,6 +172,7 @@ for (const entry of CLIENT_PACKAGES) {
     'packages/dsh-client-ui-session-monitor',
     'packages/dsh-client-ui-widget-manager',
     'packages/dsh-client-ui-card-container',
+    'packages/dsh-client-ui-rainbow-flow',
     'bundles/dsh-widgets-plugin',
   ]
   const failures = []
