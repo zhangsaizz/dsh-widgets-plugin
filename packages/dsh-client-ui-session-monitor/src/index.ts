@@ -8,6 +8,12 @@
  * does not carry turn-end reasons. Pure client installs (without this half)
  * still work: the browser falls back to its base notification kinds.
  *
+ * It also folds the currently-EXECUTING model tool call per session from the
+ * `tool/call` → `tool/result` event pair (closed on turn end), served on the
+ * same routes as `tools` — that is the "进度显示" (progress display) data for
+ * running rows in the monitor lists: the newest open tool call is what the
+ * session is doing right now.
+ *
  * @module @dsh-plugins/client-ui-session-monitor
  */
 
@@ -222,6 +228,13 @@ class TurnEndStore {
     return Object.fromEntries(this.records)
   }
 
+  /** Cumulative per-session finished-round counts — NOT TTL-pruned (the
+   *  counters live for the session's life), so consumers can derive the
+   *  IN-PROGRESS round of a long-running turn: `count + 1`. */
+  roundCounts(): Record<string, number> {
+    return Object.fromEntries(this.rounds)
+  }
+
   private prune(): void {
     const cutoff = Date.now() - RECORD_TTL_MS
     for (const [id, record] of this.records) {
@@ -306,6 +319,11 @@ export function apply(ctx: Context): void {
   /** Open human-answer tool calls (callId → session + kind) so `tool/result`
    *  (or a turn end) can resolve the matching inbox record. */
   const openQuestions = new Map<string, { sessionId: string; kind: 'question' | 'plan-review' }>()
+  /** Open model tool calls (callId → session + tool name + wall time): folds
+   *  "what is this session executing right now" for the list progress display.
+   *  A call is recorded on `tool/call` and closed on `tool/result` (or when its
+   *  turn ends — every open call dies with the turn). */
+  const openTools = new Map<string, { sessionId: string; name: string; at: number }>()
   /** The persisted inbox is loaded once per plugin instance — re-activating
    *  the inject scope (e.g. a webServer service restart) must not overwrite
    *  the live store with a stale persisted snapshot. */
@@ -320,6 +338,28 @@ export function apply(ctx: Context): void {
         inbox.resolve(sessionId, open.kind)
       }
     }
+  }
+
+  /** Close every open tool call of one session (a turn ended, or the session
+   *  was disposed) — a stale "executing" label must not outlive its turn. */
+  const closeSessionTools = (sessionId: string): void => {
+    for (const [callId, open] of openTools) {
+      if (open.sessionId === sessionId) openTools.delete(callId)
+    }
+  }
+
+  /** Snapshot of the newest open tool call per session (sessionId → tool). A
+   *  session with parallel open calls reports its most recent one — that is
+   *  the activity a monitor row should read as "executing now". */
+  function currentTools(): Record<string, { name: string; at: number }> {
+    const bySession = new Map<string, { name: string; at: number }>()
+    for (const open of openTools.values()) {
+      const prev = bySession.get(open.sessionId)
+      if (prev === undefined || open.at >= prev.at) {
+        bySession.set(open.sessionId, { name: open.name, at: open.at })
+      }
+    }
+    return Object.fromEntries(bySession)
   }
 
   /** Best-known title for a session: the `session/title` handler keeps the
@@ -351,6 +391,9 @@ export function apply(ctx: Context): void {
       // A turn that ends closes every still-open human-answer wait (answered,
       // cancelled, or aborted) — resolve them so no record dangles.
       resolveOpenQuestions(session.id)
+      // ...and every open tool call dies with the turn: a finished turn has no
+      // "executing" tool left to report.
+      closeSessionTools(session.id)
       const depth = Math.max(0, (turnDepth.get(session.id) ?? 1) - 1)
       turnDepth.set(session.id, depth)
       if (isSubagent) {
@@ -389,6 +432,15 @@ export function apply(ctx: Context): void {
     // relay stays as a redundant backup (deduped by pushInteraction).
     if (ev.type === 'tool/call') {
       if (typeof ev.data.callId !== 'string') return
+      // Record EVERY open model tool call — the progress display folds the
+      // session's currently-executing tool from these (see currentTools).
+      if (typeof ev.data.name === 'string' && ev.data.name.length > 0) {
+        openTools.set(ev.data.callId, {
+          sessionId: session.id,
+          name: ev.data.name,
+          at: typeof ev.time === 'number' ? ev.time : Date.now(),
+        })
+      }
       if (ev.data.name === PLAN_REVIEW_TOOL_NAME) {
         if (openQuestions.has(ev.data.callId)) return
         openQuestions.set(ev.data.callId, { sessionId: session.id, kind: 'plan-review' })
@@ -406,6 +458,7 @@ export function apply(ctx: Context): void {
     }
     if (ev.type === 'tool/result') {
       if (typeof ev.data.callId !== 'string') return
+      openTools.delete(ev.data.callId)
       const open = openQuestions.get(ev.data.callId)
       if (open !== undefined) {
         openQuestions.delete(ev.data.callId)
@@ -444,6 +497,7 @@ export function apply(ctx: Context): void {
     for (const [callId, open] of openQuestions) {
       if (open.sessionId === session.id) openQuestions.delete(callId)
     }
+    closeSessionTools(session.id)
   })
 
   ctx.inject(['webServer', 'sessions', 'settings'], (webCtx) => {
@@ -489,7 +543,10 @@ export function apply(ctx: Context): void {
           kind: 'exact',
           path: STATUS_ROUTE,
           handler: (req, res) => {
-            responseJson(req, res, 200, { ok: true, value: { sessions: store.snapshot() } })
+            responseJson(req, res, 200, {
+              ok: true,
+              value: { sessions: store.snapshot(), tools: currentTools(), rounds: store.roundCounts() },
+            })
           },
         }),
         // Desktop widget data: the session snapshot (rows fold the store +
@@ -505,7 +562,7 @@ export function apply(ctx: Context): void {
               const snapshot = await buildDesktopSnapshot(webCtx)
               responseJson(req, res, 200, {
                 ok: true,
-                value: { ...snapshot, reasons: store.snapshot() },
+                value: { ...snapshot, reasons: store.snapshot(), tools: currentTools(), rounds: store.roundCounts() },
               })
             } catch (error) {
               const message = error instanceof Error ? error.stack ?? error.message : String(error)

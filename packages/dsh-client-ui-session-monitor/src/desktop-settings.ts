@@ -40,6 +40,12 @@ export interface MonitorSettingsWire {
   readonly notifyCurrent: boolean
   /** Show (and notify about) subagent sessions in the dashboard. */
   readonly showSubagents: boolean
+  /** Desktop monitoring master switch: off by default — turning it ON from
+   *  the web config panel launches / surfaces this app through the
+   *  `dsh-smon://` protocol and the desktop widget polls sessions and
+   *  notifications; off pauses all monitoring and shows a paused state.
+   *  Controlled from either side; the web widget itself is unaffected. */
+  readonly desktopMonitor: boolean
   /** Desktop inbox: mark a notification read automatically after 处理 jumps to it. */
   readonly ackOnJump: boolean
   /** Desktop inbox: auto-ack everything when the widget starts (default off —
@@ -63,6 +69,7 @@ export const MonitorSettingsSchema: z<MonitorSettingsWire> = z.object({
   showDone: z.boolean().default(true),
   notifyCurrent: z.boolean().default(false),
   showSubagents: z.boolean().default(false),
+  desktopMonitor: z.boolean().default(false),
   ackOnJump: z.boolean().default(true),
   autoAckOnOpen: z.boolean().default(false),
 })

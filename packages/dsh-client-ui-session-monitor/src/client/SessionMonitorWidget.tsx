@@ -3,13 +3,20 @@
  * registered into the shell.overlay list. It projects the live session list
  * through the standard `useSessions` prop — the list and running bits ride
  * the reactive projection with no Host RPC; only the turn-end REASON table
- * (toast refinement) is polled from the Host status route every few seconds
- * — and:
+ * plus the executing-TOOL table (progress labels) are polled from the Host
+ * status route every few seconds — and:
  *
  *  - lists the live (non-blank, non-subagent by default) sessions with their
  *    status (running / idle / round-done), title, pending-interaction flag and
  *    last-update time; a parent row shows a 子×N badge while it has N
  *    subagents running (subagent rows themselves stay filtered out);
+ *  - rows with tasks in flight (a running turn, running subagents, background
+ *    jobs) show a thin indeterminate progress bar + a label naming what is
+ *    executing right now: the current model tool call and in-progress round
+ *    for running rows (Host-tracked), the subagent/job load for busy rows;
+ *    sessions running a task GOAL show a determinate bar instead — the goal
+ *    projection rides `row.projectionValues.goal`, so rounds-started / cap
+ *    renders as a real percentage (「目标 第 X/Y 轮」, plus the current tool);
  *  - watches `running` true→false edges and, per the user settings, pops a
  *    toast notification for every finished round ("完成一轮"), with 跳转
  *    (jump) and 知道了 (dismiss) actions — auto-dismiss or confirm-required;
@@ -69,6 +76,43 @@ interface Toast {
   kind: ToastKind
   /** Round number this completion represents (Host count preferred, else observed). */
   round?: number
+}
+
+/** One session's currently-open model tool call (Host-tracked via tool/call →
+ *  tool/result; absent while the session is between tools or the Host is
+ *  down). Feeds the "正在执行 …" progress label on running rows. */
+interface CurrentTool {
+  /** Tool name as the model invoked it (e.g. web_search, bash). */
+  name: string
+  /** Event wall time of the tool/call (epoch ms). */
+  at: number
+}
+
+/**
+ * Loose client-side view of the `goal` session projection. The authoritative
+ * shape is declared by `@deepseek-ai/dsh-goal` (`GoalProjection | null` in the
+ * SessionProjectionMap), which is intentionally NOT in this package's
+ * typecheck graph — same loose-shape convention as desktop-snapshot.ts. The
+ * projection rides `row.projectionValues.goal` reactively (no Host RPC):
+ * `roundsStarted / maxGoalRounds` is the determinate goal-round progress.
+ */
+interface GoalProjectionLoose {
+  readonly goal?: {
+    /** Durable lifecycle phase: active / paused / blocked / complete. */
+    readonly phase?: string
+    /** Total admitted goal-round cap. */
+    readonly maxGoalRounds?: number
+  }
+  /** Highest admitted round number for this goal. */
+  readonly roundsStarted?: number
+}
+
+/** Read one row's goal projection through the loose shape (absent/null = no
+ *  goal). The cast is safe: `projectionValues` is a partial projection map. */
+function goalProjectionOf(row: SessionSummary): GoalProjectionLoose | null | undefined {
+  const goal = (row.projectionValues as { goal?: unknown } | undefined)?.goal
+  if (goal === null || goal === undefined) return goal
+  return goal as GoalProjectionLoose
 }
 
 /** A finished round waiting for its Host turn-end reason before toasting. */
@@ -170,10 +214,14 @@ const DEFAULT_BOTTOM = 150
 const PANEL_W = 268
 /** BroadcastChannel name for cross-tab acknowledgment sync. */
 const SYNC_CHANNEL = 'dsh-smon-sync'
-/** Poll interval for the Host turn-end reason table. */
+/** Poll interval for the Host turn-end reason table (and the `tools` table). */
 const POLL_INTERVAL_MS = 3000
+/** Host status route: turn-end reasons + currently-executing tools. */
+const STATUS_ROUTE = '/_dsh/session-monitor/status'
 /** Host inbox route: the durable "not handled yet" unread count (badge). */
 const INBOX_ROUTE = '/_dsh/session-monitor/notifications'
+/** Host inbox ack route: marking records read (handling them clears the badge). */
+const INBOX_ACK_ROUTE = '/_dsh/session-monitor/notifications/ack'
 /** Badge poll cadence — slower than the reasons table, the count is not urgent. */
 const INBOX_POLL_MS = 5000
 /** How long a Host turn-end record may precede the client's edge detection
@@ -216,6 +264,19 @@ function formatAgo(ts: number, now: number, t: TranslateNS<'session-monitor'>): 
 function sameSet<T>(a: ReadonlySet<T>, b: ReadonlySet<T>): boolean {
   if (a.size !== b.size) return false
   for (const value of a) if (!b.has(value)) return false
+  return true
+}
+
+/** True when two tool tables hold exactly the same entries (content compare so
+ *  the 3s status poll does not re-render the panel when nothing changed). */
+function sameTools(a: Readonly<Record<string, CurrentTool>>, b: Readonly<Record<string, CurrentTool>>): boolean {
+  const aKeys = Object.keys(a)
+  if (aKeys.length !== Object.keys(b).length) return false
+  for (const key of aKeys) {
+    const ta = a[key]
+    const tb = b[key]
+    if (tb === undefined || tb.name !== ta.name || tb.at !== ta.at) return false
+  }
   return true
 }
 
@@ -272,6 +333,9 @@ export function SessionMonitorWidget(props: SessionMonitorWidgetProps) {
   const [now, setNow] = useState(() => Date.now())
   /** Unread Host-inbox count (0 = nothing needs attention). */
   const [inboxUnread, setInboxUnread] = useState(0)
+  /** Currently-executing tool per session (Host-tracked; state so the row
+   *  progress labels update when the status poll lands a change). */
+  const [tools, setTools] = useState<Readonly<Record<string, CurrentTool>>>({})
 
   /** Last-observed running bits per session; a true→false edge = one finished round. */
   const prevRunningRef = useRef<Map<string, boolean>>(new Map())
@@ -289,6 +353,10 @@ export function SessionMonitorWidget(props: SessionMonitorWidgetProps) {
   const notifyInstRef = useRef<Map<string, Notification>>(new Map())
   /** Host turn-end reason table (sessionId → { reason, at }), refreshed by polling. */
   const reasonsRef = useRef<Record<string, { reason: string; at: number; round?: number }>>({})
+  /** Host cumulative finished-round counts (sessionId → count; NOT TTL-pruned),
+   *  refreshed by the same poll — the IN-PROGRESS round of a running turn is
+   *  `count + 1`, accurate even for long turns. */
+  const roundsHostRef = useRef<Record<string, number>>({})
   /** Whether the Host status route answered at least once ('unknown' before the first poll). */
   const hostStatusRef = useRef<'unknown' | 'up' | 'down'>('unknown')
   /** Finished rounds waiting for their Host reason before the toast is emitted. */
@@ -742,22 +810,16 @@ export function SessionMonitorWidget(props: SessionMonitorWidgetProps) {
     }
   }
 
-  // Poll the Host turn-end reason table and drive the pending-alert queue.
+  // Poll the Host status route (turn-end reasons + executing tools) and drive
+  // the pending-alert queue. Polled unconditionally: the same response feeds
+  // the row progress labels ("正在执行 …"), which must stay fresh even when
+  // the user disabled both notification surfaces.
   useEffect(() => {
     let cancelled = false
     const tick = async (): Promise<void> => {
-      // With both the in-page toast and the system notification disabled,
-      // nothing consumes turn-end reasons — skip the fetch. Re-evaluated on
-      // every tick, so enabling either notification resumes within one
-      // interval (no effect restart needed).
-      if (!settingsRef.current.notify && !settingsRef.current.browserNotify) {
-        hostStatusRef.current = 'down'
-        flushPendingRef.current()
-        return
-      }
       let up: boolean
       try {
-        const res = await fetch('/_dsh/session-monitor/status', { cache: 'no-store' })
+        const res = await fetch(STATUS_ROUTE, { cache: 'no-store' })
         if (!res.ok) throw new Error(`status ${res.status}`)
         const body: any = await res.json()
         if (cancelled) return
@@ -766,6 +828,29 @@ export function SessionMonitorWidget(props: SessionMonitorWidgetProps) {
         if (body && body.ok && body.value && typeof body.value.sessions === 'object'
           && body.value.sessions !== null && !Array.isArray(body.value.sessions)) {
           reasonsRef.current = body.value.sessions
+        }
+        // Same guard for the tools table; content-compare so an unchanged
+        // table does not re-render the panel every poll.
+        if (body && body.ok && body.value && typeof body.value.tools === 'object'
+          && body.value.tools !== null && !Array.isArray(body.value.tools)) {
+          const next: Record<string, CurrentTool> = {}
+          for (const [id, tool] of Object.entries(body.value.tools)) {
+            if (tool !== null && typeof tool === 'object'
+              && typeof (tool as CurrentTool).name === 'string'
+              && typeof (tool as CurrentTool).at === 'number') {
+              next[id] = { name: (tool as CurrentTool).name, at: (tool as CurrentTool).at }
+            }
+          }
+          setTools((prev) => (sameTools(prev, next) ? prev : next))
+        }
+        // Cumulative round counts: same plain-object guard; numbers only.
+        if (body && body.ok && body.value && typeof body.value.rounds === 'object'
+          && body.value.rounds !== null && !Array.isArray(body.value.rounds)) {
+          const next: Record<string, number> = {}
+          for (const [id, count] of Object.entries(body.value.rounds)) {
+            if (typeof count === 'number' && Number.isFinite(count)) next[id] = count
+          }
+          roundsHostRef.current = next
         }
         up = true
       } catch {
@@ -795,20 +880,7 @@ export function SessionMonitorWidget(props: SessionMonitorWidgetProps) {
         if (!res.ok) throw new Error(`inbox ${res.status}`)
         const body: any = await res.json()
         if (cancelled) return
-        const value = body && body.ok ? body.value : undefined
-        if (!value || typeof value.unread !== 'number' || !Array.isArray(value.notes)) return
-        setInboxUnread((prev) => (prev === value.unread ? prev : value.unread))
-        // Newest unread record (notes are oldest-first) for badge click-jump.
-        let newest: string | null = null
-        for (let index = value.notes.length - 1; index >= 0; index--) {
-          const note = value.notes[index]
-          if (note && typeof note.sessionId === 'string'
-            && note.ackedAt === undefined && note.resolved !== true) {
-            newest = note.sessionId
-            break
-          }
-        }
-        newestUnreadRef.current = newest
+        applyInboxSnapshot(body)
       } catch { /* host absent → keep last */ }
     }
     void tick()
@@ -990,6 +1062,56 @@ export function SessionMonitorWidget(props: SessionMonitorWidgetProps) {
     broadcastSync({ type: 'opened', sessionId })
   }
 
+  /** Mark one session's inbox records read (POST ack; resolves when the Host
+   *  committed, rejects when it is unreachable). */
+  function ackSession(sessionId: string): Promise<void> {
+    return fetch(INBOX_ACK_ROUTE, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ sessionId }),
+      cache: 'no-store',
+    }).then((res) => {
+      if (!res.ok) throw new Error(`ack ${res.status}`)
+    })
+  }
+
+  /** Re-read the inbox snapshot and update the badge count + newest-unread
+   *  target (shared by the poll and the post-ack refresh). */
+  function applyInboxSnapshot(body: any): void {
+    const value = body && body.ok ? body.value : undefined
+    if (!value || typeof value.unread !== 'number' || !Array.isArray(value.notes)) return
+    setInboxUnread((prev) => (prev === value.unread ? prev : value.unread))
+    let newest: string | null = null
+    for (let index = value.notes.length - 1; index >= 0; index--) {
+      const note = value.notes[index]
+      if (note && typeof note.sessionId === 'string'
+        && note.ackedAt === undefined && note.resolved !== true) {
+        newest = note.sessionId
+        break
+      }
+    }
+    newestUnreadRef.current = newest
+  }
+
+  /**
+   * Unread-badge click = 处理 (handle): jump to the newest unread session and
+   * mark that session's records read — the web-side equivalent of the desktop
+   * inbox's 处理 + ackOnJump, and the ONLY way the red dot can clear from the
+   * web widget (done/title/new-session records never auto-resolve). The badge
+   * refreshes right AFTER the ack commits server-side, so the red dot drops
+   * without waiting for the next 5s poll.
+   */
+  function handleInboxBadge(): void {
+    const target = newestUnreadRef.current
+    if (!target) return
+    try { open(target) } catch { /* unknown session — still ack the records */ }
+    ackSession(target)
+      .then(() => fetch(INBOX_ROUTE, { cache: 'no-store' }))
+      .then((res) => (res.ok ? res.json() : Promise.reject(new Error(`inbox ${res.status}`))))
+      .then((body: any) => { applyInboxSnapshot(body) })
+      .catch(() => { /* host absent — the next poll retries */ })
+  }
+
   /**
    * Send a browser/system notification for one finished round. Independent of
    * the in-widget toast: only fires when the Notification API exists and the
@@ -1140,6 +1262,16 @@ export function SessionMonitorWidget(props: SessionMonitorWidgetProps) {
           <span
             className={css.pillBadge}
             title={t('inboxBadgeTitle', { count: String(inboxUnread) })}
+            role="button"
+            tabIndex={0}
+            onPointerDown={(e) => e.stopPropagation()}
+            onClick={() => handleInboxBadge()}
+            onKeyDown={(event) => {
+              if (event.key === 'Enter' || event.key === ' ') {
+                event.preventDefault()
+                handleInboxBadge()
+              }
+            }}
           >
             {inboxUnread}
           </span>
@@ -1158,12 +1290,7 @@ export function SessionMonitorWidget(props: SessionMonitorWidgetProps) {
               className={css.inboxBadge}
               title={t('inboxBadgeTitle', { count: String(inboxUnread) })}
               onPointerDown={(e) => e.stopPropagation()}
-              onClick={() => {
-                const target = newestUnreadRef.current
-                if (target) {
-                  try { open(target) } catch { /* unknown session */ }
-                }
-              }}
+              onClick={() => handleInboxBadge()}
             >
               {inboxUnread}
             </button>
@@ -1204,18 +1331,95 @@ export function SessionMonitorWidget(props: SessionMonitorWidgetProps) {
               // more current signal (the dot keeps its done color meanwhile).
               const busySub = !row.running && subRunning > 0
               const busyJobs = !row.running && subRunning === 0 && jobsRunning > 0
-              const statusText = row.pendingInteraction !== undefined
-                ? t('pendingInput')
-                : row.running
-                  ? t('running')
-                  : busySub
-                    ? t('subagentsActive')
-                    : busyJobs
-                      ? t('jobsActive')
-                      : done && settings.showDone
-                        ? t('roundDone')
-                        : t('idle')
-              const statusCls = busySub ? css.statusSub : busyJobs ? css.statusJobs : undefined
+              // Plan mode: the session presented a plan and is waiting for the
+              // user's review — a distinct wait worth naming (the client
+              // derives `plan-review` from the plan-review-routed question
+              // frame), instead of lumping it into the generic 等待输入.
+              const planReview = row.pendingInteraction === 'plan-review'
+              const statusText = planReview
+                ? t('planReviewWait')
+                : row.pendingInteraction !== undefined
+                  ? t('pendingInput')
+                  : row.running
+                    ? t('running')
+                    : busySub
+                      ? t('subagentsActive')
+                      : busyJobs
+                        ? t('jobsActive')
+                        : done && settings.showDone
+                          ? t('roundDone')
+                          : t('idle')
+              const statusCls = planReview
+                ? css.statusPlan
+                : busySub ? css.statusSub : busyJobs ? css.statusJobs : undefined
+              // ── Task-execution progress ──────────────────────────────────
+              // A session with work in flight (a running turn, running
+              // subagents, or background jobs) gets a thin animated bar plus a
+              // label naming what is executing. Running rows name the current
+              // model tool call (Host-tracked) and the in-progress round; busy
+              // rows name their subagent/job load.
+              //
+              // GOAL MODE overrides the generic bar: when the session carries a
+              // `goal` projection (a task goal is being processed — the agent
+              // loops round after round toward it), the bar becomes DETERMINATE
+              // — roundsStarted / maxGoalRounds is a real percentage — and the
+              // label reads 「目标 第 X/Y 轮」 (+ the current tool while one is
+              // executing). Paused / blocked goals stay visible even on idle
+              // rows (「目标已暂停/受阻」 is worth seeing).
+              const goalProj = goalProjectionOf(row)
+              const goalPhase = goalProj?.goal?.phase
+              const goalActive = goalProj?.goal !== undefined && goalPhase !== 'complete'
+              const goalPausedOrBlocked = goalActive && (goalPhase === 'paused' || goalPhase === 'blocked')
+              const goalPct = goalActive && (goalProj.goal?.maxGoalRounds ?? 0) > 0
+                ? Math.min(100, Math.round(((goalProj.roundsStarted ?? 0) / (goalProj.goal?.maxGoalRounds ?? 1)) * 100))
+                : undefined
+              const active = row.running || subRunning > 0 || jobsRunning > 0 || goalPausedOrBlocked
+              let progressCls: string | undefined
+              let progressLabel: string | undefined
+              if (active) {
+                if (goalActive) {
+                  // Goal progress wins the bar: determinate, round/cap label.
+                  const cap = String(goalProj.goal?.maxGoalRounds ?? 0)
+                  const started = String(goalProj.roundsStarted ?? 0)
+                  if (goalPhase === 'blocked') {
+                    progressCls = css.progressGoalBlocked
+                    progressLabel = t('goalBlocked', { round: started, cap })
+                  } else if (goalPhase === 'paused') {
+                    progressCls = css.progressGoalPaused
+                    progressLabel = t('goalPaused', { round: started, cap })
+                  } else {
+                    progressCls = css.progressGoal
+                    const toolName = tools[row.id]?.name
+                    progressLabel = toolName !== undefined
+                      ? t('goalProgressTool', { round: started, cap, tool: toolName })
+                      : t('goalProgress', { round: started, cap })
+                  }
+                } else if (row.running) {
+                  progressCls = css.progressRunning
+                  // Round number of the IN-PROGRESS turn: the Host's cumulative
+                  // finished-round count + 1 (accurate even for long turns — the
+                  // count is not TTL-pruned), else the widget's own observed
+                  // count + 1, else 1.
+                  const hostCount = roundsHostRef.current[row.id]
+                  const round = (hostCount ?? roundsRef.current.get(row.id) ?? 0) + 1
+                  const toolName = tools[row.id]?.name
+                  progressLabel = toolName !== undefined
+                    ? t('progressTool', { round: String(round), tool: toolName })
+                    : t('roundOf', { n: String(round) })
+                } else if (busySub) {
+                  progressCls = css.progressSub
+                  progressLabel = t('progressSub', { n: String(subRunning) })
+                } else {
+                  progressCls = css.progressJobs
+                  // Name the first still-executing job when exactly one is
+                  // running; a multi-job session just gets the count.
+                  const jobs = sessions.jobsBySession[row.id] ?? []
+                  const firstLabel = jobs.find((j) => j.status === 'running' || j.status === 'stopping')?.label
+                  progressLabel = firstLabel !== undefined && jobsRunning === 1
+                    ? t('progressJobOne', { label: firstLabel })
+                    : t('progressJobs', { n: String(jobsRunning) })
+                }
+              }
               return (
                 <div
                   key={row.id}
@@ -1257,6 +1461,30 @@ export function SessionMonitorWidget(props: SessionMonitorWidgetProps) {
                           row whose updatedAt is stale still shows "recent". */}
                       <span className={css.time}>{formatAgo(Math.max(row.updatedAt, lastActive[row.id] ?? 0), now, t)}</span>
                     </div>
+                    {active && progressCls !== undefined
+                      ? (
+                        <div className={css.progress}>
+                          <div
+                            className={[css.progressBar, progressCls].filter(Boolean).join(' ')}
+                            role="progressbar"
+                            aria-valuemin={0}
+                            aria-valuemax={goalActive ? goalProj.goal?.maxGoalRounds ?? 0 : undefined}
+                            aria-valuenow={goalActive ? goalProj.roundsStarted ?? 0 : undefined}
+                            aria-label={progressLabel}
+                          >
+                            {/* Determinate goal fill: rounds-started / round-cap
+                                as a real percentage (goal mode only — the
+                                generic bars stay indeterminate sweeps). */}
+                            {goalPct !== undefined
+                              ? <div className={css.progressFill} style={{ width: `${goalPct}%` }} />
+                              : null}
+                          </div>
+                          {progressLabel !== undefined
+                            ? <div className={css.progressLabel}>{progressLabel}</div>
+                            : null}
+                        </div>
+                      )
+                      : null}
                   </div>
                 </div>
               )

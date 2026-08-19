@@ -14,6 +14,7 @@ export type SessionMonitorKey =
   | 'idle'
   | 'roundDone'
   | 'pendingInput'
+  | 'planReviewWait'
   | 'subagent'
   | 'subagentsRunning'
   | 'subagentsActive'
@@ -79,6 +80,8 @@ export type SessionMonitorKey =
   | 'notifyCurrentDesc'
   | 'showSubagentsLabel'
   | 'showSubagentsDesc'
+  | 'desktopMonitorLabel'
+  | 'desktopMonitorDesc'
   | 'ackOnJumpLabel'
   | 'ackOnJumpDesc'
   | 'autoAckOnOpenLabel'
@@ -86,6 +89,15 @@ export type SessionMonitorKey =
   | 'inboxBadgeTitle'
   | 'resetPosScale'
   | 'resetAll'
+  | 'roundOf'
+  | 'progressTool'
+  | 'progressSub'
+  | 'progressJobs'
+  | 'progressJobOne'
+  | 'goalProgress'
+  | 'goalProgressTool'
+  | 'goalPaused'
+  | 'goalBlocked'
 
 /** Simplified Chinese dictionary. */
 export const zh: Record<SessionMonitorKey, string> = {
@@ -97,6 +109,7 @@ export const zh: Record<SessionMonitorKey, string> = {
   idle: '空闲',
   roundDone: '本轮完成',
   pendingInput: '等待输入',
+  planReviewWait: '等待计划评审',
   subagent: '子代理',
   subagentsRunning: '子×{n}',
   subagentsActive: '子代理执行中',
@@ -162,13 +175,24 @@ export const zh: Record<SessionMonitorKey, string> = {
   notifyCurrentDesc: '当前会话完成一轮时也提醒（默认关：你正在看它，无需再弹提醒；但停下等你输入/确认时仍会提醒）',
   showSubagentsLabel: '显示子代理',
   showSubagentsDesc: '默认过滤子代理会话；开启后在列表中显示并提醒',
+  desktopMonitorLabel: '桌面端会话监控',
+  desktopMonitorDesc: '默认关闭。打开时经 dsh-smon:// 拉起桌面挂件应用（未运行则启动、已运行则唤出窗口）并开始轮询会话与通知；关闭后桌面挂件暂停监控（网页挂件不受影响）',
   ackOnJumpLabel: '处理后自动已读',
   ackOnJumpDesc: '桌面端点「处理」跳转会话后，该通知自动标记为已读',
   autoAckOnOpenLabel: '打开时自动全部已读',
   autoAckOnOpenDesc: '桌面端启动时自动清空待处理通知（默认关：打开即提示是核心价值）',
-  inboxBadgeTitle: '{count} 条待处理通知，点击跳转到最新一条',
+  inboxBadgeTitle: '{count} 条待处理通知，点击跳转到最新一条并标记已读',
   resetPosScale: '重置位置与缩放',
   resetAll: '重置设置',
+  roundOf: '第 {n} 轮',
+  progressTool: '第 {round} 轮 · 正在执行 {tool}',
+  progressSub: '{n} 个子代理执行中',
+  progressJobs: '{n} 个后台任务执行中',
+  progressJobOne: '后台任务 · {label}',
+  goalProgress: '目标 第 {round}/{cap} 轮',
+  goalProgressTool: '目标 第 {round}/{cap} 轮 · 正在执行 {tool}',
+  goalPaused: '目标已暂停 · 第 {round}/{cap} 轮',
+  goalBlocked: '目标受阻 · 第 {round}/{cap} 轮',
 }
 
 /** English dictionary. */
@@ -181,6 +205,7 @@ export const en: Record<SessionMonitorKey, string> = {
   idle: 'Idle',
   roundDone: 'Round done',
   pendingInput: 'Waiting for input',
+  planReviewWait: 'Waiting for plan review',
   subagent: 'Subagent',
   subagentsRunning: 'sub×{n}',
   subagentsActive: 'subagents working',
@@ -246,11 +271,22 @@ export const en: Record<SessionMonitorKey, string> = {
   notifyCurrentDesc: 'Also notify when the current session finishes (off by default — you are already looking at it; rounds waiting for your input/confirmation still notify)',
   showSubagentsLabel: 'Show subagents',
   showSubagentsDesc: 'Subagent sessions are filtered out by default; enable to list and notify them',
+  desktopMonitorLabel: 'Desktop monitoring',
+  desktopMonitorDesc: 'Off by default. Turning it on launches / surfaces the desktop app via the dsh-smon:// protocol (starts it if not running, brings the window forward otherwise) and starts polling sessions and notifications; turning it off pauses the desktop widget (the web widget is unaffected)',
   ackOnJumpLabel: 'Auto-read on handle',
   ackOnJumpDesc: 'Desktop: handling a notification marks it read after jumping to the session',
   autoAckOnOpenLabel: 'Auto-read all on open',
   autoAckOnOpenDesc: 'Desktop: clear all pending notifications at startup (off by default — opening the widget should surface them)',
-  inboxBadgeTitle: '{count} pending notification(s), click to jump to the newest',
+  inboxBadgeTitle: '{count} pending notification(s), click to jump to the newest and mark it read',
   resetPosScale: 'Reset position & zoom',
   resetAll: 'Reset settings',
+  roundOf: 'round {n}',
+  progressTool: 'round {round} · running {tool}',
+  progressSub: '{n} subagents working',
+  progressJobs: '{n} bg jobs running',
+  progressJobOne: 'bg job · {label}',
+  goalProgress: 'goal round {round}/{cap}',
+  goalProgressTool: 'goal round {round}/{cap} · running {tool}',
+  goalPaused: 'goal paused · round {round}/{cap}',
+  goalBlocked: 'goal blocked · round {round}/{cap}',
 }

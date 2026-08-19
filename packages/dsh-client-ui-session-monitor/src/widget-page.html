@@ -185,6 +185,44 @@
     border: 1px solid rgba(255, 107, 107, 0.25);
   }
 
+  /* ── monitoring-off overlay ─────────────────────────── */
+  /* Covers the tab bar + views when the shared "desktop monitoring" switch is
+     off (the header stays usable so settings can be reopened). z-index sits
+     below the settings popover (20) so the panel floats above the overlay. */
+  .monitorOff {
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: 42px;
+    bottom: 0;
+    z-index: 15;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 24px;
+    text-align: center;
+    background: rgba(24, 26, 32, 0.96);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+  }
+  .monitorOff .big { font-size: 26px; line-height: 1; }
+  .monitorOff .msg { font-size: 13px; font-weight: 600; }
+  .monitorOff .sub { font-size: 10.5px; color: rgba(232, 234, 240, 0.5); max-width: 230px; line-height: 1.5; }
+  .monitorOff button {
+    margin-top: 6px;
+    padding: 6px 16px;
+    border: none;
+    border-radius: 8px;
+    background: #4f8cff;
+    color: #fff;
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+  }
+  .monitorOff button:hover { filter: brightness(1.08); }
+
   /* ── views ──────────────────────────────────────────── */
   .view {
     flex: 1 1 auto;
@@ -469,6 +507,67 @@
     white-space: nowrap;
   }
 
+  /* Task-execution progress: thin animated bar + label under the row title for
+     rows with work in flight (running turn / running subagents). Indeterminate
+     — no percent signal exists — so the sweep says "executing" and the label
+     names what. Accents match the status dots: green = turn, violet = sub. */
+  .progress { margin-top: 5px; min-width: 0; }
+  .progressBar {
+    position: relative;
+    height: 3px;
+    border-radius: 2px;
+    overflow: hidden;
+    background: rgba(61, 214, 140, 0.18);
+  }
+  .progressBar.progressSub { background: rgba(179, 136, 255, 0.18); }
+  .progressBar::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    left: -45%;
+    width: 45%;
+    border-radius: 2px;
+    background: linear-gradient(90deg, transparent, #3dd68c, transparent);
+    animation: progressSweep 1.15s ease-in-out infinite;
+  }
+  .progressBar.progressSub::after {
+    background: linear-gradient(90deg, transparent, #b388ff, transparent);
+  }
+  /* GOAL-mode progress: DETERMINATE — the .progressFill shows rounds-started /
+     round-cap as a real percentage, so the sweep is suppressed. Blue =
+     active, amber = paused, red = blocked. */
+  .progressBar.progressGoal { background: rgba(79, 140, 255, 0.18); }
+  .progressBar.progressGoalPaused { background: rgba(245, 181, 68, 0.18); }
+  .progressBar.progressGoalBlocked { background: rgba(255, 107, 107, 0.18); }
+  .progressBar.progressGoal::after,
+  .progressBar.progressGoalPaused::after,
+  .progressBar.progressGoalBlocked::after { display: none; }
+  .progressFill {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    left: 0;
+    border-radius: 2px;
+    background: #4f8cff;
+    transition: width 320ms ease;
+  }
+  .progressBar.progressGoalPaused .progressFill { background: #f5b544; }
+  .progressBar.progressGoalBlocked .progressFill { background: #ff6b6b; }
+  @keyframes progressSweep {
+    from { left: -45%; }
+    to { left: 100%; }
+  }
+  .progressLabel {
+    margin-top: 3px;
+    font-size: 10px;
+    line-height: 1.4;
+    color: rgba(232, 234, 240, 0.52);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
   /* ── settings popover ───────────────────────────────── */
   .settings {
     position: absolute;
@@ -638,6 +737,12 @@
       <button class="tab" id="tabSessions">会话</button>
     </div>
     <div class="banner" id="banner" hidden>连接 Harness 失败，正在重试…</div>
+    <div class="monitorOff" id="monitorOff" hidden>
+      <span class="big">⏸</span>
+      <span class="msg">桌面端会话监控已关闭</span>
+      <span class="sub">挂件已暂停轮询与提醒。可在网页版设置或本面板「设置」中重新开启</span>
+      <button id="monitorOffEnable">开启监控</button>
+    </div>
     <div class="view" id="inboxView">
       <input class="search" id="inboxSearch" type="search" placeholder="搜索通知…" />
       <div class="list" id="inboxList"></div>
@@ -658,6 +763,7 @@
     </div>
     <div class="settings" id="settingsPanel" hidden>
       <span class="hint">以下选项与网页版共享，两边改动实时同步</span>
+      <label class="check"><input type="checkbox" id="setDesktopMonitor" /> 桌面端会话监控</label>
       <label class="check"><input type="checkbox" id="setNotify" /> 完成提醒</label>
       <label>通知方式
         <select id="setNotifyMode">
@@ -722,6 +828,7 @@
     showDone: true,
     notifyCurrent: false,
     showSubagents: false,
+    desktopMonitor: false,
     ackOnJump: true,
     autoAckOnOpen: false,
   }
@@ -747,11 +854,13 @@
     'new-session': { label: '新会话',       icon: '＋', color: '#7d93c4', level: 'p2' },
   }
 
-  var shared = {}          // effective shared settings (12 fields, from server)
+  var shared = {}          // effective shared settings (13 fields, from server)
   var inboxLevels = {}     // { p0, p1, p2 } booleans (desktop-local)
   var pollMs = POLL_DEFAULT_MS
   var sessions = []        // latest snapshot rows
   var reasons = {}         // sessionId -> { reason, at, round } (rides the sessions snapshot)
+  var tools = {}           // sessionId -> { name, at } — currently-executing tool per session
+  var roundCounts = {}     // sessionId -> cumulative finished-round count (NOT TTL-pruned)
   var prevRunning = {}     // sessionId -> true while running (edge detection)
   var lastToastedRound = {} // sessionId -> round already notified
   var notes = []           // latest inbox records (server order, oldest first)
@@ -867,9 +976,25 @@
     } catch (e) { /* ignore */ }
   }
 
+  /** The shared "desktop monitoring" master switch is off. */
+  function isMonitorOff() {
+    return shared.desktopMonitor === false
+  }
+
+  /** Schedule the polls according to the current state: window-hidden pause
+   *  (setPaused) and/or the shared desktop-monitoring master switch. When
+   *  monitoring is off, no data poll runs at all — the settings poll
+   *  (settingsTimer, separate) keeps running so a web-side re-enable is
+   *  picked up within a few seconds. */
   function applyEffective() {
-    if (pollTimer) clearInterval(pollTimer)
-    pollTimer = setInterval(pollAll, pollMs)
+    if (pollTimer) { clearInterval(pollTimer); pollTimer = null }
+    if (slowTimer) { clearInterval(slowTimer); slowTimer = null }
+    if (isMonitorOff()) return
+    if (paused) {
+      slowTimer = setInterval(pollNotifications, HIDDEN_NOTIFY_MS)
+    } else {
+      pollTimer = setInterval(pollAll, pollMs)
+    }
   }
 
   /** Pause the heavy polls while the widget window is hidden (Tauri hide /
@@ -880,13 +1005,8 @@
   function setPaused(p) {
     if (p === paused) return
     paused = p
-    if (p) {
-      if (pollTimer) { clearInterval(pollTimer); pollTimer = null }
-      if (slowTimer) clearInterval(slowTimer)
-      slowTimer = setInterval(pollNotifications, HIDDEN_NOTIFY_MS)
-    } else {
-      if (slowTimer) { clearInterval(slowTimer); slowTimer = null }
-      applyEffective()
+    applyEffective()
+    if (!p && !isMonitorOff()) {
       pollAll()
       pollSettings()
     }
@@ -899,11 +1019,15 @@
   }
 
   /** Merge a patch into the shared settings, persist to the Host store and
-   *  cache. The full 12-field blob is sent so untouched web-side fields
+   *  cache. The full settings blob is sent so untouched web-side fields
    *  survive the write. */
   function saveSharedSettings(patch) {
+    var monitorChanged = false
     for (var key in patch) {
-      if (key in DEFAULTS) shared[key] = patch[key]
+      if (key in DEFAULTS) {
+        if (key === 'desktopMonitor' && shared[key] !== patch[key]) monitorChanged = true
+        shared[key] = patch[key]
+      }
     }
     saveCache()
     fetchJSON(SETTINGS_URL, {
@@ -911,7 +1035,13 @@
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(shared),
     }).catch(function () {})
-    render()
+    if (monitorChanged) {
+      applyEffective()
+      renderMonitor()
+      render()
+    } else {
+      render()
+    }
   }
 
   /** Pull the Host store (web-side changes) and apply when different. */
@@ -920,14 +1050,23 @@
       if (!body || !body.ok || !body.value || typeof body.value !== 'object') return
       var next = body.value
       var changed = false
+      var monitorChanged = false
       for (var key in DEFAULTS) {
         var v = next[key]
         if (typeof v === 'boolean' || typeof v === 'number' || v === 'auto' || v === 'confirm') {
-          if (shared[key] !== v) { shared[key] = v; changed = true }
+          if (shared[key] !== v) {
+            if (key === 'desktopMonitor') monitorChanged = true
+            shared[key] = v
+            changed = true
+          }
         }
       }
       if (changed) {
         saveCache()
+        if (monitorChanged) {
+          applyEffective()
+          renderMonitor()
+        }
         applyPanelUI()
         render()
       }
@@ -935,6 +1074,7 @@
   }
 
   function applyPanelUI() {
+    document.getElementById('setDesktopMonitor').checked = shared.desktopMonitor !== false
     document.getElementById('setNotify').checked = !!shared.notify
     document.getElementById('setNotifyMode').value = shared.notifyMode === 'confirm' ? 'confirm' : 'auto'
     document.getElementById('setAutoDismiss').value = String(shared.autoDismissSec)
@@ -969,13 +1109,33 @@
     fetchJSON(SESSIONS_URL).then(function (snap) {
       failCount = 0
       document.getElementById('banner').hidden = true
-      // Route envelope: { ok, value: { at, sessions, reasons } } — the turn-end
-      // reason table rides the same snapshot as the rows, so the round-reason
-      // is fresh at the exact moment the running→false edge is observed (no
-      // separate /status poll lagging up to 3s behind).
+      // Route envelope: { ok, value: { at, sessions, reasons, tools } } — the
+      // turn-end reason table rides the same snapshot as the rows, so the
+      // round-reason is fresh at the exact moment the running→false edge is
+      // observed (no separate /status poll lagging up to 3s behind).
       var value = snap && snap.value
       var rows = (value && value.sessions) || []
       reasons = (value && value.reasons) || {}
+      var nextTools = (value && value.tools) || {}
+      if (typeof nextTools === 'object' && nextTools !== null && !Array.isArray(nextTools)) {
+        var sanitized = {}
+        for (var key in nextTools) {
+          var t = nextTools[key]
+          if (t && typeof t === 'object' && typeof t.name === 'string' && typeof t.at === 'number') {
+            sanitized[key] = { name: t.name, at: t.at }
+          }
+        }
+        tools = sanitized
+      }
+      var nextRounds = (value && value.rounds) || {}
+      if (typeof nextRounds === 'object' && nextRounds !== null && !Array.isArray(nextRounds)) {
+        var roundSanitized = {}
+        for (var rKey in nextRounds) {
+          var rc = nextRounds[rKey]
+          if (typeof rc === 'number' && isFinite(rc)) roundSanitized[rKey] = rc
+        }
+        roundCounts = roundSanitized
+      }
       for (var i = 0; i < rows.length; i++) {
         var row = rows[i]
         if (prevRunning[row.sessionId] && !row.running) onRoundFinished(row)
@@ -1383,14 +1543,17 @@
   var lastSig = null
 
   /** Stable per-row signature: re-render only when something visible changed
-   *  (status, title, badges, minute-granularity recency) — otherwise a 2s poll
-   *  with many sessions would rebuild the whole DOM every cycle and the list
-   *  would flicker / jump. */
+   *  (status, title, badges, executing-tool name, goal round/cap,
+   *  minute-granularity recency) — otherwise a 2s poll with many sessions
+   *  would rebuild the whole DOM every cycle and the list would flicker /
+   *  jump. */
   function rowSignature(row) {
     var last = Math.max(row.updatedAt, row.lastActive)
+    var tool = tools[row.sessionId]
+    var goalSig = row.goal ? row.goal.phase + ':' + (row.goal.roundsStarted || 0) + '/' + (row.goal.maxGoalRounds || 0) : ''
     return [
       row.sessionId, row.running ? 1 : 0, row.title || '', row.subagents,
-      row.pending ? 1 : 0, Math.floor(last / 60000),
+      row.pending ? 1 : 0, Math.floor(last / 60000), tool ? tool.name : '', goalSig,
     ].join('|')
   }
 
@@ -1516,11 +1679,75 @@
     if (row.subagents > 0) meta += '<span class="badgeSm subBadge">子×' + row.subagents + '</span>'
     if (row.pending) meta += '<span class="badgeSm pendingBadge">⏳ 待审批</span>'
 
+    // Task-execution progress: a thin animated bar + a label naming what is
+    // executing. Running rows name the current model tool call (Host-tracked)
+    // and the in-progress round; subagent rows name the child count. GOAL
+    // MODE overrides: when the row carries a goal (phase != complete) the bar
+    // is DETERMINATE — roundsStarted / maxGoalRounds as a real percentage —
+    // and the label reads 「目标 第 X/Y 轮」(+ tool while running). Paused /
+    // blocked goals stay visible even on idle rows.
+    var goal = row.goal
+    var goalActive = goal && goal.phase !== 'complete'
+    var goalPausedOrBlocked = goalActive && (goal.phase === 'paused' || goal.phase === 'blocked')
+    var goalPct = goalActive && goal.maxGoalRounds > 0
+      ? Math.min(100, Math.round(((goal.roundsStarted || 0) / goal.maxGoalRounds) * 100))
+      : undefined
+    var progress = ''
+    if (row.running || row.subagents > 0 || goalPausedOrBlocked) {
+      var barCls
+      var label
+      if (goalActive) {
+        var gRound = goal.roundsStarted || 0
+        var gCap = goal.maxGoalRounds || 0
+        if (goal.phase === 'blocked') {
+          barCls = ' progressGoalBlocked'
+          label = '目标受阻 · 第 ' + gRound + '/' + gCap + ' 轮'
+        } else if (goal.phase === 'paused') {
+          barCls = ' progressGoalPaused'
+          label = '目标已暂停 · 第 ' + gRound + '/' + gCap + ' 轮'
+        } else {
+          barCls = ' progressGoal'
+          var tool = tools[row.sessionId]
+          label = tool
+            ? '目标 第 ' + gRound + '/' + gCap + ' 轮 · 正在执行 ' + esc(tool.name)
+            : '目标 第 ' + gRound + '/' + gCap + ' 轮'
+        }
+      } else if (row.running) {
+        barCls = ' progressRunning'
+        // In-progress round = cumulative finished-round count + 1 (the count
+        // is not TTL-pruned, so long turns stay accurate); fall back to the
+        // reason record's round, then 0.
+        var count = roundCounts[row.sessionId]
+        var recRound = count !== undefined
+          ? count
+          : (reasons[row.sessionId] && typeof reasons[row.sessionId].round === 'number'
+              ? reasons[row.sessionId].round
+              : 0)
+        var round = recRound + 1
+        var tool = tools[row.sessionId]
+        label = tool
+          ? '第 ' + round + ' 轮 · 正在执行 ' + esc(tool.name)
+          : '第 ' + round + ' 轮'
+      } else {
+        barCls = ' progressSub'
+        label = row.subagents + ' 个子代理执行中'
+      }
+      var fill = goalPct !== undefined
+        ? '<div class="progressFill" style="width:' + goalPct + '%"></div>'
+        : ''
+      progress =
+        '<div class="progress">' +
+          '<div class="progressBar' + barCls + '">' + fill + '</div>' +
+          '<div class="progressLabel">' + label + '</div>' +
+        '</div>'
+    }
+
     el.innerHTML =
       '<span class="dot ' + dotClass + '"></span>' +
       '<div class="rowMain">' +
         '<div class="rowTitle">' + esc(row.title || '未命名会话') + '</div>' +
         '<div class="rowMeta">' + meta + '</div>' +
+        progress +
       '</div>' +
       '<span class="time">' + esc(relTime(Math.max(row.updatedAt, row.lastActive), now)) + '</span>'
     el.addEventListener('click', function () { openSession(row.sessionId) })
@@ -1533,8 +1760,17 @@
     document.getElementById('pinBtn').title = pinOn ? '取消置顶' : '置顶'
   }
 
+  /** Show/hide the "monitoring off" overlay (covers the views; the header and
+   *  the settings popover stay reachable) and refresh the footer status. */
+  function renderMonitor() {
+    var off = isMonitorOff()
+    document.getElementById('monitorOff').hidden = !off
+    renderStatus()
+  }
+
   function render() {
     renderPin()
+    renderMonitor()
     renderSessions()
     renderInbox()
   }
@@ -1603,6 +1839,7 @@
 
   /** Footer status line: connection + last-sync time, appended to the hint. */
   function statusText() {
+    if (isMonitorOff()) return '⏸ 监控已关闭'
     if (paused) return '⏸ 暂停中'
     if (failCount >= 2) return '⛔ 连接失败'
     if (lastSyncAt > 0) {
@@ -1650,13 +1887,19 @@
     document.getElementById('tabSessions').addEventListener('click', function () { setTab('sessions') })
     document.getElementById('ackAllBtn').addEventListener('click', ackAll)
 
+    // Re-enable from the "monitoring off" overlay (one click, same shared
+    // setting as the panel checkbox — the web side picks it up via the store).
+    document.getElementById('monitorOffEnable').addEventListener('click', function () {
+      saveSharedSettings({ desktopMonitor: true })
+    })
+
     // Manual refresh (header): immediate re-poll with a short spin feedback.
     var refreshBtn = document.getElementById('refreshBtn')
     refreshBtn.addEventListener('click', function () {
       refreshBtn.classList.add('spinning')
       setTimeout(function () { refreshBtn.classList.remove('spinning') }, 500)
       pollSettings()
-      pollAll()
+      if (!isMonitorOff()) pollAll()
       renderStatus()
     })
 
@@ -1709,6 +1952,7 @@
       })
     }
     bindCheck('setNotify', 'notify')
+    bindCheck('setDesktopMonitor', 'desktopMonitor')
     bindCheck('setSound', 'sound')
     bindCheck('setRunningOnly', 'runningOnly')
     bindCheck('setSubagents', 'showSubagents')
@@ -1768,9 +2012,10 @@
     // without this the static empty states flash for a moment).
     renderInbox()
     renderSessions()
+    renderMonitor()
     renderStatus()
     pollSettings()
-    pollAll()
+    if (!isMonitorOff()) pollAll()
     if (settingsTimer) clearInterval(settingsTimer)
     settingsTimer = setInterval(pollSettings, SETTINGS_SYNC_MS)
   }

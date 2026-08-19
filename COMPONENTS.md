@@ -26,16 +26,16 @@
 | 9 | balance 视图 store | 客户端状态 | `@dsh-plugins/balance` | 注入 store | 缩放 / 吸附 / 折叠视图状态（`createBalanceViewStore`） |
 | 10 | 字典 NS `balance` | 客户端 i18n | `@dsh-plugins/balance` | client locale | zh / en 双语文案 |
 | 11 | Token 暴击挂件 `TokenCritWidget` | Web 挂件 | `@dsh-plugins/client-ui-token-crit` | `shell.overlay`（order 50） | 透明可拖动/缩放的 token 用量计数器 + 暴击动效 + 设置面板 |
-| 12 | 会话监控看板 `SessionMonitorWidget` | Web 挂件 | `@dsh-plugins/client-ui-session-monitor` | `shell.overlay`（order 90） | 列出运行中/空闲/本轮完成的会话（子代理默认过滤、可配置时间范围默认 1h），完成一轮主动弹提醒（按状态配色：完成/待处理/出错/中止/阻塞/token 上限等，可自动消失或需确认），点击行一键跳转；**未读 inbox 徽标**（头部 + 收起胶囊，5s 轮询 `/notifications`，点击跳最新未读会话）；可收起为胶囊、拖角缩放 |
-| 13 | 会话监控 Host 半 + 状态路由 + 通知 inbox | Host 插件 + Web 路由 | `@dsh-plugins/client-ui-session-monitor` | `/_dsh/session-monitor/status` 等 8 条路由 | 监听 `turn/end` 记录结束原因（completed/aborted/blocked/error/max-tokens/interrupted），浏览器半 3s 轮询取回；另把会话事件折叠为**持久化通知 inbox**（审批/回答/计划/出错/阻塞/token 上限/完成一轮/子代理完成等，已读状态存 Host，桌面与网页共享） |
-| 14 | 会话监控配置面板 `SessionSettings` | Web 配置弹窗 | `@dsh-plugins/client-ui-session-monitor` | `widgets.config`（管理器「配置」弹窗） | 提醒开关/关闭方式/秒数/音效/提醒范围与列表显示选项，localStorage 持久化 |
+| 12 | 会话监控看板 `SessionMonitorWidget` | Web 挂件 | `@dsh-plugins/client-ui-session-monitor` | `shell.overlay`（order 90） | 列出运行中/空闲/本轮完成的会话（子代理默认过滤、可配置时间范围默认 1h），完成一轮主动弹提醒（按状态配色：完成/待处理/出错/中止/阻塞/token 上限等，可自动消失或需确认），点击行一键跳转；**任务进度显示**（有任务在执行的会话带动画进度条 + 「第 N 轮 · 正在执行 <工具>」/子代理/后台任务标签，工具与轮次由 Host 半折叠；**目标模式会话升级为确定进度条**「目标 第 X/Y 轮」，读 `projectionValues.goal` 实时百分比）；**未读 inbox 徽标**（头部 + 收起胶囊，5s 轮询 `/notifications`，点击跳最新未读会话并标记已读）；可收起为胶囊、拖角缩放 |
+| 13 | 会话监控 Host 半 + 状态路由 + 通知 inbox | Host 插件 + Web 路由 | `@dsh-plugins/client-ui-session-monitor` | `/_dsh/session-monitor/status` 等 8 条路由 | 监听 `turn/end` 记录结束原因（completed/aborted/blocked/error/max-tokens/interrupted）+ **`tool/call`→`tool/result` 折叠每会话执行中的工具**（`tools` 表）+ 累计轮次（`rounds` 表），浏览器半 3s 轮询取回；另把会话事件折叠为**持久化通知 inbox**（审批/回答/计划/出错/阻塞/token 上限/完成一轮/子代理完成等，已读状态存 Host，桌面与网页共享） |
+| 14 | 会话监控配置面板 `SessionSettings` | Web 配置弹窗 | `@dsh-plugins/client-ui-session-monitor` | `widgets.config`（管理器「配置」弹窗） | 提醒开关/关闭方式/秒数/音效/提醒范围与列表显示选项 + **「桌面端会话监控」开关**（默认关，打开时经 `dsh-smon://` 拉起桌面应用并开始监控，关闭后桌面挂件暂停），localStorage 持久化 |
 | 15 | 卡片容器 `CardContainerWidget` | Web 挂件 | `@dsh-plugins/client-ui-card-container` | `shell.overlay`（order 20） | 浮动容器面板：**多分组**（顶部分组标签 + ⋯ 管理菜单），托盘列出可停靠挂件，拖入网格即停靠（影子条目隐藏浮窗）、渲染紧凑卡片视图；卡片**实时换位**（ghost 跟随 + 其余让位，拖出网格=移出）、键盘可达（Enter/空格移出、方向键排序）、触屏常显、列数可配、状态持久化 |
 | 16 | 卡片容器控制器 `CardContainerController` | 客户端数据层 | `@dsh-plugins/client-ui-card-container` | 注入 hook | 多分组停靠（groups/active 持久化，旧单列表自动迁移）+ 可用托盘投影，注册/释放 priority -2 停靠影子，针对 overlay 台账自我修复 |
 | 17 | 卡片视图（内置） | Web 卡片视图 | `@dsh-plugins/client-ui-card-container` | `widgets.card`（容器声明子槽，priority 10 兜底） | token-crit / session-monitor 紧凑统计卡（标准 `useSessions` 数据）+ balance 通用卡；**标准接入规范**（`WidgetCardProps` + 槽级注入面 `CardSlotInject`，见 WIDGET-DEVELOPMENT.md §2.5）：挂件自己的卡片注册进 `widgets.card`（id = shell.overlay id、priority 默认 0、显示名优先读 shell.overlay 的 label）即优先渲染，不注册则用占位卡；卡片可声明**规格**（静态 `spec`：small 1 列 / medium 2 列 / large 整行） |
 | 18 | 卡片容器配置面板 `CardContainerSettings` | Web 配置弹窗 | `@dsh-plugins/client-ui-card-container` | `widgets.config`（管理器「配置」弹窗） | 列数（自适应/2/3/4）+ 清空停靠/重置，localStorage 持久化 |
 | 19 | 安装 bundle | 分发层 | `@dsh-plugins/dsh-widgets-plugin` | `cordis.patch.yml` | 一次插入 6 个插件，一键挂载全部组件 |
 | 20 | 小组件管理页 `WidgetManagerSettings` | Web 设置页 | `@dsh-plugins/client-ui-widget-manager` | `settings.section`（order 10） | 实时列出小组件，支持「添加/关闭」，并为带配置的挂件提供「配置」弹窗 |
-| 21 | 会话监控桌面快照路由 | Host Web 路由 | `@dsh-plugins/client-ui-session-monitor` | `/_dsh/session-monitor/sessions` | 把实时会话存储折叠成紧凑 JSON 行（running/title/pending/子代理计数等），桌面挂件 2s 轮询 |
+| 21 | 会话监控桌面快照路由 | Host Web 路由 | `@dsh-plugins/client-ui-session-monitor` | `/_dsh/session-monitor/sessions` | 把实时会话存储折叠成紧凑 JSON 行（running/title/pending/子代理计数等），`tools`/`rounds` 与行级 `goal`（`goal/change` 折叠）同车返回（桌面挂件任务/目标进度条数据），桌面挂件 2s 轮询 |
 | 22 | 会话监控独立挂件页 | Host 托管的独立 Web 页 | `@dsh-plugins/client-ui-session-monitor` | `/_dsh/session-monitor/widget` | 自包含 HTML（无框架）：**「待处理」通知列表（主视图，未读徽标 + 处理/忽略/全部已读 + 级别开关）+ 「会话」列表副 Tab** + 完成一轮 toast + 置顶/隐藏/设置，供桌面壳加载 |
 | 23 | 会话监控桌面悬浮窗壳 | 桌面应用（Tauri 2） | `desktop/dsh-session-desktop` | Windows 桌面 | 无边框/透明/置顶/无任务栏小窗 + 托盘（显示/退出），加载挂件页；启动时探测本机 web 服务、外部导航交系统浏览器 |
 | 24 | 彩虹流光 `RainbowFlowGlow` | Web 输入框装饰 | `@dsh-plugins/client-ui-rainbow-flow` | `conversation.input.left`（order 99） | 会话运行时输入框卡片四周流动的彩虹描边环 + 柔光光晕（mask 挖空、内部透明），旋转速度随每秒输出 token 速率动态变化（采样流式 partial 估算，EMA 平滑） |
@@ -236,11 +236,18 @@
   可选挂载八条路由（webServer 缺席时跳过；`sessions`/`settings` 不注入会抛
   "cannot get property without inject"——踩过）：
   - `/_dsh/session-monitor/status`（GET → `{ ok, value: { sessions: { id: {
-    reason, at, round } } } }`）；
+    reason, at, round } }, tools: { id: { name, at } }, rounds: { id: count } } }`）：
+    `sessions` = turn/end 原因表；`tools` = 每会话**当前正在执行的模型工具**（Host 从
+    `tool/call` → `tool/result` 事件折叠，回合结束时清空，取最新打开的调用）；
+    `rounds` = 每会话**累计完成轮次**（不 TTL 裁剪，供「第 N 轮」进度文案算进行中
+    轮次 = count + 1，长回合也准确）；
   - `/_dsh/session-monitor/sessions`（GET → `{ ok, value: buildDesktopSnapshot() }`）：
     **桌面快照**——`src/desktop-snapshot.ts` 把实时会话存储折叠成紧凑 JSON 行：
     `sessionId / title / running / blank / updatedAt / lastActive / origin /
-    parentSessionId / pending / subagents`。全部从 `ctx.sessions.list()` +
+    parentSessionId / pending / subagents`（`tools` / `rounds` 随快照同车返回，
+    供桌面挂件的任务进度条使用；`goal/change` 事件折叠为行级 `goal`
+    `{ phase, maxGoalRounds, roundsStarted }`，供目标确定进度条）。全部从
+    `ctx.sessions.list()` +
     事件日志推导，**零新增 peer 依赖**：`running` = 最后一个 turn 边界事件
     （`turn/start` 开、`turn/end` 关）；`title` = 最后一个 `session/title` 事件；
     `pending` = 最后一条审批审计事件（`approval/asked` 无配对的
@@ -273,13 +280,16 @@
     点、子×N 徽标、相对时间、**忙碌豁免的时间窗口过滤**（运行中/有子代理/待审批
     始终显示，与网页挂件同语义；隐藏数只统计窗口隐藏，busy-only 模式下为 0）、
     子代理默认过滤、只显示运行中），
-    footer 显示「N 运行中 · M 显示」；
+    footer 显示「N 运行中 · M 显示」；**运行中/子代理执行中的行带任务进度条**
+    （细动画不确定进度条 + 「第 N 轮 · 正在执行 <工具>」/「N 个子代理执行中」，
+    工具与轮次来自快照同车的 `tools` / `rounds`；目标模式的行升级为**确定进度条**
+    「目标 第 X/Y 轮」——数据来自行级 `goal` 字段，暂停/受阻用琥珀/红并常显）；
     `running` true→false 边沿检测「完成一轮」toast 不变（按状态配色、共享
     `notify`/`sound`/`notifyMode`/`autoDismissSec`）；
     头部可拖拽（Tauri `startDragging`）、📌 置顶开关（`setAlwaysOnTop`）、✕ 隐藏
     （`hide()`，托盘「显示挂件」唤回）、⚙ 设置弹窗——**共享字段直读直写 Host
     设置存储（`/_dsh/session-monitor/settings`，与网页版实时同步）**：完成提醒/
-    通知方式/自动消失秒/提示音/只显示运行中/子代理/时间范围/**处理后自动已读/
+    通知方式/自动消失秒/提示音/只显示运行中/子代理/时间范围/**桌面端会话监控**（主开关，默认关——打开时经 `dsh-smon://` 协议拉起桌面应用：未运行则启动并直接显示窗口、已运行则唤出前台；关闭后本挂件停止一切数据轮询与提醒、盖「已暂停」遮罩，头部与设置仍可用，遮罩上「开启监控」一键恢复，网页侧关闭同样 5s 内生效；网页挂件不受影响）/**处理后自动已读/
     打开时自动全部已读**；「刷新间隔」与三个**级别开关**是桌面独有
     （`dsh.smon.desktop.settings` 缓存）；`__TAURI__` 缺席时退化为普通浏览器页
     （`window.open` 跳转）。
@@ -316,7 +326,8 @@
 - 会话列表：过滤 blank（从未开跑的 New Session）行与**子代理会话（默认过滤，
   `showSubagents` 开关可重新显示）**；运行中置顶（呼吸绿点）+ 本轮完成（黄点，
   访问后清除）+ 空闲（灰点）排序；每行显示 `displayTitle`、子代理（仅开启时）/
-  当前徽标、等待输入状态、相对更新时间；主代理行带**「子×N」徽标**（聚合
+  当前徽标、等待输入状态（**`plan-review` 单独显示紫色「等待计划评审」**，与
+  question/approval 的通用「等待输入」区分）、相对更新时间；主代理行带**「子×N」徽标**（聚合
   `origin==='subagent' && running && parentId` 的实时计数，N=0 不显示）。
 - **时间窗口过滤**：`timeWindowMin`（默认 60，0=全部）只保留窗口内活跃过的会话；
   **运行中会话始终显示**（`updatedAt` 只反映创建/最近 prompt，不能据此隐藏正在
@@ -327,7 +338,9 @@
   没有 tick 则超时会话不会随时间被隐藏）。
 - **完成一轮提醒**：`useEffect` 内 diff `running` true→false 边沿（一次边沿 = 一轮
   完成，goal 多轮同样适用）把完成会话放入 pending 队列；**3s 轮询** `/_dsh/
-  session-monitor/status` 拿到 Host 的 `turn/end` reason 后由 `flushPending`
+  session-monitor/status`（**无条件轮询**——同一响应同时喂养 turn/end reason 与
+  进度显示的 `tools`/`rounds`，关掉两类通知后进度标签仍刷新）拿到 Host 的
+  `turn/end` reason 后由 `flushPending`
   生成 toast（右上堆叠，新的在最上），带「跳转」（`ctx.sessions.open(id)`，inject
   面注入）与「知道了」按钮；Host 缺席（路由 404）或 reason 超时（12s）退回基础
   kind。**toast 按状态配色**（CSS 变量 `--toast-accent` 驱动左侧色条与标题色）：
@@ -342,9 +355,27 @@
   权限在配置弹窗勾选时经 `requestPermission()` 请求，denied 时提示去站点设置。
   浏览器通知与挂件 toast 互相独立，且都受子代理/当前会话过滤。
 - **点击跳转**：行点击 / toast「跳转」→ `ctx.sessions.open(id)`，应用立即切会话。
+- **任务进度显示**：有任务在执行的会话（`running` / 有运行中子代理 / 有运行中后台
+  任务）在行标题下方显示**细动画不确定进度条**（无百分比信号，扫光动效表示执行中）
+  + 一行小字标签：运行中 → 「第 N 轮 · 正在执行 <工具>」（工具名 = Host `tools`
+  表随 3s 轮询刷新，取该会话最新打开的 `tool/call`，`tool/result` 或回合结束即
+  清除；轮次 = Host `rounds` 累计数 + 1，不 TTL 裁剪故长回合准确，Host 缺席退回
+  挂件自身观测轮次 + 1）；忙碌非运行中 → 「N 个子代理执行中」/「N 个后台任务执行
+  中」（单个后台任务时显示任务标签如「后台任务 · npm install」）。
+- **任务目标（goal）进度**：会话处于**目标模式**时进度条升级为**确定进度**——
+  读 `row.projectionValues.goal`（`goal` 会话投影，随 `useSessions` 响应式推送，
+  **无 Host RPC**；真实类型由 `@deepseek-ai/dsh-goal` 声明，本包以 loose 形状
+  读取），`roundsStarted / maxGoalRounds` 按真实百分比填充（`.progressFill`，
+  蓝），标签「目标 第 X/Y 轮」（运行中附工具名「目标 第 X/Y 轮 · 正在执行
+  <工具>」）；**已暂停 / 受阻** 的目标改琥珀 / 红色进度条并显示
+  「目标已暂停 / 目标受阻 · 第 X/Y 轮」，且**即使会话不在回合中也显示**（值得
+  一眼看到，不参与忙碌排序）。
 - **未读 inbox 徽标**：5s 轮询 `/_dsh/session-monitor/notifications`，头部与收起胶囊
-  显示未读数（红色徽标，0 隐藏）；点击跳到最新一条未读会话（记录已读状态经 Host
-  共享，桌面端已读后网页徽标同步消失）。Host 缺席（路由 404）时优雅保持 0。
+  显示未读数（红色徽标，0 隐藏）；**点击 = 处理**——跳到最新一条未读会话并
+  `POST /notifications/ack { sessionId }` 标记该会话已读（`done`/`title`/
+  `new-session` 记录不会自动消解，这是网页侧红点消下去的唯一入口；收起胶囊的
+  徽标同样可点）。记录已读状态经 Host
+  共享，桌面端已读后网页徽标同步消失。Host 缺席（路由 404）时优雅保持 0。
 - 配置（`SessionSettings`，读写 `localStorage` `dsh.smon.settings`，改后经 window
   CustomEvent 通知挂件即时生效）：提醒开关、关闭方式、自动消失秒数、提示音、
   **浏览器通知（含权限状态：已授权 / 被拒 / 待授权）**、提醒当前会话开关、
@@ -453,6 +484,14 @@
     窗口隐藏时也能一眼看到还有几件待处理（命令已加入 `build.rs`
     `commands(&["open_in_browser", "set_tray_unread"])` 与 capability
     `"allow-set-tray-unread"`）。
+   - **远程拉起（`dsh-smon://` 深链协议）**：每次启动（`setup`）用 `reg.exe` 在
+     HKCU 注册 `dsh-smon://` URL 协议（`URL Protocol` 标记 + `DefaultIcon` +
+     `shell/open/command` 指向当前 exe 与 `%1`，幂等、无需安装器、移动/更新 exe
+     后下次启动自动重注册；注册失败不影响应用本体）；网页配置面板打开「桌面端
+     会话监控」开关时经**隐藏 iframe** 导航 `dsh-smon://show` 交给系统——应用未
+     运行则由 Windows 启动（`std::env::args()` 检测到协议参数 → `setup` 里
+     `show_widget` 直接显示窗口，不走「启动即进托盘」），已运行则经
+     single-instance 插件回调唤出窗口（无需改 webview 导航/ACL）。
 - 构建：`desktop/dsh-session-desktop` 下 `npm i` 后
   `npx tauri build --no-bundle`（cargo release + tauri-build 嵌入图标/manifest）；
   `npx tauri icon <png>` 从 `icon-source.png` 再生成全套图标。首编需拉取 crates.io
@@ -549,8 +588,8 @@ Host 半用 esbuild，浏览器半用 **Vite library mode**（与官方 deepseek
 | `conversation.input.left` | `rainbow-flow-toggle` | 100 | client-ui-rainbow-flow | `RainbowFlowToggle`（开/关开关 + 运行状态点） |
 | `remote` | balance Remote | — | balance（client 半） | `balance/query` + `balance/list` |
 | `webServer` | `/_dsh/balance/settings` | — | balance | `BalanceWebBackend` |
-| `webServer` | `/_dsh/session-monitor/status` | — | client-ui-session-monitor | turn/end 结束原因（浏览器半 + 桌面挂件轮询） |
-| `webServer` | `/_dsh/session-monitor/sessions` | — | client-ui-session-monitor | 桌面快照 JSON（`buildDesktopSnapshot`，桌面挂件轮询） |
+| `webServer` | `/_dsh/session-monitor/status` | — | client-ui-session-monitor | turn/end 结束原因 + 执行中工具（`tools`）+ 累计轮次（`rounds`）（浏览器半 + 桌面挂件轮询） |
+| `webServer` | `/_dsh/session-monitor/sessions` | — | client-ui-session-monitor | 桌面快照 JSON（`buildDesktopSnapshot` + `tools`/`rounds`，桌面挂件轮询） |
 | `webServer` | `/_dsh/session-monitor/widget` | — | client-ui-session-monitor | 独立挂件页 HTML（桌面壳加载；esbuild `text` loader 内联进 Host bundle） |
 | `webServer` | `/_dsh/session-monitor/settings` | — | client-ui-session-monitor | 共享设置存储（`session-monitor` settings 命名空间，桌面直读直写 + 网页客户端半镜像） |
 | `webServer` | `/_dsh/session-monitor/notifications` | — | client-ui-session-monitor | 通知 inbox 全量快照（`NotificationStore`，持久化到 `session-monitor-inbox` 分区） |
@@ -610,7 +649,7 @@ Host 半用 esbuild，浏览器半用 **Vite library mode**（与官方 deepseek
 
 | 项 | 值 |
 |---|---|
-| 包版本 | 0.1.0（6 包一致） |
+| 包版本 | 0.1.0（7 包一致） |
 | 官方 API 基线 | `@deepseek-ai/*` 0.1.0-rc.7（rc.6→rc.7 无破坏性类型变更，见 AGENTS.md 近期改动） |
 | 语言约定 | 根文档中文；包 README 双语对 + `README.i18n.yaml` hash 凭据 |
 | CI | install → build → pack → git diff 干净（ci.yml）；`v*` tag 发布（publish.yml） |

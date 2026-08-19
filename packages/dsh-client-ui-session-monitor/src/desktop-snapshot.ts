@@ -67,6 +67,17 @@ export interface DesktopSessionRow {
   readonly pending?: 'approval'
   /** Live running subagent children count (parent-row 子×N badge). */
   readonly subagents: number
+  /** The session's current task goal (folded from `goal/change` log events),
+   *  absent when no goal exists (or after a clear tombstone). Drives the
+   *  determinate "目标 第 X/Y 轮" progress bar in the desktop list. */
+  readonly goal?: {
+    /** Durable lifecycle phase: active / paused / blocked / complete. */
+    readonly phase: string
+    /** Total admitted goal-round cap. */
+    readonly maxGoalRounds: number
+    /** Highest admitted round for the goal. */
+    readonly roundsStarted: number
+  }
   /** Whether this row came from persistence (not attached in this process). */
   readonly cold?: boolean
 }
@@ -80,14 +91,22 @@ export interface DesktopSnapshot {
 }
 
 /** Loose event view: covers the base event vocabulary plus plugin-merged
- *  types (`session/title`, `approval/asked`, `approval/decided`) without
- *  pulling those peer packages into the typecheck graph. */
+ *  types (`session/title`, `approval/asked`, `approval/decided`,
+ *  `goal/change`) without pulling those peer packages into the typecheck
+ *  graph. */
 interface AnyEvent {
   readonly type: string
   readonly time: number
   readonly data: {
     readonly title?: string
     readonly source?: { readonly kind?: string }
+    /** goal/change mutation fields (see the goal domain's GoalChangeMeta). */
+    readonly operation?: string
+    readonly roundsStarted?: number
+    readonly goal?: {
+      readonly phase?: string
+      readonly maxGoalRounds?: number
+    }
   }
 }
 
@@ -137,12 +156,14 @@ interface FoldedSession {
   readonly lastActive: number
   /** List-parity recency: creation time or the last user prompt, whichever is newer. */
   readonly updatedAt: number
+  /** The latest non-clear `goal/change` state (absent without a goal). */
+  readonly goal?: { phase: string; maxGoalRounds: number; roundsStarted: number }
 }
 
 /** Single pass over a session's event log folding every derived flag at once —
  *  the snapshot used to scan the log up to six times per session per poll
- *  (running, blank, title, approval, last activity, updatedAt), which is real
- *  waste for long logs on a 2s polling loop. */
+ *  (running, blank, title, approval, last activity, updatedAt, goal), which is
+ *  real waste for long logs on a 2s polling loop. */
 function foldSession(events: readonly AnyEvent[], createdAt: number): FoldedSession {
   let running = false
   let sawTurnStart = false
@@ -150,6 +171,7 @@ function foldSession(events: readonly AnyEvent[], createdAt: number): FoldedSess
   let title: string | undefined
   let lastActive = createdAt
   let lastPromptAt: number | undefined
+  let goal: { phase: string; maxGoalRounds: number; roundsStarted: number } | undefined
   for (const event of events) {
     if (event.type === 'turn/start') {
       running = true
@@ -162,6 +184,23 @@ function foldSession(events: readonly AnyEvent[], createdAt: number): FoldedSess
       pending = true
     } else if (event.type === 'approval/decided') {
       pending = false
+    } else if (event.type === 'goal/change') {
+      // The goal domain writes the COMPLETE post-mutation state in every
+      // change — last-wins. A clear tombstone removes the goal; any other
+      // operation replaces it (create / edit / pause / resume / complete /
+      // block all carry the full snapshot).
+      if (event.data.operation === 'clear') {
+        goal = undefined
+      } else if (event.data.goal !== null && typeof event.data.goal === 'object') {
+        const snapshot = event.data.goal
+        if (typeof snapshot.phase === 'string' && typeof snapshot.maxGoalRounds === 'number') {
+          goal = {
+            phase: snapshot.phase,
+            maxGoalRounds: snapshot.maxGoalRounds,
+            roundsStarted: typeof event.data.roundsStarted === 'number' ? event.data.roundsStarted : 0,
+          }
+        }
+      }
     }
     if (typeof event.time === 'number' && event.time > lastActive) lastActive = event.time
     if (event.type === 'user/message' && event.data.source?.kind === 'user') lastPromptAt = event.time
@@ -171,6 +210,7 @@ function foldSession(events: readonly AnyEvent[], createdAt: number): FoldedSess
     blank: !sawTurnStart,
     pending,
     ...(title === undefined ? {} : { title }),
+    ...(goal === undefined ? {} : { goal }),
     lastActive,
     updatedAt: Math.max(createdAt, lastPromptAt ?? 0),
   }
@@ -375,6 +415,7 @@ export async function buildDesktopSnapshot(ctx: Context): Promise<DesktopSnapsho
       ...(header.origin === undefined ? {} : { origin: header.origin }),
       ...(header.parentSession === undefined ? {} : { parentSessionId: header.parentSession }),
       ...(info?.pending === true ? { pending: 'approval' as const } : {}),
+      ...(info?.goal === undefined ? {} : { goal: info.goal }),
       subagents: runningSubagents.get(session.id) ?? 0,
     })
   }

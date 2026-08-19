@@ -33,6 +33,29 @@ function Row(props: { label: string; hint?: string; children: ReactNode }) {
   )
 }
 
+/**
+ * Launch / surface the desktop monitor app through the `dsh-smon://` URL
+ * protocol (registered by the Tauri shell under HKCU on every start): a
+ * hidden iframe hands the URL to the OS without navigating this page away.
+ * If the app is not running Windows starts it (the deep-link first launch
+ * shows the widget window immediately); if it is running, the single-instance
+ * plugin brings the existing window forward. A protocol that is not
+ * registered (the desktop app was never installed/run) fails silently.
+ */
+function launchDesktopApp(): void {
+  try {
+    const frame = document.createElement('iframe')
+    frame.style.display = 'none'
+    frame.setAttribute('aria-hidden', 'true')
+    frame.setAttribute('tabindex', '-1')
+    document.body.appendChild(frame)
+    frame.src = 'dsh-smon://show'
+    // The OS protocol handler fires synchronously on src set; drop the frame
+    // shortly after (keeping it a moment avoids a flash of a dead frame).
+    window.setTimeout(() => { frame.remove() }, 3000)
+  } catch { /* launch unavailable — the setting still persists */ }
+}
+
 export function SessionSettings({ t }: SessionSettingsInjected) {
   const [settings, setSettings] = useState<MonitorSettings>(loadSettings)
   const [perm, setPerm] = useState<'default' | 'granted' | 'denied' | 'unsupported'>(
@@ -76,6 +99,18 @@ export function SessionSettings({ t }: SessionSettingsInjected) {
 
   return (
     <div className={css.panel}>
+      <Row label={t('desktopMonitorLabel')} hint={t('desktopMonitorDesc')}>
+        <input
+          type="checkbox"
+          checked={settings.desktopMonitor}
+          onChange={(e) => {
+            update({ desktopMonitor: e.target.checked })
+            // Turning monitoring ON also launches / surfaces the desktop app
+            // (Tauri shell) via the dsh-smon:// protocol.
+            if (e.target.checked) launchDesktopApp()
+          }}
+        />
+      </Row>
       <Row label={t('notifyLabel')} hint={t('notifyDesc')}>
         <input
           type="checkbox"

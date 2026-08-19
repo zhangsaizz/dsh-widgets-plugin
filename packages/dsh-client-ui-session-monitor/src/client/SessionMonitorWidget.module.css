@@ -262,10 +262,96 @@
   color: #4dd0e1;
 }
 
+/* "等待计划评审" status tint: violet — same accent as the plan-review toast,
+   so the list reads the same color language as the notification. */
+.statusPlan {
+  color: #b388ff;
+}
+
 .time {
   font-size: 11px;
   color: var(--dsw-alias-label-tertiary, rgba(232, 234, 240, 0.4));
   margin-left: auto;
+}
+
+/* Task-execution progress: a thin animated bar under the row title for rows
+   with work in flight (a running turn, running subagents, or background
+   jobs). The harness exposes no percent-complete signal, so the bar is
+   INDETERMINATE — a sweeping highlight that says "executing" — while the
+   .progressLabel names what is executing. The accent follows the same coding
+   as the status dots/badges: green = a running turn, violet = subagents,
+   cyan = background jobs. */
+.progress {
+  margin-top: 5px;
+  min-width: 0;
+}
+
+.progressBar {
+  position: relative;
+  height: 3px;
+  border-radius: 2px;
+  overflow: hidden;
+  /* Track: a faint wash of the accent; the sweep rides on top. */
+  background: color-mix(in srgb, var(--progress-accent, var(--dsw-alias-state-success, #3dd68c)) 18%, transparent);
+}
+
+/* The sweeping highlight. Left-animated (not background-position, which is
+   not smooth in every engine); width 45% of the track. */
+.progressBar::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: -45%;
+  width: 45%;
+  border-radius: 2px;
+  background: linear-gradient(90deg, transparent, var(--progress-accent, var(--dsw-alias-state-success, #3dd68c)), transparent);
+  animation: progressSweep 1.15s ease-in-out infinite;
+}
+
+.progressRunning { --progress-accent: var(--dsw-alias-state-success, #3dd68c); }
+.progressSub { --progress-accent: #b388ff; }
+.progressJobs { --progress-accent: #4dd0e1; }
+
+/* GOAL-mode progress (a task goal is being processed): the bar becomes
+   DETERMINATE — the .progressFill inside shows rounds-started / round-cap as
+   a real percentage, so the sweep is suppressed. Blue = active, amber =
+   paused, red = blocked (matches the toast/status state coding). */
+.progressGoal { --progress-accent: var(--dsw-alias-state-business-primary, #4f8cff); }
+.progressGoalPaused { --progress-accent: var(--dsw-alias-state-warning, #f5b544); }
+.progressGoalBlocked { --progress-accent: var(--dsw-alias-state-danger, #ff6b6b); }
+
+.progressBar.progressGoal::after,
+.progressBar.progressGoalPaused::after,
+.progressBar.progressGoalBlocked::after {
+  display: none;
+}
+
+/* The determinate fill (only inside a goal bar): accent-colored, animates on
+   round-count changes. */
+.progressFill {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  border-radius: 2px;
+  background: var(--progress-accent, var(--dsw-alias-state-business-primary, #4f8cff));
+  transition: width 320ms ease;
+}
+
+.progressLabel {
+  margin-top: 3px;
+  font-size: 10px;
+  line-height: 1.4;
+  color: var(--dsw-alias-label-tertiary, rgba(232, 234, 240, 0.52));
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+@keyframes progressSweep {
+  from { left: -45%; }
+  to { left: 100%; }
 }
 
 .footer {

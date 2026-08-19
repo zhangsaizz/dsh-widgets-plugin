@@ -21,7 +21,9 @@ rounds. Without the host half the widget still works (base notification kinds).
   (no Host RPC, no polling — the runtime pushes session summaries and
   `running`-status updates reactively). Running sessions are pinned on top with
   a pulsing green dot; each row shows the session title, its workspace-derived
-  display title, current-session badge, pending-interaction state and a
+  display title, current-session badge, pending-interaction state (plan review
+  is its own violet 「等待计划评审」, distinct from the generic question wait)
+  and a
   relative last-update time. A **configurable time window** (default 1 hour)
   keeps only sessions active within the window — running sessions always show,
   and a muted line reports how many older sessions were hidden. **Subagent
@@ -40,6 +42,28 @@ rounds. Without the host half the widget still works (base notification kinds).
   **本轮完成** mark, the busy label wins the status text (the dot keeps the
   done color); the header and collapsed-pill counts include these busy
   sessions ("N 个忙碌中").
+- **Task-progress display**: sessions with work in flight (a running turn,
+  running subagents, or executing background jobs) show a thin **animated
+  progress bar** under the row title — the harness reports no percentages, so
+  the bar is indeterminate (a sweeping highlight reads as "executing") — plus
+  a one-line label naming what is running right now: running rows show the
+  **in-progress round + the current model tool** (e.g. 「第 3 轮 · 正在执行
+  web_search」; the tool name is folded by the host half from the `tool/call` →
+  `tool/result` events and refreshed by the 3 s poll, the round is the host's
+  cumulative finished-round count + 1, accurate even for long turns; without
+  the host half the label falls back to the round only); busy-not-running rows
+  show the subagent / background-task load (a single background task names the
+  task itself, e.g. "后台任务 · npm install").
+- **Task-goal progress**: when a session runs in **goal mode** (a task goal
+  was created via `create_goal` and the agent advances round after round), the
+  bar upgrades to a **determinate** one — the `goal` session projection
+  (`row.projectionValues.goal`, pushed reactively with `useSessions`, no Host
+  RPC) yields `roundsStarted / maxGoalRounds`, so the bar fills by the real
+  percentage and the label reads 「目标 第 X/Y 轮」 (with the current tool name
+  appended while one is executing, e.g. 「目标 第 3/10 轮 · 正在执行
+  web_search」). A **paused / blocked** goal switches to an amber / red bar
+  labeled 「目标已暂停 / 目标受阻」 and stays visible even when the session is
+  not in a turn — worth spotting at a glance.
 - **Round-completion notifications**: watches `running` true→false edges (one
   edge = one finished round, goal rounds included), and pops a toast
   `「title」已完成第 N 轮` with **跳转** (jump) and **知道了** (dismiss)
@@ -90,7 +114,11 @@ rounds. Without the host half the widget still works (base notification kinds).
   the app to that session immediately (`ctx.sessions.open`).
 - **Unread inbox badge**: the header and the collapsed pill show how many
   notifications still need attention (polled every 5 s from `/notifications`;
-  the red badge hides at 0). Clicking it jumps to the newest unread session.
+  the red badge hides at 0). Clicking it jumps to the newest unread session
+  **and marks that session's records read** (`POST /notifications/ack
+  { sessionId }` — the web equivalent of the desktop inbox's 处理 + auto-read;
+  `done` / `title` / `new-session` records never auto-resolve, so this is how
+  the red dot clears from the web widget).
   Read state is shared with the desktop widget through the Host, so handling
   items on the desktop clears the web badge too.
 - **Done marks**: sessions that finished a round while the widget was open get
@@ -111,7 +139,15 @@ rounds. Without the host half the widget still works (base notification kinds).
   **time window** (all / 15 min … 24 h) and done marks; while "Busy only"
   is on the time-window control is visually dimmed with a hint that it applies
   once that switch is off (its value is still pre-configurable); all settings
-  and the panel position persist to `localStorage`.
+  and the panel position persist to `localStorage`. A separate **"Desktop
+  monitoring" switch** (off by default) controls the desktop widget (Tauri
+  window): turning it ON launches / surfaces the desktop app through the
+  `dsh-smon://` protocol (starts it if not running and shows the window,
+  brings the window forward if already running) and starts polling; turning it
+  OFF pauses the desktop widget (it shows a paused state) while the web widget
+  is unaffected. The setting is shared with the desktop side through the Host
+  store, so a change on either side takes effect on the other within a few
+  seconds.
 
 ## Desktop widget (notification inbox)
 
@@ -146,7 +182,10 @@ than a session list:
   (`dsh.smon.relay` window event → `/_dsh/session-monitor/events`) remains as
   an idempotent backup.
 - **Sessions tab**: the original session list is kept unchanged as the
-  secondary view (running-first, time window, subagent filtering, …).
+  secondary view (running-first, time window, subagent filtering, …). Rows
+  with a running turn or running subagents show the same task-progress bar
+  (current tool + round); goal-mode rows show the determinate 「目标 第 X/Y 轮」
+  bar (the host folds `goal/change` events).
 - **Desktop shell ergonomics** (the `desktop/dsh-session-desktop` Tauri app):
   the widget boots **to the tray** (the window starts hidden — the tray icon
   is the entry point), a **tray left-click toggles** the window (menu: show /
@@ -155,6 +194,18 @@ than a session list:
   slow `/notifications` poll so the tray badge stays fresh. The window
   position/size are remembered across runs, and launching the exe again just
   brings the existing window back (single instance).
+- **Monitoring master switch**: the "Desktop monitoring" toggle (off by
+  default, shared with the web side, see above) controls whether this widget
+  polls sessions and notifications. Turning it ON from the web config panel
+  launches / surfaces this app through the `dsh-smon://` protocol (a hidden
+  iframe hands the URL to the OS — a fresh process shows the window right
+  away, a running one is woken by the single-instance plugin). When off, all
+  data polling and notifications stop, a "paused" overlay shows (the header
+  and settings stay usable, and a one-click "开启监控" button on the overlay
+  restores it), and the tray unread count stops refreshing. **Deep-link
+  protocol**: every start registers `dsh-smon://` under HKCU pointing at the
+  current exe (no installer needed; a moved/updated binary re-registers on the
+  next launch).
 - **Widget page UI**: unread items can be grouped **by session** (footer
   toggle, persisted), both tabs have a **search box** (title / session id /
   kind), the header has a **manual refresh** button, and the footers show a
@@ -165,8 +216,8 @@ than a session list:
 ## Structure
 
 ```
-src/index.ts                  # Host half: turn/end reason tracking + inbox + routes
-src/desktop-snapshot.ts       # Desktop session snapshot folding (/sessions route)
+src/index.ts                  # Host half: turn/end reason tracking + executing-tool folding + inbox + routes
+src/desktop-snapshot.ts       # Desktop session snapshot folding (/sessions route; incl. goal folding)
 src/desktop-settings.ts       # Shared settings namespace + schema (/settings route)
 src/desktop-notifications.ts  # Notification inbox store (/notifications, ack, events routes)
 src/widget-page.html          # Standalone widget page (inbox + sessions tab, inlined into the host bundle)
@@ -196,11 +247,13 @@ pnpm build   # equivalent to `node scripts/build.mjs` from the repo root
 ## Mounting
 
 One plugin row mounts both halves: the host half (loaded via the package root,
-listens to the session event feed and serves `/_dsh/session-monitor/status` on
-web profiles) and the browser half (loaded through `exports["./client"]`, which
+listens to the session event feed and serves `/_dsh/session-monitor/status`
+(turn-end reasons + executing tools) on web profiles) and the browser half
+(loaded through `exports["./client"]`, which
 renders the dashboard in `shell.overlay` and polls the status route every few
 seconds). The reason-aware notification kinds need the host half; without it
-the browser falls back to its base kinds (done / interaction / subagent) — a
+the browser falls back to its base kinds (done / interaction / subagent) and
+the progress labels fall back to the round only — a
 web profile restart is required for the host half to be picked up.
 
 Installing `@dsh-plugins/dsh-widgets-plugin` (once published:

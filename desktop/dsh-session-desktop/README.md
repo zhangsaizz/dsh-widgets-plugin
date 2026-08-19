@@ -45,6 +45,12 @@
   `build.rs` 用 `AppManifest::new().commands(&["open_in_browser", "set_tray_unread"])`
   自动生成权限，`capabilities/default.json` 里以无前缀
   `"allow-open-in-browser"` / `"allow-set-tray-unread"` 引用（改命令时两处要同步）。
+- **远程拉起（`dsh-smon://` 深链协议）**：每次启动在 HKCU 注册 `dsh-smon://`
+  URL 协议（`reg.exe`，指向当前 exe + `%1`，幂等、无需安装器；移动/更新 exe 后
+  下次启动自动重注册）。网页配置面板打开「桌面端会话监控」开关时经隐藏 iframe
+  导航 `dsh-smon://show`——应用未运行则由 Windows 启动（检测到协议参数后
+  **直接显示窗口**，不走「启动即进托盘」），已运行则经 single-instance 插件
+  唤出窗口。
 
 ## 构建
 
@@ -67,7 +73,8 @@ npx tauri build --no-bundle   # release 可执行文件（首次拉取 crates，
 
 1. 启动 Harness：`dsh web`（本机 127.0.0.1:3080）。
 2. 双击 `dsh-session-monitor-desktop.exe`：先显示「正在连接」重试页，就绪后自动
-   进入挂件页。
+   进入挂件页。**或**从 Harness 网页的「小组件管理 → 会话监控 → 配置」打开
+   「桌面端会话监控」开关，自动经 `dsh-smon://` 拉起本应用。
 3. 挂件页右上角：📌 置顶开关 / ⚙ 设置（刷新间隔、通知方式、提示音、子代理显示、
    时间范围）/ ✕ 隐藏（托盘唤回）。
 

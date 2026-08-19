@@ -34,6 +34,16 @@ export interface MonitorSettings {
   notifyCurrent: boolean
   /** Show (and notify about) subagent sessions in the dashboard; off filters them out. */
   showSubagents: boolean
+  /**
+   * Desktop monitoring master switch (shared with the desktop widget via the
+   * Host store). Off by default: turning it ON from the web config panel also
+   * launches / surfaces the desktop app through the `dsh-smon://` protocol,
+   * and the desktop widget then keeps polling sessions/notifications; turning
+   * it OFF pauses the desktop widget's monitoring (paused state). The web
+   * widget itself is unaffected — this only controls the desktop (Tauri)
+   * widget.
+   */
+  desktopMonitor: boolean
   /** Desktop inbox: mark a notification read automatically after 处理 jumps to it. */
   ackOnJump: boolean
   /** Desktop inbox: auto-ack everything when the widget starts (default off —
@@ -53,6 +63,7 @@ export const DEFAULT_SETTINGS: MonitorSettings = {
   showDone: true,
   notifyCurrent: false,
   showSubagents: false,
+  desktopMonitor: false,
   ackOnJump: true,
   autoAckOnOpen: false,
 }
@@ -90,6 +101,7 @@ export function loadSettings(): MonitorSettings {
       showDone: typeof s.showDone === 'boolean' ? s.showDone : DEFAULT_SETTINGS.showDone,
       notifyCurrent: typeof s.notifyCurrent === 'boolean' ? s.notifyCurrent : DEFAULT_SETTINGS.notifyCurrent,
       showSubagents: typeof s.showSubagents === 'boolean' ? s.showSubagents : DEFAULT_SETTINGS.showSubagents,
+      desktopMonitor: typeof s.desktopMonitor === 'boolean' ? s.desktopMonitor : DEFAULT_SETTINGS.desktopMonitor,
       ackOnJump: typeof s.ackOnJump === 'boolean' ? s.ackOnJump : DEFAULT_SETTINGS.ackOnJump,
       autoAckOnOpen: typeof s.autoAckOnOpen === 'boolean' ? s.autoAckOnOpen : DEFAULT_SETTINGS.autoAckOnOpen,
     }

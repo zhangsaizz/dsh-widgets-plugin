@@ -25,8 +25,68 @@
 //! - `set_tray_unread` — the widget page reports its inbox unread count; the
 //!   tray tooltip and a menu status item mirror it, so the user sees "3 items
 //!   need attention" without opening the widget window.
+//!
+//! Remote launch: the shell registers a `dsh-smon://` URL protocol under
+//! HKCU on every start (no installer needed). The web widget's "desktop
+//! monitoring" switch navigates a hidden iframe to `dsh-smon://show`, which
+//! makes Windows launch this exe — a fresh process shows the widget window
+//! immediately (deep-link first launch), an already-running one is woken by
+//! the single-instance plugin which brings the window forward. Registration is
+//! idempotent and re-points to the current exe path on every run, so a moved
+//! or updated binary self-heals on next launch.
 
 use tauri::{Emitter, Manager, Wry};
+
+/// `dsh-smon://` URL protocol: the web widget launches / shows this app
+/// through it. Also checked in argv so the FIRST process of a deep-link
+/// launch (single-instance callbacks only fire for later instances) shows the
+/// window instead of booting to the tray.
+const PROTOCOL_PREFIX: &str = "dsh-smon://";
+
+/// Whether this process was launched by the OS through the `dsh-smon://`
+/// protocol (Windows puts the URL on the command line: `app.exe "dsh-smon://…"`).
+fn launched_via_protocol() -> bool {
+    std::env::args().any(|arg| arg.starts_with(PROTOCOL_PREFIX))
+}
+
+/// Register the `dsh-smon://` URL protocol under HKCU (per-user, no admin):
+/// `HKCU\Software\Classes\dsh-smon` → URL Protocol + DefaultIcon + the
+/// shell open command pointing at the current exe with `%1` for the URL.
+/// Written on every start via `reg.exe` (no extra crate), idempotent, and
+/// re-points to `std::env::current_exe()` so a moved/updated binary
+/// self-heals. Windows only — the desktop shell targets Windows.
+#[cfg(windows)]
+fn register_protocol() {
+    use std::process::Command;
+
+    let exe = match std::env::current_exe() {
+        Ok(path) => path.to_string_lossy().to_string(),
+        Err(_) => return,
+    };
+    // The open-command value must quote both the exe and the `%1` placeholder:
+    // `"C:\…\app.exe" "%1"` — reg.exe stores it verbatim.
+    let open_command = format!("\"{exe}\" \"%1\"");
+    let icon_value = format!("\"{exe}\"");
+    let runs = [
+        // Key, value-name (None = default), value-data.
+        ("HKCU\\Software\\Classes\\dsh-smon", Some("/ve"), "URL:DSH Session Monitor"),
+        ("HKCU\\Software\\Classes\\dsh-smon", Some("/v"), "URL Protocol"),
+        ("HKCU\\Software\\Classes\\dsh-smon\\DefaultIcon", Some("/ve"), icon_value.as_str()),
+        ("HKCU\\Software\\Classes\\dsh-smon\\shell\\open\\command", Some("/ve"), open_command.as_str()),
+    ];
+    for (key, value_switch, data) in runs {
+        // `reg add <key> <value-switch> /d <data> /f` — a failure (reg.exe
+        // missing, restricted policy) is non-fatal: the shell still works, the
+        // web launch just has nothing to open.
+        let mut cmd = Command::new("reg");
+        cmd.arg("add").arg(key);
+        if let Some(sw) = value_switch {
+            cmd.arg(sw);
+        }
+        cmd.arg("/d").arg(data).arg("/f");
+        let _ = cmd.status();
+    }
+}
 
 /// Tray handles the `set_tray_unread` command updates (the menu status item
 /// must outlive the setup closure, so it lives in managed state).
@@ -90,9 +150,15 @@ fn hide_widget(app: &tauri::AppHandle) {
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    // A deep-link first launch (web widget switch → `dsh-smon://show`) must
+    // surface the window instead of booting to the tray; later launches are
+    // funnelled through the single-instance callback below, which shows it.
+    let via_protocol = launched_via_protocol();
+
     tauri::Builder::default()
-        // A second launch (double-click the exe again) just brings the
-        // existing instance's widget back instead of forking a second tray.
+        // A second launch (double-click the exe again, or the web widget's
+        // `dsh-smon://show` deep link) just brings the existing instance's
+        // widget back instead of forking a second tray.
         .plugin(tauri_plugin_single_instance::init(|app, _argv, _cwd| {
             show_widget(app);
         }))
@@ -101,7 +167,11 @@ pub fn run() {
         // restore a previous "visible" state.
         .plugin(tauri_plugin_window_state::Builder::default().build())
         .invoke_handler(tauri::generate_handler![open_in_browser, set_tray_unread])
-        .setup(|app| {
+        .setup(move |app| {
+            // Register the `dsh-smon://` URL protocol (web-side launch path);
+            // idempotent, non-fatal on failure.
+            #[cfg(windows)]
+            register_protocol();
             // Tray: left-click toggles the widget (mirrors the in-widget ✕);
             // the first menu item mirrors the inbox unread count (the
             // `set_tray_unread` command rewrites its label); the menu also
@@ -148,6 +218,14 @@ pub fn run() {
                     }
                 })
                 .build(app)?;
+
+            // Deep-link first launch: the web switch asked to show the
+            // monitor, so surface the window right away (the page is still on
+            // start.html probing for the web service; it redirects to the
+            // widget page and starts its polls once visible).
+            if via_protocol {
+                show_widget(app.handle());
+            }
 
             Ok(())
         })
