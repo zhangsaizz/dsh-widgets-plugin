@@ -20,6 +20,11 @@ export interface WidgetDescriptor {
   nameKey: WidgetManagerLocaleKey
   /** Locale key of the widget's one-line description. */
   descriptionKey: WidgetManagerLocaleKey
+  /** Non-overlay widgets (e.g. the rainbow-flow input decor) that only ship a
+   *  config panel: they appear in the list with a "Configure" action but no
+   *  Add/Disable toggle (the overlay-shadow mechanism does not apply to them).
+   *  Defaults to false (a normal overlay widget). */
+  configOnly?: boolean
 }
 
 /** Every widget this project ships, in display order. */
@@ -47,5 +52,16 @@ export const WIDGET_CATALOG: readonly WidgetDescriptor[] = [
     packageName: '@dsh-plugins/client-ui-card-container',
     nameKey: 'cardContainerName',
     descriptionKey: 'cardContainerDescription',
+  },
+  {
+    // The rainbow-flow input decor is not an overlay widget: it registers
+    // into `conversation.input.left`/`.right` and a `widgets.config` panel.
+    // The manager lists it so the panel is reachable, with no Add/Disable
+    // toggle (the overlay-shadow disable mechanism does not apply).
+    id: 'rainbow-flow',
+    packageName: '@dsh-plugins/client-ui-rainbow-flow',
+    nameKey: 'rainbowFlowName',
+    descriptionKey: 'rainbowFlowDescription',
+    configOnly: true,
   },
 ]

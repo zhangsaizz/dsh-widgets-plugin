@@ -17,14 +17,16 @@ export const SAMPLE_MS = 500
 
 /** Time constant of the angular-velocity easing (s): how quickly the ring
  *  accelerates/decelerates toward the sampled target speed. Larger = smoother
- *  but more laggy; 0.5 s keeps fast↔slow transitions visibly fluid while
+ *  but more laggy; 0.8 s keeps fast↔slow transitions fluid and gentle while
  *  staying responsive to the token stream. */
-export const SPEED_EASE_TAU = 0.5
+export const SPEED_EASE_TAU = 0.8
 
 /** Map an estimated output-token rate (tokens/sec) to the ring rotation
- *  period: faster streaming -> shorter duration (spins faster). */
+ *  period: faster streaming -> shorter duration (spins faster). Softer range
+ *  than the original 3.2s..0.45s: a 5s..1s span keeps the rainbow calm at
+ *  rest and never whips it around at peak throughput. */
 export function rateToDuration(tps: number): number {
-  return Math.min(3.2, Math.max(0.45, 3.2 - tps * 0.05))
+  return Math.min(5, Math.max(1, 5 - tps * 0.06))
 }
 
 /** Target angular velocity (deg/s) for a token rate: 360 / rotation period. */

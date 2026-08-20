@@ -28,6 +28,8 @@ export type WidgetManagerLocaleKey =
   | 'sessionMonitorDescription'
   | 'cardContainerName'
   | 'cardContainerDescription'
+  | 'rainbowFlowName'
+  | 'rainbowFlowDescription'
 
 /** Simplified Chinese dictionary. */
 export const zh: Record<WidgetManagerLocaleKey, string> = {
@@ -54,6 +56,8 @@ export const zh: Record<WidgetManagerLocaleKey, string> = {
   sessionMonitorDescription: '列出正在执行的会话，完成一轮时主动提醒，点击即可跳转到目标会话。',
   cardContainerName: '卡片容器',
   cardContainerDescription: '把其他小组件拖进一个整齐、等间距的卡片网格中集中摆放，浮窗自动收起。',
+  rainbowFlowName: '彩虹流光',
+  rainbowFlowDescription: '输入框变成通透的液态玻璃，几缕彩虹云光沿边缘流动，速度随输出 token 速率变化。',
 }
 
 /** English dictionary. */
@@ -81,4 +85,6 @@ export const en: Record<WidgetManagerLocaleKey, string> = {
   sessionMonitorDescription: 'Lists running sessions, notifies you when a round finishes, and jumps to the target session on click.',
   cardContainerName: 'Card container',
   cardContainerDescription: 'Dock other widgets into a tidy, evenly-gapped card grid; their floating panels hide while docked.',
+  rainbowFlowName: 'Rainbow flow',
+  rainbowFlowDescription: 'Turns the composer into translucent liquid glass with wisps of rainbow cloud drifting along its edge, sped by the output-token rate.',
 }

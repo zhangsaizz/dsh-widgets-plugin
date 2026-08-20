@@ -1,0 +1,158 @@
+/* Send/stop button beautification (liquid-glass icon + dynamic effects).
+ *
+ * The composer's primary action button — idle: send arrow, running: stop
+ * square — is shipped chrome inside `conversation.composer.bar` (InputBar).
+ * It is not a slot, so this plugin cannot replace or wrap it; instead
+ * `RainbowFlowSend` (a `conversation.input.right` entry) mirrors the button's
+ * effective state onto the composer card as `data-rf-send`, and this plain
+ * (non-module) stylesheet dresses the button up from outside.
+ *
+ * Selector strategy: the button's own class is a CSS-module hash
+ * (`uV2eYG_primary` in the current harness build) whose prefix changes
+ * between builds, but whose `_primary` local-name suffix is stable. The card
+ * carries a deliberate, stable `[data-composer-card]` attribute. The main
+ * send/stop button is always the LAST `_primary` button in the card (a
+ * continuable subagent's interruptible stop button renders before it).
+ *
+ * Style: liquid glass. The button is a translucent pane (soft white gradient
+ * + backdrop blur + top specular highlight) with the softened rainbow
+ * `--rf-palette` (defined in RainbowFlow.module.css) glowing through it —
+ * a rainbow inside glass. A hairline glass border is simulated with a
+ * box-shadow ring (the shipped button has `border: none`, so adding a real
+ * border would grow it beyond 34px).
+ *
+ * States (all require the rainbow toggle to be on — `data-rf-send` is absent
+ * when it is off):
+ *  - `send` (idle with a draft): glass pane + gentle breathing glow.
+ *  - `stop` (session running): rotating rainbow + expanding radar pulse ring.
+ * Disabled buttons (empty draft / locked) keep the shipped look via
+ * `:not(:disabled)`. `prefers-reduced-motion` freezes every animation.
+ */
+
+/* Glass pane shared by both live states. The first background layer is the
+   specular glass gradient; the second is the rainbow conic glowing through
+   it at reduced opacity so the glass material stays the protagonist (glass
+   first, rainbow second). The stacked box-shadows simulate a hairline glass
+   border (no real border — the shipped button is `border: none`) plus a top
+   highlight and a soft drop shadow.
+   Glass colors are theme-aware (`--rf-glass-*` from RainbowFlow.module.css):
+   white-glass on the dark theme, deeper/higher-contrast glass on the light
+   theme — and the icon color flips so it stays legible on both. */
+[data-composer-card][data-rf-send="send"] button[class*="_primary"]:last-of-type:not(:disabled),
+[data-composer-card][data-rf-send="stop"] button[class*="_primary"]:last-of-type:not(:disabled) {
+  position: relative;
+  background:
+    linear-gradient(150deg, var(--rf-glass-panel-hi), var(--rf-glass-panel-lo) 48%, var(--rf-glass-panel-mid)),
+    conic-gradient(from var(--rf-btn-angle, 0deg), var(--rf-palette));
+  color: var(--rf-glass-icon, #fff);
+  -webkit-backdrop-filter: blur(10px) saturate(1.5);
+  backdrop-filter: blur(10px) saturate(1.5);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.35),
+    inset 0 -1px 2px rgba(255, 255, 255, 0.08),
+    0 0 0 1px var(--rf-glass-hair),
+    0 4px 14px rgba(0, 0, 0, 0.28);
+  transition: none;
+}
+
+/* Light theme: the white icon would vanish on the lighter glass, so the
+   icon turns to the page's dark text color. */
+@media (prefers-color-scheme: light) {
+  [data-composer-card][data-rf-send="send"] button[class*="_primary"]:last-of-type:not(:disabled),
+  [data-composer-card][data-rf-send="stop"] button[class*="_primary"]:last-of-type:not(:disabled) {
+    color: var(--dsw-alias-label-primary, #1f2328);
+  }
+}
+
+/* Idle with a draft: a gentle breathing glass glow invites sending. */
+[data-composer-card][data-rf-send="send"] button[class*="_primary"]:last-of-type:not(:disabled) {
+  animation: rf-btn-breathe 3s ease-in-out infinite;
+}
+
+/* Running: the rainbow inside the glass rotates while a soft radar pulse
+   ring expands outward — the ring is a border-only circle on `::before`, so
+   the stop square icon underneath stays crisp. */
+[data-composer-card][data-rf-send="stop"] button[class*="_primary"]:last-of-type:not(:disabled) {
+  animation:
+    rf-btn-rotate 3s linear infinite,
+    rf-btn-breathe 2.2s ease-in-out infinite;
+}
+
+[data-composer-card][data-rf-send="stop"] button[class*="_primary"]:last-of-type:not(:disabled)::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  border: 1.5px solid rgba(255, 255, 255, 0.55);
+  animation: rf-btn-ring 1.6s cubic-bezier(0, 0.6, 0.4, 1) infinite;
+}
+
+/* Hover feedback: brighten the glass instead of the shipped blue swap. */
+[data-composer-card][data-rf-send="send"] button[class*="_primary"]:last-of-type:not(:disabled):hover,
+[data-composer-card][data-rf-send="stop"] button[class*="_primary"]:last-of-type:not(:disabled):hover {
+  filter: brightness(1.1);
+}
+
+/* `--rf-btn-angle` drives the conic `from` — registered so the rotation
+   keyframe interpolates it smoothly (Chrome 85+ / Safari 16.4+ / Firefox
+   128+). Without `@property` the custom property cannot be interpolated, so
+   the keyframe only applies its end value discretely each cycle (a stepped
+   rotation instead of a smooth one) — the button stays decorated either way. */
+@property --rf-btn-angle {
+  syntax: "<angle>";
+  inherits: false;
+  initial-value: 0deg;
+}
+
+@keyframes rf-btn-rotate {
+  to {
+    --rf-btn-angle: 360deg;
+  }
+}
+
+@keyframes rf-btn-breathe {
+  0%,
+  100% {
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.30),
+      inset 0 -1px 2px rgba(255, 255, 255, 0.08),
+      0 0 0 1px rgba(255, 255, 255, 0.16),
+      0 4px 14px rgba(0, 0, 0, 0.25),
+      0 0 8px 2px rgba(176, 138, 255, 0.16);
+  }
+
+  50% {
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.30),
+      inset 0 -1px 2px rgba(255, 255, 255, 0.08),
+      0 0 0 1px rgba(255, 255, 255, 0.16),
+      0 4px 14px rgba(0, 0, 0, 0.25),
+      0 0 22px 6px rgba(176, 138, 255, 0.30),
+      0 0 12px 3px rgba(94, 200, 232, 0.18);
+  }
+}
+
+@keyframes rf-btn-ring {
+  0% {
+    transform: scale(1);
+    opacity: 0.85;
+  }
+
+  80%,
+  100% {
+    transform: scale(1.5);
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  [data-composer-card][data-rf-send="send"] button[class*="_primary"]:last-of-type:not(:disabled),
+  [data-composer-card][data-rf-send="stop"] button[class*="_primary"]:last-of-type:not(:disabled) {
+    animation: none;
+  }
+
+  [data-composer-card][data-rf-send="stop"] button[class*="_primary"]:last-of-type:not(:disabled)::before {
+    animation: none;
+    opacity: 0;
+  }
+}

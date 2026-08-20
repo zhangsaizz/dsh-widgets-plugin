@@ -1,14 +1,90 @@
-/* Rainbow flow around the composer card — all layers are mask-carved rings
-   (border only, interior transparent) so the input stays fully visible.
-   Only the crisp ring rotates: the glow component writes `--rf-angle` (deg)
-   onto the ring per frame via its rAF loop. The blurred halo is intentionally
-   static (ambient tint) — its own `from 0deg` paints once, so no per-frame
-   blur recompute. `.flow` is promoted to its own compositor layer so the
-   per-frame ring repaint never dirties the composer card beneath. */
+/* Rainbow flow around the composer card — the look is liquid glass first,
+   rainbow second: while the effect is on, the composer card itself becomes a
+   translucent frosted-glass panel (white glass gradient + backdrop blur), a
+   wide glass rim with a specular top highlight carries the material, and a
+   stream of rainbow light particles flows along the rim — the softened
+   rainbow reads as light refracting through the glass edge, not as a
+   self-luminous neon ring. Only the particle canvas redraws per frame (the
+   rAF loop in RainbowFlowGlow); the blurred halo, the glass rim and the
+   specular highlight are static (ambient tint + material, painted once), so
+   no per-frame blur recompute. `.flow` is promoted to its own compositor
+   layer so the per-frame canvas repaint never dirties the composer card. */
 
 :root {
-  /* Shared rainbow palette (ring + halo + toggle dot). */
-  --rf-palette: #ff3b3b, #ff9f1a, #ffd60a, #22d3ee, #3b82f6, #a855f7, #ec4899, #ff3b3b;
+  /* Softened rainbow palette (ring + halo + toggle dot + send button).
+     Pastel-leaning: same hue identity as the original, lower saturation and
+     higher lightness so the refraction reads gentle instead of neon. */
+  --rf-palette: #ff8a8a, #ffb36b, #ffe066, #5ec8e8, #6f9bff, #b08aff, #f27cc0, #ff8a8a;
+
+  /* Liquid-glass material palette — white-glass in the dark theme (frosted
+     glass brightens against a dark page), swapped to a deeper, higher-contrast
+     glass in the light theme (the white-glass values would vanish on a light
+     page). Every glass layer reads these tokens so both themes stay legible.
+     The panel keeps a MODERATE white so the card still reads as glass against
+     the dark page (too low → it melts into the background and the glass look
+     disappears); the TRANSLUCENCY comes from the light frosted blur on the
+     card's `::before` (14px — heavy 26px made the panel a milky wall). */
+  --rf-glass-panel-hi: rgba(255, 255, 255, 0.14);
+  --rf-glass-panel-lo: rgba(255, 255, 255, 0.04);
+  --rf-glass-panel-mid: rgba(255, 255, 255, 0.09);
+  --rf-glass-hair: rgba(255, 255, 255, 0.18);
+  --rf-shadow: 0 12px 40px rgba(0, 0, 0, 0.35);
+}
+
+@media (prefers-color-scheme: light) {
+  :root {
+    /* Light theme: keep the glass readable on a light page — a soft white
+       pane with a clearly visible hairline edge and a stronger drop shadow
+       for depth (the shipped dark theme's white-glass would be invisible). */
+    --rf-glass-panel-hi: rgba(255, 255, 255, 0.40);
+    --rf-glass-panel-lo: rgba(255, 255, 255, 0.15);
+    --rf-glass-panel-mid: rgba(255, 255, 255, 0.28);
+    --rf-glass-hair: rgba(255, 255, 255, 0.55);
+    --rf-shadow: 0 12px 40px rgba(31, 35, 50, 0.22);
+  }
+}
+
+/* Liquid glass panel: while the rainbow toggle is on, the composer card
+   itself becomes a transparent frosted-glass panel. The shipped solid dark
+   background is replaced with a WHITE translucent glass gradient — on a dark
+   theme a semi-transparent white glass reads as frosted glass (the card
+   visibly brightens against the background and shows it through softly
+   blurred), whereas a semi-transparent version of the shipped dark grey
+   blends into the dark background and reads as solid. The card's `::before`
+   frosted layer blurs everything behind it.
+   WHY `::before` and not a card-level backdrop-filter: backdrop-filter turns
+   the element into the containing block of `position: fixed` descendants,
+   and the composer's Tooltip bubbles are fixed-position elements rendered
+   inside the card (`.trailing`). The `::before` pseudo-element is a sibling
+   of those contents (not their ancestor) and has no descendants of its own,
+   so its backdrop-filter blurs the backdrop without moving any popup.
+   `isolation: isolate` gives the card its own stacking context so the
+   `z-index: -1` frosted layer paints above the card background but below the
+   input content. The ring/halo layers and the send-button styles all key off
+   `data-rf-send`, which is present exactly when the toggle is on — turning
+   the effect off restores the shipped opaque card untouched. Browsers
+   without `backdrop-filter` still get the translucent white glass (the
+   frosted blur is an enhancement); the gradient needs no modern feature. */
+:global([data-composer-card][data-rf-send]) {
+  isolation: isolate;
+  background:
+    linear-gradient(150deg, var(--rf-glass-panel-hi), var(--rf-glass-panel-lo) 45%, var(--rf-glass-panel-mid)) !important;
+  box-shadow: var(--rf-shadow);
+}
+
+:global([data-composer-card][data-rf-send])::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  z-index: -1;
+  /* A LIGHT frost: enough blur to read as glass, but the content behind the
+     card stays visible through it (a heavy 26px blur + strong saturation
+     would turn the panel into a milky wall — that is "opaque glass", not
+     translucent). */
+  -webkit-backdrop-filter: blur(14px) saturate(1.3);
+  backdrop-filter: blur(14px) saturate(1.3);
 }
 
 .flow {
@@ -20,48 +96,49 @@
   will-change: transform; /* isolate per-frame repaints onto a compositor layer */
 }
 
-.ring,
+/* Static halo: wide, diffuse, low opacity — ambient light only, so the
+   flowing particle ribbon stays the protagonist. Fixed `from 0deg` (never
+   inherits the ring's --rf-angle), painted once, blurred. */
 .glow {
   position: absolute;
   inset: 0;
   border-radius: inherit;
-  background: conic-gradient(from var(--rf-angle, 0deg), var(--rf-palette));
-  -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
-  -webkit-mask-composite: xor;
-  mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
-  mask-composite: exclude;
-}
-
-.ring {
-  padding: 2px;
-}
-
-/* Static halo: fixed `from 0deg` (never inherits the ring's --rf-angle),
-   painted once, blurred. */
-.glow {
-  padding: 6px;
+  padding: 14px;
   background: conic-gradient(from 0deg, var(--rf-palette));
-  filter: blur(5px);
-  opacity: 0.55;
+  filter: blur(14px);
+  opacity: 0.18;
 }
 
-/* No mask support: hide the carved rings and use a soft outer box-shadow
-   glow instead, so nothing ever covers the input. */
+/* The rainbow edge is a canvas of flowing light particles (see particles.ts
+   and the rAF loop in RainbowFlowGlow) — it covers the whole flow layer and
+   draws along the rounded-rect rim path itself, so it needs no mask or
+   background: just full-size, block, and never intercepting pointers. */
+.ring {
+  display: block;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+
+/* No mask support: the glow uses mask-carved rings, so hide it and use a soft
+   outer box-shadow glow instead. The particle canvas needs no mask — it
+   draws its own rim path — so it stays visible. */
 @media not all and (mask-composite: exclude) {
-  .ring,
   .glow {
     display: none;
   }
 
   .flow {
     box-shadow:
-      0 0 18px 5px rgba(168, 85, 247, 0.32),
-      0 0 12px 3px rgba(255, 214, 10, 0.25),
-      0 0 8px 1px rgba(34, 211, 238, 0.22);
+      0 0 22px 8px rgba(176, 138, 255, 0.18),
+      0 0 14px 4px rgba(255, 224, 102, 0.12),
+      0 0 10px 2px rgba(94, 200, 232, 0.12);
   }
 }
 
-/* Toggle switch: small rainbow dot button at the left end of the tool row. */
+/* Toggle switch: small glass dot button at the left end of the tool row.
+   Translucent gradient + blur + top highlight, matching the liquid-glass
+   language of the glow. */
 .toggle {
   position: relative;
   display: inline-flex;
@@ -70,17 +147,22 @@
   width: 26px;
   height: 26px;
   padding: 0;
-  border: 1px solid var(--dsw-alias-border-l2, rgba(127, 127, 127, 0.4));
+  border: 1px solid var(--rf-glass-hair);
   border-radius: 8px;
-  background: transparent;
+  background: linear-gradient(145deg, var(--rf-glass-panel-hi), var(--rf-glass-panel-lo));
+  -webkit-backdrop-filter: blur(8px);
+  backdrop-filter: blur(8px);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.18);
   cursor: pointer;
   flex: none;
-  transition: border-color 0.15s ease, background-color 0.15s ease;
+  transition: border-color 0.15s ease, background-color 0.15s ease, box-shadow 0.15s ease;
 }
 
 .toggle:hover {
-  border-color: var(--dsw-alias-label-secondary, #888);
-  background: var(--dsw-alias-interactive-bg-hover, rgba(127, 127, 127, 0.12));
+  border-color: rgba(255, 255, 255, 0.34);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.24),
+    0 0 10px 1px rgba(176, 138, 255, 0.25);
 }
 
 .dot {
@@ -110,4 +192,11 @@
 
 .toggleRunning .status {
   background: var(--dsw-alias-state-success-primary, #34d399);
+}
+
+/* Invisible probe used by `RainbowFlowSend` to locate the composer card and
+   mirror the send/stop state onto it (`data-rf-send`). It must occupy no
+   layout space — the trailing row keeps its exact shipped geometry. */
+.sendProbe {
+  display: none;
 }

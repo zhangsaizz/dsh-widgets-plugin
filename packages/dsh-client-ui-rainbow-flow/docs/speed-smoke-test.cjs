@@ -42,14 +42,14 @@ function ok(name) { passed++; console.log('  ✓', name) }
 // ── rate -> period / speed mapping ─────────────────────────────────
 {
   console.log('rateToDuration / rateToSpeed')
-  assert.strictEqual(rateToDuration(0), 3.2, 'idle -> slowest period')
-  assert.strictEqual(rateToDuration(1e9), 0.45, 'very fast -> fastest period')
+  assert.strictEqual(rateToDuration(0), 5, 'idle -> slowest period')
+  assert.strictEqual(rateToDuration(1e9), 1, 'very fast -> fastest period')
   assert.ok(rateToDuration(0) > rateToDuration(50), 'period decreases with tps')
   assert.ok(rateToDuration(50) > rateToDuration(500), 'period decreases (high end)')
-  assert.strictEqual(rateToSpeed(0), 360 / 3.2, 'idle speed = 112.5 deg/s')
-  assert.strictEqual(rateToSpeed(1e9), 360 / 0.45, 'fast speed = 800 deg/s')
+  assert.strictEqual(rateToSpeed(0), 360 / 5, 'idle speed = 72 deg/s')
+  assert.strictEqual(rateToSpeed(1e9), 360 / 1, 'fast speed = 360 deg/s')
   assert.ok(rateToSpeed(0) < rateToSpeed(50) && rateToSpeed(50) < rateToSpeed(500), 'speed increases with tps')
-  ok('clamping bounds 3.2s..0.45s, monotonic rate -> speed')
+  ok('clamping bounds 5s..1s, monotonic rate -> speed')
 }
 
 // ── frame-rate independence (float-exact) ──────────────────────────
@@ -58,8 +58,8 @@ function ok(name) { passed++; console.log('  ✓', name) }
 // float drift would add/subtract a step and fake a mismatch).
 {
   console.log('easeSpeed frame-rate independence')
-  const start = 112.5
-  const target = 800
+  const start = 72
+  const target = 360
   const total = 1 // 1 s of simulated animation
   const exact = start + (target - start) * (1 - Math.exp(-total / SPEED_EASE_TAU))
   for (const dt of [1 / 240, 1 / 120, 1 / 60, 1 / 30, 1 / 10, 1 / 4, 0.5]) {

@@ -34,12 +34,15 @@
 | 17 | 卡片视图（内置） | Web 卡片视图 | `@dsh-plugins/client-ui-card-container` | `widgets.card`（容器声明子槽，priority 10 兜底） | token-crit / session-monitor 紧凑统计卡（标准 `useSessions` 数据）+ balance 通用卡；**标准接入规范**（`WidgetCardProps` + 槽级注入面 `CardSlotInject`，见 WIDGET-DEVELOPMENT.md §2.5）：挂件自己的卡片注册进 `widgets.card`（id = shell.overlay id、priority 默认 0、显示名优先读 shell.overlay 的 label）即优先渲染，不注册则用占位卡；卡片可声明**规格**（静态 `spec`：small 1 列 / medium 2 列 / large 整行） |
 | 18 | 卡片容器配置面板 `CardContainerSettings` | Web 配置弹窗 | `@dsh-plugins/client-ui-card-container` | `widgets.config`（管理器「配置」弹窗） | 列数（自适应/2/3/4）+ 清空停靠/重置，localStorage 持久化 |
 | 19 | 安装 bundle | 分发层 | `@dsh-plugins/dsh-widgets-plugin` | `cordis.patch.yml` | 一次插入 6 个插件，一键挂载全部组件 |
-| 20 | 小组件管理页 `WidgetManagerSettings` | Web 设置页 | `@dsh-plugins/client-ui-widget-manager` | `settings.section`（order 10） | 实时列出小组件，支持「添加/关闭」，并为带配置的挂件提供「配置」弹窗 |
+| 20 | 小组件管理页 `WidgetManagerSettings` | Web 设置页 | `@dsh-plugins/client-ui-widget-manager` | `settings.section`（order 10） | 实时列出小组件，支持「添加/关闭」，并为带配置的挂件提供「配置」弹窗；**支持非 overlay 组件**（`configOnly`，如 rainbow-flow——启用/停用经 window 事件桥控制其自身开关 store，与工具栏圆点双向同步） |
 | 21 | 会话监控桌面快照路由 | Host Web 路由 | `@dsh-plugins/client-ui-session-monitor` | `/_dsh/session-monitor/sessions` | 把实时会话存储折叠成紧凑 JSON 行（running/title/pending/子代理计数等），`tools`/`rounds` 与行级 `goal`（`goal/change` 折叠）同车返回（桌面挂件任务/目标进度条数据），桌面挂件 2s 轮询 |
 | 22 | 会话监控独立挂件页 | Host 托管的独立 Web 页 | `@dsh-plugins/client-ui-session-monitor` | `/_dsh/session-monitor/widget` | 自包含 HTML（无框架）：**「待处理」通知列表（主视图，未读徽标 + 处理/忽略/全部已读 + 级别开关）+ 「会话」列表副 Tab** + 完成一轮 toast + 置顶/隐藏/设置，供桌面壳加载 |
 | 23 | 会话监控桌面悬浮窗壳 | 桌面应用（Tauri 2） | `desktop/dsh-session-desktop` | Windows 桌面 | 无边框/透明/置顶/无任务栏小窗 + 托盘（显示/退出），加载挂件页；启动时探测本机 web 服务、外部导航交系统浏览器 |
-| 24 | 彩虹流光 `RainbowFlowGlow` | Web 输入框装饰 | `@dsh-plugins/client-ui-rainbow-flow` | `conversation.input.left`（order 99） | 会话运行时输入框卡片四周流动的彩虹描边环 + 柔光光晕（mask 挖空、内部透明），旋转速度随每秒输出 token 速率动态变化（采样流式 partial 估算，EMA 平滑） |
-| 25 | 彩虹流光开关 `RainbowFlowToggle` | Web 输入框控制 | `@dsh-plugins/client-ui-rainbow-flow` | `conversation.input.left`（order 100） | 输入框工具行左端彩虹小圆点开关（开/关持久化 localStorage），右上角状态点随会话运行变绿 |
+| 24 | 彩虹流光 `RainbowFlowGlow` | Web 输入框装饰 | `@dsh-plugins/client-ui-rainbow-flow` | `conversation.input.left`（order 99） | **整个输入框透明液态玻璃 + 一缕缕云（无边框）**：开关开启时输入卡变**通透磨砂玻璃**面板（**半透明白色玻璃渐变 0.14** + 卡片 `::before` **轻磨砂层 `blur(14px)`**——白色调让卡片比深色背景稍亮有玻璃感、轻磨砂让背后内容清晰透出（通透而非蒙雾墙），`--rf-glass-*` token 主题感知亮/暗两套调色板，`::before` 方案避免破坏 fixed Tooltip）——**无可见环带/边框**，唯一边缘装饰是 **6 缕蓬松云状光团沿边缘缓缓飘动**（canvas：每缕厚实圆润 = 26 密集采样 + 宽辉光/柔和核心双层 + sin 包络中间亮两端淡 + 缕间留间隙 + 色相渐变交融，token 速率驱动飘速 5s↔1s，纯模块 `particles.ts`）+ 大模糊环境光晕 |
+| 25 | 彩虹流光开关 `RainbowFlowToggle` | Web 输入框控制 | `@dsh-plugins/client-ui-rainbow-flow` | `conversation.input.left`（order 100） | 输入框工具行左端液态玻璃质感彩虹小圆点开关（半透明渐变 + blur + 高光，开/关持久化 localStorage），右上角状态点随会话运行变绿 |
+| 26 | 发送/停止按钮美化 `RainbowFlowSend` | Web 输入框控制 | `@dsh-plugins/client-ui-rainbow-flow` | `conversation.input.right`（order 150） | 对输入框主操作发送/停止按钮做**液态玻璃**图标美化 + 动态效果：`conversation.input.right` 探针把按钮有效状态镜像到输入卡 `data-rf-send`，全局样式表给按钮做半透明玻璃面板（白色渐变 + backdrop blur + 顶部高光）透出柔和彩虹 + 细玻璃描边——空闲有草稿时呼吸光晕、运行中彩虹旋转 + 扩散雷达脉冲环；与开关共用开关状态、禁用态不生效、`prefers-reduced-motion` 冻结动画；选择器锚定 `[data-composer-card]` + `_primary` 后缀，harness 升级后仍生效 |
+| 27 | 彩虹流光配置面板 `RainbowFlowSettings` | Web 配置弹窗 | `@dsh-plugins/client-ui-rainbow-flow` | `widgets.config`（管理器「配置」弹窗） | 可调**云缕数量**（4/6/8/10）、**透明度**（40/70/100%）、**速度灵敏度**（0.5×/1×/1.5×）、**思考冷色调开关**；经 `settings.ts` store 持久化到 localStorage（`dsh.rnglow.settings`），已挂载的效果实时生效 |
+| 28 | 彩虹流光设置 store `settings.ts` | 客户端状态 | `@dsh-plugins/client-ui-rainbow-flow` | 注入 store | 云缕/透明度/速度/冷色调的读取/保存/订阅（uSES），与配置面板和光环共享；**启用/停用经 window 事件桥与管理页双向同步**（`dsh.rnglow.manager-toggle` / `enabled-change`，与工具栏圆点同一开关 store）；另含**心情感知色调**（思考/工具调用时云缕 +120° 偏蓝紫，EMA 缓动）、**reduced-motion 单帧静态**、**IntersectionObserver 视口外停 rAF**、**色板预缓存** |
 
 > 1–10 全部由 `@dsh-plugins/balance` 一个包、一个插件行承载（原 `balance` 缝隙 +
 > `balance-vendors` + `client-ui-balance` 三个包已合并）。
@@ -203,8 +206,14 @@
   并在同一注册中**声明 `widgets.config` 子槽**（list，条目 id = 挂件 id）。
 - 列表数据：`WidgetManagerController` 订阅 `shell.overlay` 与 `widgets.config` 台账
   （`ctx.slots.subscribe` + `entries`），结合内置目录（`widgets.ts`：balance /
-  token-crit / session-monitor）投影每行的「已启用 / 已关闭 / 未安装」状态；`hasConfig` 由 `widgets.config`
+  token-crit / session-monitor / card-container / **rainbow-flow**）投影每行的
+  「已启用 / 已关闭 / 未安装」状态；`hasConfig` 由 `widgets.config`
   的实时注册推导。**目录中余额看板的 `packageName` 是 `@dsh-plugins/balance`**。
+  **非 overlay 组件支持**（`WidgetDescriptor.configOnly`，如 rainbow-flow——
+  它注册 `conversation.input.left`/`widgets.config` 而非 `shell.overlay`）：
+  此类组件同样提供**启用/停用**（经 window 事件桥 `dsh.rnglow.manager-toggle`
+  控制其自身开关 store，与工具栏圆点双向同步——`dsh.rnglow.enabled-change`
+  事件回传状态），以及「配置」按钮；不参与 overlay 影子机制。
 - **关闭（禁用）机制**：向 `shell.overlay` 注册同 `id`、`priority: -1` 的影子条目
   （list 槽单元渲染最低优先级胜者，ui-slots 影子机制）——挂件条目仍存活但不渲染；
   影子条目打 `registrant: "widget-manager"` 标记，随插件 fiber 卸载级联清理。
@@ -406,39 +415,99 @@
   `conversation.input.left`（ui-conversation 声明的输入框工具行席位，
   `InputZone` owner 契约）注册两个条目：
   - id `rainbow-flow-glow`，order **99** → `RainbowFlowGlow`：会话运行中时，
-    输入框卡片四周渲染**彩虹流光**——mask 挖空的流动彩虹描边环（2px）+ 模糊
-    光晕（6px），内部完全透明不遮输入；层是卡片内的绝对定位元素
-    （`inset: -5px`，containing block = 卡片的 `position:relative`），
-    自动跟随卡片高度，无需测量；
+    输入框卡片四周渲染**透明液态玻璃 + 流光溢彩光带（无边框）**——
+    **整个输入卡变通透磨砂玻璃面板**（`:global([data-composer-card][data-rf-send])`
+    把产品实心深色背景替换为**半透明白色玻璃渐变** `linear-gradient(150deg,
+    var(--rf-glass-panel-hi)→lo→mid)` + `isolation: isolate`——深色主题下白色
+    玻璃让卡片比背景稍亮呈磨砂发白透光，而深灰半透明会与背景融为一体看不出
+    透明；**玻璃材质主题感知**：`--rf-glass-*` token 在 `@media (prefers-color-
+    scheme: light)` 下切换为高对比浅色玻璃（面板提亮、阴影变深蓝调），按钮图标
+    同步翻转为深色保证可读；并由卡片 **`::before` 轻磨砂层**（`backdrop-filter:
+    blur(14px) saturate(1.3)`，`position:absolute; inset:0; z-index:-1`）模糊
+    透出背后内容——轻磨砂让面板**通透**（背后内容清晰可见，重 blur 26px 会变成
+    蒙雾墙），放在 `::before` 而非卡片本身，是因为卡片级 backdrop-filter 会成为
+    内部 fixed Tooltip 的 containing block 把气泡打出屏幕，`::before` 与内容是
+    兄弟关系不受影响；关闭开关即移除 `data-rf-send` 恢复原厂；不支持
+    `backdrop-filter` 时仍保留半透明白玻璃）+ **粒子流动边缘**（`.ring` 改为
+    canvas：**一缕缕云**——6 缕云每个画成厚实圆润的蓬松光团（26 密集采样，先
+    底层宽而淡的辉光、再上层柔和核心，sin 包络中间亮两端淡 = 云状体积感，缕间
+    留间隙，色相沿缕内部渐变交融），沿卡片
+    边缘（圆角矩形路径，内缩 5px，**无玻璃环带/镜面高光层**——已移除，唯一边缘
+    装饰就是光带）流动——纯模块 `src/client/particles.ts` 提供
+    `rimPoint`/`createParticles`/`advanceParticles`/`tailSamples`，rAF 循环按
+    token 速率缓动流速后逐帧绘制，光带像云在飘；**心情感知色调**（模型思考/
+    工具调用无输出时云缕 +120° 色相偏移偏蓝紫，输出时回温，EMA 缓动平滑切换）；
+    **色板预缓存**（GLOW_STYLES/CORE_STYLES 360 档 hue fillStyle 一次性生成，
+    免每帧字符串拼接）；**reduced-motion 渲染单帧静态云**（不再空白，matchMedia
+    change 监听恢复/停止）+ 大模糊环境光晕（14px，
+    opacity 0.18，退为氛围）；层是卡片内的绝对定位元素（`inset: -5px`，
+    containing block = 卡片的 `position:relative`），自动跟随卡片高度，无需
+    测量；
   - id `rainbow-flow-toggle`，order **100** → `RainbowFlowToggle`：工具行左端
-    彩虹小圆点开关（关闭时圆点变灰），右上角状态点随 `session.running` 变绿；
-    开关状态经模块级 store + `useSyncExternalStore` 与光环共享，持久化到
-    `localStorage`（`dsh.rnglow.enabled`，默认开）。
+    **液态玻璃质感**彩虹小圆点开关（半透明渐变 + blur + 顶部高光；关闭时圆点
+    变灰），右上角状态点随 `session.running` 变绿；开关状态经模块级 store +
+    `useSyncExternalStore` 与光环共享，持久化到 `localStorage`
+    （`dsh.rnglow.enabled`，默认开）。
+  - 另注册 `widgets.config`，id **`rainbow-flow`**，order **0** →
+    `RainbowFlowSettings`（`src/client/SettingsPanel.tsx`）：小组件管理页「配置」
+    弹窗——**云缕数量**（4/6/8/10）、**透明度**（40/70/100%）、**速度灵敏度**
+    （0.5×/1×/1.5×）、**思考冷色调开关**；读写 `src/client/settings.ts`
+    （`RainbowFlowSettings` + `DEFAULT_SETTINGS` + `loadSettings`/`saveSettings`/
+    `subscribeSettings`/`getSettings`，uSES store，持久化 `dsh.rnglow.settings`），
+    已挂载的光环实时生效（缕数变化重建粒子流、透明度缩放 alpha、速度缩放
+    `rateToDuration` 映射、冷色调开关控制 +120° 偏移）。
+  - 另在 `conversation.input.right`（order **150**）注册 id `rainbow-flow-send`
+    → `RainbowFlowSend`：**发送/停止按钮液态玻璃美化 + 动态效果**——主操作按钮
+    （空闲=发送箭头、运行中=停止方块）是产品自带 chrome 不是插槽，故探针
+    组件（`display:none` 零尺寸 span，经 `closest('[data-composer-card]')`
+    定位输入卡）把按钮有效状态镜像到卡片 `data-rf-send`（`off`/`send`/`stop`，
+    与 InputBar `primaryStops = running && subagent===null` 同语义；开关关闭
+    时移除属性 = 原厂外观），纯全局样式表 `src/client/SendButton.css`
+    （非 CSS module，免哈希）按 `[data-composer-card][data-rf-send=…]
+    button[class*="_primary"]:last-of-type:not(:disabled)` 选中按钮：
+    **液态玻璃面板**——两层背景（白色高光渐变 `linear-gradient(150deg,
+    rgba(255,255,255,.22)→.05→.12)` 叠加 conic 彩虹 `--rf-palette` 透出）+
+    `backdrop-filter: blur(8px) saturate(1.3)` + 内高光/细玻璃描边/柔和投影
+    （box-shadow 叠加，不动原 `border:none` 以免撑大 34px）；`send`（空闲有
+    草稿）**呼吸光晕**（box-shadow 3s 缓动，含内高光保持）；`stop`（运行中）
+    **彩虹旋转**（`@property --rf-btn-angle` 注册角度插值，3s linear；不支持
+    `@property` 时阶梯旋转回退）+ **扩散雷达脉冲环**（`::before` 白色细环
+    scale 1→1.5 淡出，1.6s）；hover 提亮滤镜；禁用态（空草稿）`:not(:disabled)`
+    跳过；`prefers-reduced-motion` 冻结全部动画。选择器锚定稳定的
+    `[data-composer-card]` 属性 + CSS-module `_primary` 后缀（哈希前缀随
+    harness 构建变化、本地名不变），harness 升级后仍生效。
 - **速度随 token 速率**：光环组件内 500ms 采样 `session.partial`（流式输出
   内容）文本长度增量 → 估算每秒输出 token 数（约 2 字符/token，EMA 平滑）
-  → 映射旋转周期 3.2s（慢）↔ 0.45s（快）——模型输出越快彩虹转得越快，
-  思考/工具调用间隙平滑回落；运动模型抽在纯模块 `src/client/rate.ts`
-  （`rateToDuration` / `rateToSpeed` / `easeSpeed`，无 DOM 依赖）。
-- **转速变化平滑过渡**：rAF 循环里角速度以指数缓动（`easeSpeed`，
+  → 映射流动周期 5s（慢）↔ 1s（快）——比旧版（3.2s↔0.45s）更从容柔和，
+  静止时悠悠漂移、峰值不狂转；思考/工具调用间隙平滑回落；运动模型抽在纯
+  模块 `src/client/rate.ts`（`rateToDuration` / `rateToSpeed` / `easeSpeed`，
+  无 DOM 依赖，缓动时间常数 `SPEED_EASE_TAU` 0.8s）。
+- **流速平滑过渡**：rAF 循环里流速以指数缓动（`easeSpeed`，
   `1 - exp(-dt/τ)`，帧率无关——`(exp(-dt/τ))^n = exp(-t/τ)`）逼近采样目标
-  并连续积分旋转角，把 `--rf-angle` 逐帧写到**环层**（conic-gradient `from`
-  随之旋转；角度取 `toFixed(1)`、值未变时跳过写）；**模糊光晕保持静态**
-  （固定 `from 0deg`，只渲染一次，免去每帧 blur 重算）。不再直接改
-  `animation-duration`（那样会重置动画当前时间、彩虹相位跳变）。
+  并连续推进**粒子相位**（`advanceParticles` 按 `turnsPerSecond × speed × dt`
+  沿圆角矩形路径推进，模 1 环绕），粒子不跳位；canvas 按 DPR 缩放、逐帧
+  clearRect 重绘流光光带；**模糊光晕保持静态**（环境光，只渲染一次，免去每帧
+  blur 重算）。不再直接改 `animation-duration`（那样会重置动画当前时间、粒子
+  相位跳变）。
 - **性能**：循环**按可见性门控**（effect deps `[on, running]`，运动状态存
   refs）——开关关闭或会话空闲时不调度任何 rAF 回调，空闲输入框零成本；
-  开关/回合切换间角度与速度经 refs 无缝衔接；`.flow` 加
-  `will-change: transform` 提升合成层，逐帧重绘不污染底层输入卡片；
-  彩虹配色收敛到 `--rf-palette`（环/光晕/开关圆点共用）。
+  **`IntersectionObserver` 视口外暂停**（输入框滚出视口停 rAF，省电）；
+  色板预缓存（`GLOW_STYLES`/`CORE_STYLES` 360 档 hue fillStyle 一次性生成，
+  每帧零字符串拼接）；开关/回合切换间粒子相位与流速经 refs 无缝衔接；
+  canvas 是独立绘制层，逐帧重绘不污染底层输入卡片；彩虹配色收敛到
+  `--rf-palette`（光晕/开关圆点/按钮共用；云缕用 HSL 色相流）。
 - **运动模型冒烟测试**：`docs/speed-smoke-test.cjs` 用 esbuild 打包真实
-  源码，断言帧率无关（float-exact）/ 单调收敛无过冲 / 边界钳制；
-  运行 `node packages/dsh-client-ui-rainbow-flow/docs/speed-smoke-test.cjs`。
-- **降级**：`@media not all and (mask-composite: exclude)` 下隐藏挖空层，
-  改用多色 `box-shadow` 外发光（同样不遮输入）；`prefers-reduced-motion`
-  下 JS 跳过 rAF 循环，彩虹保持静态（matchMedia `change` 监听实时响应
-  系统设置切换）。
+  源码，断言帧率无关（float-exact）/ 单调收敛无过冲 / 边界钳制（5s..1s）；
+  `docs/particles-smoke-test.cjs` 断言 rimPoint 几何（闭合/界内/单调周长）、
+  粒子流创建/推进/环绕、彗星拖尾；分别运行
+  `node packages/dsh-client-ui-rainbow-flow/docs/speed-smoke-test.cjs` 与
+  `node packages/dsh-client-ui-rainbow-flow/docs/particles-smoke-test.cjs`。
+- **降级**：`@media not all and (mask-composite: exclude)` 下隐藏挖空的光晕层
+  （不挖空会变成实心面板盖住输入），改用多色 `box-shadow` 外发光（同样不遮
+  输入）；**粒子 canvas 不依赖 mask 保持可见**；`prefers-reduced-motion` 下 JS
+  跳过 rAF 循环、渲染单帧静态云（matchMedia `change` 监听实时响应系统设置切换）。
 - 依赖：`@deepseek-ai/cordis`、`dsh-client-runtime`、
-  `dsh-client-ui-conversation`（`conversation.input.left` 类型合并，peer）、
+  `dsh-client-ui-conversation`（`conversation.input.left`/`.right` 类型合并，peer）、
   `dsh-client-ui-slots`、`react`（peer）。
 - 构建：Host → `lib/index.js`（ESM，外部化，空 apply）；Client →
   `lib/client.js`（ModuleLoader CJS + 内联 CSS，Vite library mode）。

@@ -43,6 +43,15 @@ export const STORAGE_KEY = 'dsh-plugins.widget-manager.disabled'
  *  `dsh.card-container.dock` request; a no-op when the container is absent). */
 export const UNDOCK_REQUEST_EVENT = 'dsh.card-container.undock'
 
+/** Config-only widget ids and their manager-toggle bridge events. A
+ *  config-only widget (e.g. rainbow-flow) is not an overlay entry, so the
+ *  overlay-shadow disable mechanism does not apply; instead the manager
+ *  toggles its own on/off store through a window event. */
+const RF_ID = 'rainbow-flow'
+const RF_TOGGLE_EVENT = 'dsh.rnglow.manager-toggle'
+const RF_CHANGE_EVENT = 'dsh.rnglow.enabled-change'
+const RF_ENABLED_KEY = 'dsh.rnglow.enabled'
+
 /** Dispatch an undock request for the given widget id (the container listens
  *  and restores the floating panel). Safe when the container is absent. */
 export function requestUndock(id: string): void {
@@ -71,6 +80,9 @@ export interface WidgetRow {
    *  (a container dock shadow wins its cell) — distinct from a manager
    *  disable: the row offers "undock" instead of "add". */
   docked: boolean
+  /** Non-overlay widget (e.g. rainbow-flow): it only ships a config panel and
+   *  has no Add/Disable toggle — the overlay-shadow mechanism does not apply. */
+  configOnly: boolean
 }
 
 /** Renders nothing — the winning shadow hides its cell. */
@@ -90,6 +102,9 @@ export class WidgetManagerController implements HostObservable<readonly WidgetRo
   private readonly disabled = new Set<string>()
   /** Overlay ids that currently contribute a panel into `widgets.config`. */
   private configIds: ReadonlySet<string> = new Set()
+  /** Live on/off state of config-only widgets (mirrors their own store via
+   *  change events; absent = read from their localStorage key on demand). */
+  private readonly configOnlyEnabled = new Map<string, boolean>()
   private rows: readonly WidgetRow[] = []
 
   /**
@@ -99,6 +114,22 @@ export class WidgetManagerController implements HostObservable<readonly WidgetRo
     const stop = ctx.slots.subscribe('shell.overlay', () => { this.reconcile(); this.notify() })
     const stopConfig = ctx.slots.subscribe('widgets.config', () => { this.reconcileConfigs(); this.reconcile(); this.notify() })
     ctx.effect(() => () => { stop(); stopConfig() }, 'widget-manager: ledger subscriptions')
+    // Non-overlay (config-only) widgets keep their own on/off store; listen
+    // for its change events so the row mirrors the live state (e.g. the
+    // rainbow-flow toolbar dot toggling elsewhere updates the manager row).
+    const stopRfChange = (): (() => void) => {
+      const onEnabled = (event: Event): void => {
+        const detail = (event as CustomEvent<boolean>).detail
+        if (typeof detail !== 'boolean') return
+        this.configOnlyEnabled.set(RF_ID, detail)
+        this.reconcile()
+        this.notify()
+      }
+      window.addEventListener(RF_CHANGE_EVENT, onEnabled)
+      return () => { window.removeEventListener(RF_CHANGE_EVENT, onEnabled) }
+    }
+    const stopRf = stopRfChange()
+    ctx.effect(() => stopRf, 'widget-manager: config-only toggle change listener')
     // Seed the session set from persistence, then apply shadows as widgets come online.
     for (const id of readDisabled()) this.disabled.add(id)
     for (const id of this.disabled) this.reconcileShadow(id)
@@ -122,8 +153,21 @@ export class WidgetManagerController implements HostObservable<readonly WidgetRo
    *  negative-priority entry can hide a widget too, and basing the toggle on
    *  it would flip our state without changing what the user sees (and keep
    *  flipping forever). Our own disabled set stays consistent with our own
-   *  actions; third-party shadows still show up in the row's `enabled` state. */
+   *  actions; third-party shadows still show up in the row's `enabled` state.
+   *  Config-only widgets (no overlay entry) are toggled through their own
+   *  on/off store via a window event instead of an overlay shadow. */
   toggle(id: string): void {
+    if (id === RF_ID) {
+      // Config-only widgets keep their own on/off store; we only REQUEST the
+      // flip through a window event and let their `enabled-change` echo update
+      // this row. No optimistic local update: if the widget's plugin is not
+      // mounted (the event has no listener), the row must NOT show a state
+      // that does not match the real effect — the click is a harmless no-op
+      // instead of a lie.
+      const next = !this.isConfigOnlyEnabled(RF_ID)
+      try { window.dispatchEvent(new CustomEvent(RF_TOGGLE_EVENT, { detail: next })) } catch { /* ignore */ }
+      return
+    }
     if (this.shadows.has(id)) {
       this.disabled.delete(id)
     } else {
@@ -229,12 +273,30 @@ export class WidgetManagerController implements HostObservable<readonly WidgetRo
     }
     for (const id of widgetIds) {
       if (rows.some((row) => row.id === id)) continue
-      rows.push({ id, packageName: undefined, nameKey: undefined, descriptionKey: undefined, hasConfig: this.configIds.has(id), registered: true, enabled: !this.isShadowed(id), docked: this.isDocked(id) })
+      rows.push({ id, packageName: undefined, nameKey: undefined, descriptionKey: undefined, hasConfig: this.configIds.has(id), registered: true, enabled: !this.isShadowed(id), docked: this.isDocked(id), configOnly: false })
     }
     this.rows = rows
   }
 
   private rowOf(descriptor: WidgetDescriptor, registered: boolean): WidgetRow {
+    // Non-overlay (config-only) widgets: never overlay entries, so the
+    // enable/disable machinery does not apply — they show as installed when
+    // their config panel is live and their enabled state mirrors their own
+    // on/off store (toggled via a window event).
+    if (descriptor.configOnly) {
+      const installed = this.configIds.has(descriptor.id)
+      return {
+        id: descriptor.id,
+        packageName: descriptor.packageName,
+        nameKey: descriptor.nameKey,
+        descriptionKey: descriptor.descriptionKey,
+        hasConfig: installed,
+        registered: installed,
+        enabled: installed && this.isConfigOnlyEnabled(descriptor.id),
+        docked: false,
+        configOnly: true,
+      }
+    }
     return {
       id: descriptor.id,
       packageName: descriptor.packageName,
@@ -244,7 +306,20 @@ export class WidgetManagerController implements HostObservable<readonly WidgetRo
       registered,
       enabled: registered && !this.isShadowed(descriptor.id),
       docked: registered && this.isDocked(descriptor.id),
+      configOnly: false,
     }
+  }
+
+  /** Live on/off state of a config-only widget: prefer the mirrored value from
+   *  its change event, else read its localStorage key (defaults to on). */
+  private isConfigOnlyEnabled(id: string): boolean {
+    const mirrored = this.configOnlyEnabled.get(id)
+    if (mirrored !== undefined) return mirrored
+    try {
+      const raw = localStorage.getItem(RF_ENABLED_KEY)
+      if (raw !== null) return raw === '1'
+    } catch { /* storage unavailable */ }
+    return true
   }
 
   private notify(): void {
