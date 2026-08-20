@@ -103,13 +103,16 @@ export function rimPoint(
 }
 
 /** Create a fresh particle stream: `count` wisps evenly spaced around the
- *  rim, each with a rainbow hue and a small speed jitter. `seed` offsets the
- *  hue so restarts don't snap colors. */
+ *  rim, each with a rainbow hue and a small speed jitter. Positions are
+ *  OFFSET by half a spacing ((i + 0.5)/count) so no wisp head sits at t=0 and
+ *  every rim point — including the t≈0 seam — is covered by at least two
+ *  wisps (their spans overlap by ~1.8×). `seed` offsets the hue so restarts
+ *  don't snap colors. */
 export function createParticles(count: number, seed = 0): RimParticle[] {
   const particles: RimParticle[] = []
   for (let i = 0; i < count; i++) {
     particles.push({
-      t: i / count,
+      t: (i + 0.5) / count,
       hue: (seed + i * (360 / count)) % 360,
       speed: 1 + (i % 2 === 0 ? 1 : -1) * SPEED_JITTER * ((i % 5) / 5 + 0.2),
     })

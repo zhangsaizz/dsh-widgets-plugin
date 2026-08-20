@@ -268,13 +268,19 @@ export function RainbowFlowGlow({ session }: RainbowFlowProps): React.JSX.Elemen
       const ph = Math.max(0, h - 2 * RIM_INSET)
       // Cloud rendering: each particle is one SOFT, PUFFY cloud drifting along
       // the rim — a thick, rounded puff (wide low-alpha glow + gentle core)
-      // with a sine envelope, NOT a thin line. The wisp span is auto-sized to
-      // the wisp count so wisps NEVER overlap: span = 0.9 / count (90% of the
-      // spacing), leaving a visible gap between neighbouring wisps at every
-      // count (4 → 10). A fixed span would overlap at 8+ wisps and collapse
-      // the "separate wisps" look into a solid ring.
-      const WISP_SPAN = 0.9 / Math.max(1, particlesRef.current.length)
-      const SEGMENTS = 26
+      // with a nearly-flat envelope. The edge reads as ONE CONTINUOUS flowing
+      // cloud band, never as separated particles:
+      //  - the wisp span is 1.8× the spacing (heavy overlap), so neighbouring
+      //    wisps merge — no visible gap anywhere along the rim;
+      //  - the envelope stays ≥ 0.7 (0.7 + 0.3·sin): brightness barely
+      //    undulates, so no dark seams read between wisps.
+      // Density comes from the count, continuity from overlap + flat envelope.
+      const WISP_SPAN = 1.8 / Math.max(1, particlesRef.current.length)
+      // Dense sampling: SEGMENTS is sized so the sample spacing (~0.3% of the
+      // perimeter ≈ 5px) is well below the cloud dot diameter (glow up to
+      // 16px, core ≥ 8px) — the dots always overlap into a continuous ribbon,
+      // even while flowing, so no "separated particles" flash between samples.
+      const SEGMENTS = 96
       // Mood-driven hue shift: when the model is thinking or running a tool
       // (no new output), the clouds cool toward blue/violet; while it streams
       // output they warm back to the full rainbow. `moodShiftRef` is eased
@@ -287,7 +293,12 @@ export function RainbowFlowGlow({ session }: RainbowFlowProps): React.JSX.Elemen
         // The wisp's front edge is at p.t; walk backward over its span.
         for (let j = 0; j <= SEGMENTS; j++) {
           const u = j / SEGMENTS // 0 = rear end, 1 = front end
-          const env = Math.sin(u * Math.PI) // 0 → 1 → 0: puffy cloud profile
+          // Nearly-flat envelope: 0.85 ± 0.15 — brightness stays high and
+          // almost constant along the rim (core alpha ≥ 0.27, glow ≥ 0.16).
+          // With 1.8× wisp overlap every point is covered by multiple wisps,
+          // so the flowing edge never reads as separated particles; only a
+          // very gentle undulation hints at the cloud wisps.
+          const env = 0.85 + 0.15 * Math.sin(u * Math.PI)
           const t = (p.t - WISP_SPAN * (1 - u) + 1) % 1
           const pt = rimPoint(pw, ph, r, t)
           const x = pt.x + RIM_INSET
@@ -299,9 +310,11 @@ export function RainbowFlowGlow({ session }: RainbowFlowProps): React.JSX.Elemen
           ctx.fillStyle = GLOW_STYLES[Math.round(hue)]
           ctx.globalAlpha = (0.05 + 0.13 * env) * opacity
           ctx.fill()
-          // Pass 2 — cloud body: medium, soft.
+          // Pass 2 — cloud body: medium, soft. Radius floor 4px keeps the core
+          // diameter (≥8px) above the ~5px sample spacing at every envelope
+          // value, so flowing samples never leave a visible gap between them.
           ctx.beginPath()
-          ctx.arc(x, y, 2 + 2.4 * env, 0, Math.PI * 2)
+          ctx.arc(x, y, 4 + 1.5 * env, 0, Math.PI * 2)
           ctx.fillStyle = CORE_STYLES[Math.round(hue)]
           ctx.globalAlpha = (0.10 + 0.20 * env) * opacity
           ctx.fill()
