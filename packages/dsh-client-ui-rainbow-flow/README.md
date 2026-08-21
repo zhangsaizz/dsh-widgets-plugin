@@ -103,11 +103,15 @@ send/stop button with dynamic effects.
 - **Configurable**: the widget manager lists the rainbow flow like any other
   widget — **Enable/Disable** toggles the effect (bidirectionally synced with
   the toolbar dot), and **Configure** opens a panel to adjust the overall
-  opacity (40/70/100%), token-rate speed sensitivity (0.5×/1×/1.5×) and the
-  thinking cool-shift palette on/off — persisted to `localStorage`
-  (`dsh.rnglow.settings`) and applied live. (The old "cloud wisps" knob went
-  away with the particle-flow effect: the halo is one continuous glow, so
-  there is no wisp count to configure.)
+  opacity (40/70/100%), token-rate speed sensitivity (0.5×/1×/1.5×), the
+  thinking cool-shift palette on/off, and the **command text colours** — a
+  per-category swatch for each command class (shell, read, search, write,
+  edit, code, web, ask, plan, memory, think, tool) with a per-row reset —
+  persisted to `localStorage` (`dsh.rnglow.settings`) and applied live to the
+  mounted effect and the coloured command cards. **Reset to defaults** restores
+  the shipped look including the command colours. (The old "cloud wisps" knob
+  went away with the particle-flow effect: the halo is one continuous glow,
+  so there is no wisp count to configure.)
 - **Battery-friendly**: the animation loop pauses while the composer is
   scrolled out of view (`IntersectionObserver`), and a steady state writes
   nothing per frame (only the compositor-friendly opacity/transform move
@@ -153,6 +157,8 @@ send/stop button with dynamic effects.
   the same trick `SendButton.css` uses with `_primary`; the title falls back to
   a solid category colour where `background-clip: text` or `color-mix` is
   unsupported); an unknown tool falls back to the neutral "Tool" colour.
+  **The colours are user-customisable per category** in the config panel (see
+  Configurable; written to `--rf-tool-*` variables and applied live).
   **Always on**, independent of the composer-glow toggle.
 - **Graceful degradation**: browsers without `backdrop-filter` still get the
   translucent white glass (the frosted blur is an enhancement); browsers
@@ -222,4 +228,6 @@ No configuration needed after mounting:
    animations freeze.
 5. **Command-card colours** — in the transcript, each tool/command card lights
    up with a different-coloured left edge by category (requires the rainbow
-   flow plugin mounted); hover a card to see its category.
+   flow plugin mounted); hover a card to see its category. In the config
+   panel's **command text colours** you can pick a custom colour per command
+   class and the already-coloured cards recolor live.

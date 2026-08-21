@@ -13,7 +13,11 @@
  *  3. It stamps the category back onto the same element as
  *     `data-rf-tool-cat="<category>"` plus a native `title` tooltip (the
  *     bilingual category label). `ToolAccent.css` then paints the row's left
- *     edge and its related text in the category colour.
+ *     edge and its related text in the category colour — the colour itself is
+ *     the `--rf-tool-<category>` variable, which this module also writes onto
+ *     the document root from the settings store so the user's per-category
+ *     picks (the settings panel's "command text colours" section) take effect
+ *     live.
  *
  * A single `MutationObserver` keeps the tags current without touching React:
  * it watches for added/dropped rows (childList — handles both added `Element`s
@@ -30,8 +34,10 @@
  * @module @dsh-plugins/client-ui-rainbow-flow/client/toolAccent
  */
 
-import { CATEGORY_LABELS, classifyTool } from './classify.ts'
+import { CATEGORY_LABELS, classifyTool, TOOL_CATEGORIES } from './classify.ts'
 import type { ToolCategory } from './classify.ts'
+import { DEFAULT_TOOL_COLORS, getSettings, subscribeSettings } from './settings.ts'
+import type { ToolColors } from './settings.ts'
 
 /** Attribute the harness sets on every tool-card root (stable). */
 const TOOL_ATTR = 'data-tool'
@@ -72,14 +78,41 @@ function scan(root: ParentNode): void {
   for (const el of root.querySelectorAll(ROW_SELECTOR)) applyTo(el)
 }
 
+/** Write the settings' per-category colours onto the document root as the
+ *  `--rf-tool-<cat>` custom properties that `ToolAccent.css` reads. An inline
+ *  variable on `<html>` overrides the stylesheet's `:root` default, so the
+ *  user's picks take effect and live-update without touching the shipped CSS.
+ *  Only categories whose colour differs from the shipped palette are written;
+ *  a default/reset category has its inline var REMOVED so the stylesheet
+ *  `:root` value stays authoritative (editing `ToolAccent.css` keeps working,
+ *  and resetting truly restores the shipped look). */
+function applyToolColorVars(): void {
+  const root = document.documentElement
+  const colors: ToolColors = getSettings().toolColors
+  for (const cat of TOOL_CATEGORIES) {
+    const v = colors[cat]
+    if (v === DEFAULT_TOOL_COLORS[cat]) root.style.removeProperty(`--rf-tool-${cat}`)
+    else root.style.setProperty(`--rf-tool-${cat}`, v)
+  }
+}
+
 /**
  * Activate the tool-command colour tagger.
  * @returns a disposer that stops the observer.
  */
 export function mountToolAccent(): () => void {
-  if (typeof document === 'undefined' || typeof MutationObserver === 'undefined') {
-    // Nothing to decorate (or too old to observe) — a no-op.
-    return () => { /* dispose: nothing to tear down */ }
+  if (typeof document === 'undefined') return () => { /* dispose: no-op */ }
+
+  // Apply the user's per-category colours and keep them live regardless of
+  // whether observation is available — the overrides affect already-stamped
+  // rows too, so they never depend on the MutationObserver below.
+  applyToolColorVars()
+  const unsubscribeColors = subscribeSettings(applyToolColorVars)
+
+  if (typeof MutationObserver === 'undefined') {
+    // Nothing to decorate (or too old to observe) — colour overrides still
+    // applied and tracked, so dispose just unsubscribes.
+    return () => { unsubscribeColors() }
   }
 
   const root = document.body ?? document.documentElement
@@ -114,5 +147,8 @@ export function mountToolAccent(): () => void {
     attributeFilter: [TOOL_ATTR, VARIANT_ATTR],
   })
 
-  return () => { observer.disconnect() }
+  return () => {
+    observer.disconnect()
+    unsubscribeColors()
+  }
 }

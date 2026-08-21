@@ -5,9 +5,11 @@
  * Self-contained: reads/writes the same settings store as the glow
  * (`./settings.ts`), so changes apply live to a mounted effect without a
  * reload. Knobs:
- *  - opacity  — overall effect opacity.
- *  - speed    — token-rate sensitivity (breathing rhythm follows output rate).
- *  - mood     — thinking/tool cool-shift palette.
+ *  - opacity      — overall effect opacity.
+ *  - speed        — token-rate sensitivity (breathing rhythm follows output rate).
+ *  - mood         — thinking/tool cool-shift palette.
+ *  - toolColors   — per-category command-card text accent colours (a swatch
+ *                   per command class, each with a per-row reset).
  * Localized through the injected `t` seat (`rainbow-flow` namespace).
  */
 
@@ -16,16 +18,25 @@ import type { ReactNode } from 'react'
 import type { TranslateNS } from '@deepseek-ai/dsh-client-ui-slots'
 import styles from './SettingsPanel.module.css'
 import {
+  DEFAULT_TOOL_COLORS,
   OPACITY_OPTIONS,
   SPEED_OPTIONS,
   loadSettings,
   saveSettings,
   type RainbowFlowSettings,
 } from './settings'
+import { CATEGORY_LABELS, TOOL_CATEGORIES } from './classify'
+import type { ToolCategory } from './classify'
 
 /** Injected face: the locale seat of the `rainbow-flow` namespace. */
 export interface RainbowFlowSettingsInjected {
   t: TranslateNS<'rainbow-flow'>
+}
+
+/** Bilingual category name for a colour row (resolved from the document lang). */
+function categoryLabel(category: ToolCategory): string {
+  const lang = (document.documentElement.lang || '').toLowerCase()
+  return lang.startsWith('zh') ? CATEGORY_LABELS[category].zh : CATEGORY_LABELS[category].en
 }
 
 /** One settings row: label + optional hint + control. */
@@ -51,7 +62,12 @@ export function RainbowFlowSettings({ t }: RainbowFlowSettingsInjected): React.J
   }
 
   function reset(): void {
-    const next: RainbowFlowSettings = { opacity: 1, speed: 1, mood: true }
+    const next: RainbowFlowSettings = {
+      opacity: 1,
+      speed: 1,
+      mood: true,
+      toolColors: { ...DEFAULT_TOOL_COLORS },
+    }
     setSettings(next)
     saveSettings(next)
   }
@@ -86,6 +102,36 @@ export function RainbowFlowSettings({ t }: RainbowFlowSettingsInjected): React.J
           <span>{settings.mood ? t('on') : t('off')}</span>
         </label>
       </Row>
+      <div className={styles.colorSection}>
+        <div className={styles.colorHeader}>
+          <span className={styles.label}>{t('toolColorsLabel')}</span>
+          <span className={styles.hint}>{t('toolColorsHint')}</span>
+        </div>
+        <div className={styles.colorGrid}>
+          {TOOL_CATEGORIES.map((cat) => (
+            <div key={cat} className={styles.colorItem}>
+              <span className={styles.colorItemLabel}>{categoryLabel(cat)}</span>
+              <input
+                type="color"
+                className={styles.colorInput}
+                value={settings.toolColors[cat]}
+                onChange={(e) => update({ toolColors: { ...settings.toolColors, [cat]: e.target.value } })}
+                title={categoryLabel(cat)}
+                aria-label={categoryLabel(cat)}
+              />
+              <button
+                type="button"
+                className={styles.colorResetBtn}
+                onClick={() => update({ toolColors: { ...settings.toolColors, [cat]: DEFAULT_TOOL_COLORS[cat] } })}
+                title={t('colorReset')}
+                aria-label={`${t('colorReset')} — ${categoryLabel(cat)}`}
+              >
+                ↺
+              </button>
+            </div>
+          ))}
+        </div>
+      </div>
       <div className={styles.actions}>
         <button className={styles.resetBtn} onClick={reset}>{t('reset')}</button>
       </div>

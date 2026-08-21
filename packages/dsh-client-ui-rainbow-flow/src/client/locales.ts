@@ -19,6 +19,9 @@ export type RainbowFlowKey =
   | 'speedHint'
   | 'moodLabel'
   | 'moodHint'
+  | 'toolColorsLabel'
+  | 'toolColorsHint'
+  | 'colorReset'
   | 'on'
   | 'off'
   | 'percent'
@@ -36,6 +39,9 @@ export const zh: Record<RainbowFlowKey, string> = {
   speedHint: '模型输出越快，光晕呼吸得越快',
   moodLabel: '思考冷色调',
   moodHint: '思考/调用工具时光晕偏蓝紫',
+  toolColorsLabel: '命令文字颜色',
+  toolColorsHint: '为每类命令的标题、图标与边条分别着色',
+  colorReset: '恢复默认',
   on: '开',
   off: '关',
   percent: '%',
@@ -54,6 +60,9 @@ export const en: Record<RainbowFlowKey, string> = {
   speedHint: 'How much the halo breathing follows the output-token rate',
   moodLabel: 'Thinking cool tint',
   moodHint: 'Shift the halo blue/violet while thinking or calling tools',
+  toolColorsLabel: 'Command text colours',
+  toolColorsHint: 'Colour each command category’s title, icon and edge separately',
+  colorReset: 'Reset',
   on: 'On',
   off: 'Off',
   percent: '%',
