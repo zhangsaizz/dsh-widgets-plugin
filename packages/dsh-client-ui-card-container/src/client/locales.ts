@@ -16,6 +16,8 @@ export type CardContainerKey =
   | 'gridEmpty'
   | 'gridEmptyTitle'
   | 'gridHint'
+  | 'dockAll'
+  | 'countTip'
   | 'undock'
   | 'dock'
   | 'cardMissing'
@@ -52,9 +54,11 @@ export const zh: Record<CardContainerKey, string> = {
   trayEmpty: '没有可放入的小组件',
   trayHint: '拖入下方网格即可停靠，或点击直接放入',
   gridTitle: '已停靠',
-  gridEmpty: '把上方「可放入的小组件」拖进网格，或点卡片右上角 × 移出',
+  gridEmpty: '把上方「可放入的小组件」拖进网格，或点击直接放入',
   gridEmptyTitle: '还没有停靠任何小组件',
   gridHint: '拖动卡片可调整顺序，拖出网格可移出容器，点 × 移出',
+  dockAll: '一键停靠全部',
+  countTip: '本组已停靠 {docked} 个，共 {total} 个小组件',
   undock: '移出容器',
   dock: '放入容器',
   cardMissing: '暂无紧凑卡片视图',
@@ -92,9 +96,11 @@ export const en: Record<CardContainerKey, string> = {
   trayEmpty: 'No widgets available',
   trayHint: 'Drag into the grid to dock, or click to dock',
   gridTitle: 'Docked',
-  gridEmpty: 'Drag widgets from the "Available" tray into the grid, or click × to undock',
+  gridEmpty: 'Drag widgets from the "Available" tray into the grid, or click to dock',
   gridEmptyTitle: 'No widgets docked yet',
   gridHint: 'Drag cards to reorder, drag out of the grid to undock, click × to undock',
+  dockAll: 'Dock all',
+  countTip: '{docked} docked in this group, {total} widgets total',
   undock: 'Undock',
   dock: 'Dock',
   cardMissing: 'No compact card view',

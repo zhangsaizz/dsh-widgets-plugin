@@ -12,11 +12,13 @@ English | [中文](README.zh.md)
   `card-container`). Enable it from the **Widgets** manager page.
 - **Multi-group**: the container holds several named groups (each with its own
   docked set). A tab bar switches between them; the manage button (⋯) creates,
-  renames or deletes groups. A widget can be docked in only one group at a
-  time. Dragging a card over another group's tab and releasing moves it there.
+  renames or deletes groups. The default group tab shows the localized name.
+  A widget can be docked in only one group at a time. Dragging a card over
+  another group's tab and releasing moves it there.
 - The **tray** lists every widget currently enabled in the overlay (balance,
   token-crit, session-monitor, …). Drag a chip into the grid (or click it) to
-  **dock** the widget into the active group.
+  **dock** the widget into the active group. The empty grid offers a
+  **Dock all** action.
 - Docking hides the widget's floating panel (a shadow entry wins its overlay
   cell — the same mechanism the Widgets manager uses to disable widgets) and
   renders the widget's compact **card view** inside the grid. Undock (the ×

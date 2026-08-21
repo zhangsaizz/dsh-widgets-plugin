@@ -24,7 +24,7 @@ import type {
   InjectFace, PropsLocale, PropsRenderSlots, PropsRuntime,
 } from '@deepseek-ai/dsh-client-ui-slots'
 import {
-  POS_KEY, SETTINGS_CHANGED_EVENT, loadColumns, loadPos, savePos, SELF_ID,
+  POS_KEY, SETTINGS_CHANGED_EVENT, DEFAULT_GROUP, loadColumns, loadPos, savePos, SELF_ID,
 } from './controller.ts'
 import type { CardContainerController, ColumnSetting, ContainerSnapshot } from './controller.ts'
 import type { CardSpec } from './cards.tsx'
@@ -117,6 +117,12 @@ export function CardContainerWidget(props: CardContainerWidgetProps) {
   } = props
   /** Live dock/available projection from the controller. */
   const snapshot = props.useContainer((s: ContainerSnapshot) => s)
+
+  /** Display label for a group: the user's custom name, except the pristine
+   *  default group whose persisted name is its raw id ('default') — that shows
+   *  the localized "默认" instead. */
+  const groupLabel = (group: { id: string; name: string }): string =>
+    group.id === DEFAULT_GROUP && group.name === DEFAULT_GROUP ? t('defaultGroup') : group.name
 
   const [collapsed, setCollapsed] = useState(false)
   const [pos, setPos] = useState<{ x: number; y: number } | null>(loadPos)
@@ -746,7 +752,15 @@ export function CardContainerWidget(props: CardContainerWidgetProps) {
           <div className={css.header} onPointerDown={startDrag}>
             <span className={css.titleDot} />
             <span className={css.title}>{t('title')}</span>
-            <span className={css.count}>{snapshot.docked.length} / {snapshot.available.length + totalDockedAll}</span>
+            <span
+              className={css.count}
+              title={t('countTip', {
+                docked: snapshot.docked.length,
+                total: snapshot.available.length + totalDockedAll,
+              })}
+            >
+              {snapshot.docked.length} / {snapshot.available.length + totalDockedAll}
+            </span>
             <button
               className={css.iconBtn}
               title={t('collapse')}
@@ -783,7 +797,7 @@ export function CardContainerWidget(props: CardContainerWidgetProps) {
                   onClick={() => setActiveGroup(group.id)}
                   onKeyDown={(e) => onGroupTabKeyDown(e, group.id)}
                 >
-                  <span className={css.groupTabName}>{group.name}</span>
+                  <span className={css.groupTabName}>{groupLabel(group)}</span>
                   <span className={css.groupTabCount}>{group.docked.length}</span>
                 </button>
               ))}
@@ -844,8 +858,10 @@ export function CardContainerWidget(props: CardContainerWidgetProps) {
                         }
                       }}
                     >
+                      <span className={css.chipGrip} aria-hidden="true" />
                       <span className={css.chipDot} />
                       <span className={css.chipName}>{labelOf(id)}</span>
+                      <span className={css.chipAdd} aria-hidden="true">+</span>
                     </div>
                   ))}
                 </div>
@@ -857,7 +873,7 @@ export function CardContainerWidget(props: CardContainerWidgetProps) {
         <div className={css.gridWrap} role="tabpanel" id="cc-group-panel" aria-labelledby={`cc-tab-${snapshot.activeGroup}`}>
           <div className={[css.sectionHead, css.chrome, chromeVisible ? css.chromeVisible : ''].filter(Boolean).join(' ')}>
             <span className={css.sectionTitle}>{t('gridTitle')}</span>
-            <span className={css.sectionHint}>{t('gridHint')}</span>
+            {hasCards && <span className={css.sectionHint}>{t('gridHint')}</span>}
           </div>
           {snapshot.docked.length === 0
             ? (
@@ -865,6 +881,15 @@ export function CardContainerWidget(props: CardContainerWidgetProps) {
                 <span className={css.emptyIcon}>▦</span>
                 <span className={css.emptyTitle}>{t('gridEmptyTitle')}</span>
                 <span className={css.emptyDesc}>{t('gridEmpty')}</span>
+                {snapshot.available.length > 0 && (
+                  <button
+                    className={css.dockAllBtn}
+                    type="button"
+                    onClick={() => snapshot.available.forEach((id) => dock(id))}
+                  >
+                    {t('dockAll')}
+                  </button>
+                )}
               </div>
             )
             : (
@@ -1058,10 +1083,11 @@ export function CardContainerWidget(props: CardContainerWidgetProps) {
                     onBlur={() => setRenamingGroup(null)}
                   />
                 )
-                : <span className={css.groupMenuName}>{group.name}</span>}
+                : <span className={css.groupMenuName}>{groupLabel(group)}</span>}
               <button
                 type="button"
                 className={css.groupBtn}
+                disabled={group.id === DEFAULT_GROUP}
                 title={t('renameGroup')}
                 onClick={() => { setRenamingGroup(group.id) }}
               >
@@ -1070,7 +1096,7 @@ export function CardContainerWidget(props: CardContainerWidgetProps) {
               <button
                 type="button"
                 className={css.groupBtn}
-                disabled={group.id === 'default'}
+                disabled={group.id === DEFAULT_GROUP}
                 title={t('deleteGroup')}
                 onClick={() => {
                   removeGroup(group.id)

@@ -272,6 +272,58 @@
   color: var(--dsw-alias-label-primary, #e8eaf0);
 }
 
+/* Drag grip on a tray chip: a two-column dot handle that fades in on hover,
+   signalling the chip is draggable into the grid (the grab cursor is the rest
+   of the cue). */
+.chipGrip {
+  flex: none;
+  width: 6px;
+  height: 12px;
+  background:
+    repeating-linear-gradient(
+      to bottom,
+      var(--dsw-alias-label-tertiary, rgba(232, 234, 240, 0.45)) 0 2px,
+      transparent 2px 4px
+    ) left / 2px 100% no-repeat,
+    repeating-linear-gradient(
+      to bottom,
+      var(--dsw-alias-label-tertiary, rgba(232, 234, 240, 0.45)) 0 2px,
+      transparent 2px 4px
+    ) right / 2px 100% no-repeat;
+  opacity: 0;
+  transition: opacity 120ms ease;
+}
+
+/* Click-to-dock affordance on a tray chip: a "+" badge that appears on hover,
+   matching the "click to dock" action the chip already supports. */
+.chipAdd {
+  flex: none;
+  width: 16px;
+  height: 16px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1;
+  color: var(--dsw-alias-state-business-primary, #4f8cff);
+  background: color-mix(in srgb, var(--dsw-alias-state-business-primary, #4f8cff) 18%, transparent);
+  opacity: 0;
+  transform: scale(0.8);
+  transition: opacity 120ms ease, transform 120ms ease, background 120ms ease;
+}
+
+.chip:hover .chipGrip {
+  opacity: 1;
+}
+
+.chip:hover .chipAdd {
+  opacity: 1;
+  transform: scale(1);
+  background: color-mix(in srgb, var(--dsw-alias-state-business-primary, #4f8cff) 28%, transparent);
+}
+
 .empty {
   padding: 16px 8px;
   text-align: center;
@@ -743,6 +795,35 @@
   line-height: 1.5;
   color: var(--dsw-alias-label-secondary, rgba(232, 234, 240, 0.62));
   max-width: 260px;
+}
+
+/* Empty-state primary action: dock every available widget in one click. */
+.dockAllBtn {
+  margin-top: 4px;
+  padding: 6px 16px;
+  border: 1px solid var(--dsw-alias-state-business-primary, #4f8cff);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--dsw-alias-state-business-primary, #4f8cff) 16%, transparent);
+  color: var(--dsw-alias-label-on-color, #fff);
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1;
+  cursor: pointer;
+  transition: background 120ms ease, box-shadow 120ms ease, transform 120ms ease;
+}
+
+.dockAllBtn:hover {
+  background: color-mix(in srgb, var(--dsw-alias-state-business-primary, #4f8cff) 30%, transparent);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--dsw-alias-state-business-primary, #4f8cff) 35%, transparent);
+}
+
+.dockAllBtn:active {
+  transform: scale(0.97);
+}
+
+.dockAllBtn:focus-visible {
+  outline: 2px solid var(--dsw-alias-state-business-primary, #4f8cff);
+  outline-offset: 2px;
 }
 
 /* Keyboard focus ring on docked cards. */
