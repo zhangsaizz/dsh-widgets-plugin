@@ -34,7 +34,7 @@
 | 17 | 卡片视图（内置） | Web 卡片视图 | `@dsh-plugins/client-ui-card-container` | `widgets.card`（容器声明子槽，priority 10 兜底） | token-crit / session-monitor 紧凑统计卡（标准 `useSessions` 数据）+ balance 通用卡；**标准接入规范**（`WidgetCardProps` + 槽级注入面 `CardSlotInject`，见 WIDGET-DEVELOPMENT.md §2.5）：挂件自己的卡片注册进 `widgets.card`（id = shell.overlay id、priority 默认 0、显示名优先读 shell.overlay 的 label）即优先渲染，不注册则用占位卡；卡片可声明**规格**（静态 `spec`：small 1 列 / medium 2 列 / large 整行） |
 | 18 | 卡片容器配置面板 `CardContainerSettings` | Web 配置弹窗 | `@dsh-plugins/client-ui-card-container` | `widgets.config`（管理器「配置」弹窗） | 列数（自适应/2/3/4）+ 清空停靠/重置，localStorage 持久化 |
 | 19 | 安装 bundle | 分发层 | `@dsh-plugins/dsh-widgets-plugin` | `cordis.patch.yml` | 一次插入 6 个插件，一键挂载全部组件 |
-| 20 | 小组件管理页 `WidgetManagerSettings` | Web 设置页 | `@dsh-plugins/client-ui-widget-manager` | `settings.section`（order 10） | 实时列出小组件，支持「添加/关闭」，并为带配置的挂件提供「配置」弹窗；**支持非 overlay 组件**（`configOnly`，如 rainbow-flow——启用/停用经 window 事件桥控制其自身开关 store，与工具栏圆点双向同步） |
+| 20 | 小组件管理页 `WidgetManagerSettings` | Web 设置页 | `@dsh-plugins/client-ui-widget-manager` | `settings.section`（order 10） | 实时列出小组件，支持「添加/关闭」，并为带配置的挂件提供「配置」弹窗；**未安装挂件提供「安装指引」弹窗**（装包命令 + `cordis.yml`/`cordis.patch.yml` 挂载行 + 重启提示）；**支持非 overlay 组件**（`configOnly`，如 rainbow-flow——启用/停用经 window 事件桥控制其自身开关 store，与工具栏圆点双向同步） |
 | 21 | 会话监控桌面快照路由 | Host Web 路由 | `@dsh-plugins/client-ui-session-monitor` | `/_dsh/session-monitor/sessions` | 把实时会话存储折叠成紧凑 JSON 行（running/title/pending/子代理计数等），`tools`/`rounds` 与行级 `goal`（`goal/change` 折叠）同车返回（桌面挂件任务/目标进度条数据），桌面挂件 2s 轮询 |
 | 22 | 会话监控独立挂件页 | Host 托管的独立 Web 页 | `@dsh-plugins/client-ui-session-monitor` | `/_dsh/session-monitor/widget` | 自包含 HTML（无框架）：**「待处理」通知列表（主视图，未读徽标 + 处理/忽略/全部已读 + 级别开关）+ 「会话」列表副 Tab** + 完成一轮 toast + 置顶/隐藏/设置，供桌面壳加载 |
 | 23 | 会话监控桌面悬浮窗壳 | 桌面应用（Tauri 2） | `desktop/dsh-session-desktop` | Windows 桌面 | 无边框/透明/置顶/无任务栏小窗 + 托盘（显示/退出），加载挂件页；启动时探测本机 web 服务、外部导航交系统浏览器 |
@@ -216,12 +216,19 @@
   （`ctx.slots.subscribe` + `entries`），结合内置目录（`widgets.ts`：balance /
   token-crit / session-monitor / card-container / **rainbow-flow**）投影每行的
   「已启用 / 已关闭 / 未安装」状态；`hasConfig` 由 `widgets.config`
-  的实时注册推导。**目录中余额看板的 `packageName` 是 `@dsh-plugins/balance`**。
+  的实时注册推导。**目录中余额看板的 `packageName` 是 `@dsh-plugins/balance`**；
+  **`WidgetDescriptor.installRowId`**（默认回退到 overlay `id`）记录 bundle 挂载行
+  用的行 id（如 `ui-token-crit` ≠ `token-crit`），供安装指引弹窗拼挂载片段。
   **非 overlay 组件支持**（`WidgetDescriptor.configOnly`，如 rainbow-flow——
   它注册 `conversation.input.left`/`widgets.config` 而非 `shell.overlay`）：
   此类组件同样提供**启用/停用**（经 window 事件桥 `dsh.rnglow.manager-toggle`
   控制其自身开关 store，与工具栏圆点双向同步——`dsh.rnglow.enabled-change`
   事件回传状态），以及「配置」按钮；不参与 overlay 影子机制。
+- **安装指引弹窗**：目录里存在但未挂载（`registered: false`）的小组件，行上显示
+  「安装指引」按钮（原为禁用的「添加」），点击弹出三步指引——`dsh plugin
+  --profile <name> add <package>` 装包命令、`- insert:` 挂载行片段（用
+  `installRowId`，附「直接写 cordis.yml 去掉包装」的说明）、重启 `dsh web` 提示；
+  挂件一旦真正挂载弹窗自动关闭（`registered` 翻转即关）。
 - **关闭（禁用）机制**：向 `shell.overlay` 注册同 `id`、`priority: -1` 的影子条目
   （list 槽单元渲染最低优先级胜者，ui-slots 影子机制）——挂件条目仍存活但不渲染；
   影子条目打 `registrant: "widget-manager"` 标记，随插件 fiber 卸载级联清理。

@@ -16,6 +16,11 @@ export interface WidgetDescriptor {
   id: string
   /** The npm package that ships the widget. */
   packageName: string
+  /** Composition row id used when MOUNTING the plugin (`cordis.yml` / the
+   *  bundle's `cordis.patch.yml`). Most widgets mount under a different id
+   *  than their overlay id (e.g. `ui-token-crit` vs `token-crit`); defaults
+   *  to `id` when omitted. Drives the install-guide dialog's mount snippet. */
+  installRowId?: string
   /** Locale key of the widget's display name. */
   nameKey: WidgetManagerLocaleKey
   /** Locale key of the widget's one-line description. */
@@ -38,18 +43,22 @@ export const WIDGET_CATALOG: readonly WidgetDescriptor[] = [
   {
     id: 'token-crit',
     packageName: '@dsh-plugins/client-ui-token-crit',
+    // The bundle mounts this widget under `ui-token-crit` (overlay id `token-crit`).
+    installRowId: 'ui-token-crit',
     nameKey: 'tokenCritName',
     descriptionKey: 'tokenCritDescription',
   },
   {
     id: 'session-monitor',
     packageName: '@dsh-plugins/client-ui-session-monitor',
+    installRowId: 'ui-session-monitor',
     nameKey: 'sessionMonitorName',
     descriptionKey: 'sessionMonitorDescription',
   },
   {
     id: 'card-container',
     packageName: '@dsh-plugins/client-ui-card-container',
+    installRowId: 'ui-card-container',
     nameKey: 'cardContainerName',
     descriptionKey: 'cardContainerDescription',
   },
@@ -60,6 +69,7 @@ export const WIDGET_CATALOG: readonly WidgetDescriptor[] = [
     // toggle (the overlay-shadow disable mechanism does not apply).
     id: 'rainbow-flow',
     packageName: '@dsh-plugins/client-ui-rainbow-flow',
+    installRowId: 'ui-rainbow-flow',
     nameKey: 'rainbowFlowName',
     descriptionKey: 'rainbowFlowDescription',
     configOnly: true,

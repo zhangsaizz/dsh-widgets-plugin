@@ -15,6 +15,12 @@ lists this project's widgets and lets you **Add (enable)** or **Close
 - **Widget list**: the page live-projects the `shell.overlay` registration
   ledger and, combined with a built-in catalog, shows each widget's state —
   Enabled / Disabled / Not installed (with package name and description).
+- **Install guide**: a widget in the catalog that is not mounted shows an
+  **Install guide** button instead of a disabled action. Clicking it opens a
+  dialog with the concrete steps for this widget: the `dsh plugin --profile
+  <name> add <package>` command, the `cordis.yml` / `cordis.patch.yml` mount
+  row (using the bundle's row id), and a restart hint. The guide closes
+  automatically as soon as the widget actually mounts.
 - **Add (enable)**: removes the hide on a widget; it reappears on the page
   immediately.
 - **Close (disable)**: registers a shadow entry with the same list `id` at a
@@ -74,11 +80,14 @@ bundle directory from this repo (see "安装" in the root README).
 1. Open Web settings → "Widgets".
 2. Each widget shows its current state: **Enabled** (on the page),
    **Disabled** (hidden by this page), **Not installed** (package not
-   mounted — no action available); configurable widgets are marked
-   "Configurable" and show a **Configure** button.
+   mounted — an **Install guide** button offers the steps to install it);
+   configurable widgets are marked "Configurable" and show a **Configure**
+   button.
 3. Click **Configure** to open the widget's own config dialog (e.g. the
    balance dashboard's provider bindings); click **Disable** to remove a
    widget from the page (its Configure button disappears), click **Add** to
-   mount it back.
+   mount it back. For a not-installed widget, click **Install guide** to open
+   the install steps dialog (package install command, composition mount row,
+   restart hint).
 4. State is kept in this browser and survives a reload; the manager's shadow
    entries are cascaded away when its plugin fiber unloads.

@@ -40,14 +40,20 @@ export type WidgetManagerSettingsProps =
 export function WidgetManagerSettings({ t, useWidgets, toggle, renderSlot }: WidgetManagerSettingsProps) {
   const rows = useWidgets(snapshot => snapshot)
   const [openConfig, setOpenConfig] = useState<string | null>(null)
+  const [openInstall, setOpenInstall] = useState<string | null>(null)
   const configRow = openConfig === null ? undefined : rows.find(row => row.id === openConfig)
+  const installRow = openInstall === null ? undefined : rows.find(row => row.id === openInstall)
   const modalRef = useRef<HTMLDivElement | null>(null)
+  const installModalRef = useRef<HTMLDivElement | null>(null)
 
-  // Move focus into the dialog on open so keyboard users land inside it
+  // Move focus into a dialog on open so keyboard users land inside it
   // (it is aria-modal; focus should not stay on the page behind it).
   useEffect(() => {
     if (openConfig !== null) modalRef.current?.focus()
   }, [openConfig])
+  useEffect(() => {
+    if (openInstall !== null) installModalRef.current?.focus()
+  }, [openInstall])
 
   // Close the dialog when its widget loses the config contribution or gets
   // DISABLED / unregistered while open (otherwise the body would go empty).
@@ -58,15 +64,26 @@ export function WidgetManagerSettings({ t, useWidgets, toggle, renderSlot }: Wid
     }
   }, [openConfig, configRow])
 
-  // ESC closes the dialog.
+  // Close the install guide as soon as the widget actually mounts (or its row
+  // disappears) — the guide's steps are moot the moment it becomes operable.
   useEffect(() => {
-    if (openConfig === null) return
+    if (openInstall !== null && (installRow === undefined || installRow.registered)) {
+      setOpenInstall(null)
+    }
+  }, [openInstall, installRow])
+
+  // ESC closes whichever dialog is open.
+  useEffect(() => {
+    if (openConfig === null && openInstall === null) return
     const onKeyDown = (event: KeyboardEvent): void => {
-      if (event.key === 'Escape') setOpenConfig(null)
+      if (event.key === 'Escape') {
+        setOpenConfig(null)
+        setOpenInstall(null)
+      }
     }
     window.addEventListener('keydown', onKeyDown)
     return () => { window.removeEventListener('keydown', onKeyDown) }
-  }, [openConfig])
+  }, [openConfig, openInstall])
 
   return (
     <div className={css.page}>
@@ -82,7 +99,12 @@ export function WidgetManagerSettings({ t, useWidgets, toggle, renderSlot }: Wid
               {row.hasConfig && <span className={css.configNote}>{t('configNote')}</span>}
             </div>
             <div className={css.actions}>
-              <span className={css[statusView(row).cls]}>{t(statusView(row).key)}</span>
+              <span
+                className={css[statusView(row).cls]}
+                title={row.registered ? undefined : t('notInstalledHint')}
+              >
+                {t(statusView(row).key)}
+              </span>
               {/* Configure stays reachable while DOCKED (a dock is not a
                   disable) — only a real disable/unregister hides it. */}
               {(row.enabled || row.docked) && row.hasConfig && (
@@ -108,8 +130,8 @@ export function WidgetManagerSettings({ t, useWidgets, toggle, renderSlot }: Wid
                   </button>
                 )
                 : (
-                  <button type="button" className={css.add} disabled title={t('notInstalledHint')}>
-                    {t('add')}
+                  <button type="button" className={css.installGuide} onClick={() => { setOpenInstall(row.id) }}>
+                    {t('installGuide')}
                   </button>
                 )}
             </div>
@@ -138,6 +160,51 @@ export function WidgetManagerSettings({ t, useWidgets, toggle, renderSlot }: Wid
             </div>
             <div className={css.modalBody}>
               {renderSlot('widgets.config', {}, { only: openConfig })}
+            </div>
+          </div>
+        </div>
+      )}
+      {openInstall !== null && (
+        <div className={css.modalOverlay} onClick={() => { setOpenInstall(null) }}>
+          <div className={css.modalMask} />
+          <div
+            className={css.modal}
+            role="dialog"
+            aria-modal="true"
+            tabIndex={-1}
+            ref={installModalRef}
+            aria-label={t('installGuideTitle')}
+            onClick={(event) => { event.stopPropagation() }}
+          >
+            <div className={css.modalHeader}>
+              <span className={css.modalTitle}>
+                {installRow?.nameKey === undefined ? openInstall : t(installRow.nameKey)} · {t('installGuideTitle')}
+              </span>
+              <button type="button" className={css.modalClose} aria-label={t('closeDialog')} onClick={() => { setOpenInstall(null) }}>
+                ×
+              </button>
+            </div>
+            <div className={css.modalBody}>
+              {installRow !== undefined && installRow.packageName !== undefined && (
+                <>
+                  <p className={css.guideIntro}>{t('installGuideIntro')}</p>
+                  <div className={css.guideStep}>
+                    <span className={css.guideStepTitle}>{t('installStep1')}</span>
+                    <p className={css.guideNote}>{t('installStep1Note')}</p>
+                    <code className={css.codeBlock}>{`dsh plugin --profile <name> add ${installRow.packageName}`}</code>
+                  </div>
+                  <div className={css.guideStep}>
+                    <span className={css.guideStepTitle}>{t('installStep2')}</span>
+                    <p className={css.guideNote}>{t('installStep2Note')}</p>
+                    <pre className={css.codeBlock}>{`- insert:\n    - id: ${installRow.installRowId ?? installRow.id}\n      name: "${installRow.packageName}"`}</pre>
+                    <p className={css.patchNote}>{t('installPatchNote')}</p>
+                  </div>
+                  <div className={css.guideStep}>
+                    <span className={css.guideStepTitle}>{t('installStep3')}</span>
+                    <p className={css.guideNote}>{t('installStep3Note')}</p>
+                  </div>
+                </>
+              )}
             </div>
           </div>
         </div>

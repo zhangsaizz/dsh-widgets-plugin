@@ -66,6 +66,10 @@ export interface WidgetRow {
   id: string
   /** Shipping package name; undefined for widgets outside the catalog. */
   packageName: string | undefined
+  /** Composition row id used when mounting the plugin (from the catalog's
+   *  `installRowId`, falling back to the overlay id); undefined for widgets
+   *  outside the catalog. Drives the install-guide mount snippet. */
+  installRowId: string | undefined
   /** Catalog display-name key; undefined for widgets outside the catalog. */
   nameKey: WidgetManagerLocaleKey | undefined
   /** Catalog description key; undefined for widgets outside the catalog. */
@@ -273,7 +277,7 @@ export class WidgetManagerController implements HostObservable<readonly WidgetRo
     }
     for (const id of widgetIds) {
       if (rows.some((row) => row.id === id)) continue
-      rows.push({ id, packageName: undefined, nameKey: undefined, descriptionKey: undefined, hasConfig: this.configIds.has(id), registered: true, enabled: !this.isShadowed(id), docked: this.isDocked(id), configOnly: false })
+      rows.push({ id, packageName: undefined, installRowId: undefined, nameKey: undefined, descriptionKey: undefined, hasConfig: this.configIds.has(id), registered: true, enabled: !this.isShadowed(id), docked: this.isDocked(id), configOnly: false })
     }
     this.rows = rows
   }
@@ -288,6 +292,7 @@ export class WidgetManagerController implements HostObservable<readonly WidgetRo
       return {
         id: descriptor.id,
         packageName: descriptor.packageName,
+        installRowId: descriptor.installRowId ?? descriptor.id,
         nameKey: descriptor.nameKey,
         descriptionKey: descriptor.descriptionKey,
         hasConfig: installed,
@@ -300,6 +305,7 @@ export class WidgetManagerController implements HostObservable<readonly WidgetRo
     return {
       id: descriptor.id,
       packageName: descriptor.packageName,
+      installRowId: descriptor.installRowId ?? descriptor.id,
       nameKey: descriptor.nameKey,
       descriptionKey: descriptor.descriptionKey,
       hasConfig: this.configIds.has(descriptor.id),

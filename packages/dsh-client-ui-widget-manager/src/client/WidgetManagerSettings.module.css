@@ -110,10 +110,10 @@
   background: color-mix(in srgb, currentColor 10%, transparent);
 }
 
-.add,
 .configure,
 .disable,
-.enable {
+.enable,
+.installGuide {
   font-size: 12px;
   line-height: 1;
   padding: 6px 12px;
@@ -135,9 +135,59 @@
   background: var(--dsw-alias-interactive-bg-hover-danger);
 }
 
-.add:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
+.installGuide:hover {
+  background: color-mix(in srgb, var(--dsw-alias-brand-primary) 14%, transparent);
+}
+
+/* Install-guide dialog content. */
+.guideIntro {
+  margin: 8px 0 14px;
+  font-size: 12px;
+  line-height: 1.6;
+  opacity: 0.85;
+}
+
+.guideStep {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 14px;
+  min-width: 0;
+}
+
+.guideStepTitle {
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.4;
+}
+
+.guideNote {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.6;
+  opacity: 0.8;
+}
+
+.codeBlock {
+  display: block;
+  margin: 0;
+  padding: 10px 12px;
+  font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+  font-size: 12px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  /* Break long package/command tokens only when they exceed the line, so a
+     copy-pasted mount row never arrives broken mid-token. */
+  overflow-wrap: anywhere;
+  background: color-mix(in srgb, currentColor 8%, transparent);
+  border-radius: 8px;
+}
+
+.patchNote {
+  margin: 0;
+  font-size: 11px;
+  line-height: 1.5;
+  opacity: 0.65;
 }
 
 .modalOverlay {
