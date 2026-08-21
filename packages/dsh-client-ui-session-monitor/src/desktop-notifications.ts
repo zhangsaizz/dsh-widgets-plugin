@@ -181,17 +181,22 @@ export class NotificationStore {
     return note
   }
 
-  /** Mark the latest still-open record of one kind for a session as resolved
-   *  (e.g. `approval/decided` resolves the pending approval). */
+  /** Mark every still-open record of one kind for a session as resolved
+   *  (e.g. `approval/decided` resolves the pending approval). Resolving ALL open
+   *  records (not just the latest) is the defensive form: the dedup in
+   *  pushInteraction normally keeps one open slot per (session, kind), but a
+   *  direct push could leave more than one, and each would otherwise stay unread
+   *  forever once its condition passed. */
   resolve(sessionId: string, kind: NotifyKind): void {
+    let changed = false
     for (let index = this.notes.length - 1; index >= 0; index--) {
       const note = this.notes[index]
       if (note.sessionId === sessionId && note.kind === kind && note.resolved !== true) {
         this.notes[index] = { ...note, resolved: true }
-        this.persist?.()
-        return
+        changed = true
       }
     }
+    if (changed) this.persist?.()
   }
 
   /**
@@ -264,9 +269,25 @@ export class NotificationStore {
       if (note.at >= cutoff) return true
       return !(note.ackedAt !== undefined || note.resolved === true)
     })
-    if (this.notes.length > MAX_NOTES) {
-      this.notes = this.notes.slice(this.notes.length - MAX_NOTES)
+    if (this.notes.length <= MAX_NOTES) return
+    const overflow = this.notes.length - MAX_NOTES
+    const kept: InboxNotification[] = []
+    let dropped = 0
+    // Prefer evicting acked/resolved records first: the unread count drives the
+    // "not handled yet" badge, so the cap must never silently shrink it while a
+    // handled record is still available to drop instead. this.notes is append-
+    // ordered, so eviction always drops the least recent record of a state.
+    for (const note of this.notes) {
+      if (dropped < overflow && (note.ackedAt !== undefined || note.resolved === true)) {
+        dropped++
+        continue
+      }
+      kept.push(note)
     }
+    // Only when every record is unread (or not enough handled ones existed) do
+    // we fall back to evicting the oldest unread ones.
+    if (kept.length > MAX_NOTES) kept.splice(0, kept.length - MAX_NOTES)
+    this.notes = kept
   }
 }
 

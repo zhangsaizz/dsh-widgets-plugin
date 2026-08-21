@@ -118,7 +118,10 @@ rounds. Without the host half the widget still works (base notification kinds).
   **and marks that session's records read** (`POST /notifications/ack
   { sessionId }` — the web equivalent of the desktop inbox's 处理 + auto-read;
   `done` / `title` / `new-session` records never auto-resolve, so this is how
-  the red dot clears from the web widget).
+  the red dot clears from the web widget). A **✓ button** in the expanded
+  panel's header marks **everything** read without navigating (`POST
+  /notifications/ack { all: true }`). A failed ack (Host briefly down) is
+  retried on the next poll, so the red dot can't get stranded.
   Read state is shared with the desktop widget through the Host, so handling
   items on the desktop clears the web badge too.
 - **Done marks**: sessions that finished a round while the widget was open get

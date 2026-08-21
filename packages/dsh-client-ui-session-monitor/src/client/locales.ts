@@ -87,6 +87,7 @@ export type SessionMonitorKey =
   | 'autoAckOnOpenLabel'
   | 'autoAckOnOpenDesc'
   | 'inboxBadgeTitle'
+  | 'ackAll'
   | 'resetPosScale'
   | 'resetAll'
   | 'roundOf'
@@ -182,6 +183,7 @@ export const zh: Record<SessionMonitorKey, string> = {
   autoAckOnOpenLabel: '打开时自动全部已读',
   autoAckOnOpenDesc: '桌面端启动时自动清空待处理通知（默认关：打开即提示是核心价值）',
   inboxBadgeTitle: '{count} 条待处理通知，点击跳转到最新一条并标记已读',
+  ackAll: '全部已读',
   resetPosScale: '重置位置与缩放',
   resetAll: '重置设置',
   roundOf: '第 {n} 轮',
@@ -278,6 +280,7 @@ export const en: Record<SessionMonitorKey, string> = {
   autoAckOnOpenLabel: 'Auto-read all on open',
   autoAckOnOpenDesc: 'Desktop: clear all pending notifications at startup (off by default — opening the widget should surface them)',
   inboxBadgeTitle: '{count} pending notification(s), click to jump to the newest and mark it read',
+  ackAll: 'Mark all read',
   resetPosScale: 'Reset position & zoom',
   resetAll: 'Reset settings',
   roundOf: 'round {n}',

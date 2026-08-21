@@ -65,16 +65,16 @@ const t = (deltaMs) => NOW - deltaMs
 
 // ── resolve ─────────────────────────────────────────────────────────
 {
-  console.log('resolve latest open record')
+  console.log('resolve all open records')
   const s = freshStore()
   s.push('approval', 's1', 'A', { at: t(5000) })
   s.push('approval', 's1', 'A', { at: t(4000) })
   s.resolve('s1', 'approval')
   const notes = s.snapshot().notes
-  assert.strictEqual(notes[1].resolved, true, 'latest record resolved')
-  assert.strictEqual(notes[0].resolved, undefined, 'older record untouched')
-  assert.strictEqual(s.snapshot().unread, 1, 'resolved does not count as unread')
-  ok('resolve marks only the latest open record')
+  assert.strictEqual(notes[0].resolved, true, 'all open records resolved')
+  assert.strictEqual(notes[1].resolved, true, 'all open records resolved')
+  assert.strictEqual(s.snapshot().unread, 0, 'resolved does not count as unread')
+  ok('resolve marks every open record of the (session,kind) pair')
 }
 
 // ── persistence round-trip ──────────────────────────────────────────
@@ -122,6 +122,23 @@ const t = (deltaMs) => NOW - deltaMs
   for (let i = 0; i < 210; i++) s.push('done', 's' + i, 'T', { at: t(i) })
   assert.strictEqual(s.snapshot().notes.length, 200, 'oldest dropped beyond cap')
   ok('ring buffer cap')
+}
+
+// ── cap prefers evicting handled records (unread badge never shrinks) ─
+{
+  console.log('cap prefers handled eviction')
+  const s = freshStore()
+  // 50 handled (acked, older) + 200 unread (newer) = 250, over the 200 cap.
+  for (let i = 0; i < 50; i++) s.push('done', 'h' + i, 'T', { at: t(200000 - i) })
+  s.ack({ all: true })
+  for (let i = 0; i < 200; i++) s.push('done', 'u' + i, 'T', { at: t(5000 - i) })
+  const snap = s.snapshot()
+  // The 50 handled records are evicted first; all 200 unread survive intact,
+  // so the "not handled yet" badge count is never reduced by the cap.
+  assert.strictEqual(snap.unread, 200, 'unread count not reduced by the cap')
+  assert.strictEqual(snap.notes.length, 200, 'capped at 200')
+  assert.strictEqual(snap.notes.every((n) => n.ackedAt === undefined), true, 'only unread records remain')
+  ok('cap evicts handled records before any unread')
 }
 
 // ── kind vocabulary ─────────────────────────────────────────────────

@@ -368,6 +368,13 @@ export function SessionMonitorWidget(props: SessionMonitorWidgetProps) {
   const prevInteractionRef = useRef<Map<string, PendingInteractionStatus | undefined>>(new Map())
   /** Newest unread inbox record's session (badge click jumps to it). */
   const newestUnreadRef = useRef<string | null>(null)
+  /** Sessions whose inbox ack we attempted but the Host did not commit; the
+   *  poll retries them so a transient Host outage can't strand the red dot on
+   *  a session the user already opened (the ack is otherwise sent only on the
+   *  badge click, whose failure was previously swallowed). */
+  const pendingAckRef = useRef<Set<string>>(new Set())
+  /** True when a "mark all read" ack did not commit; the poll retries it. */
+  const pendingAckAllRef = useRef(false)
   /** Live BroadcastChannel for cross-tab acknowledgment sync (null when unavailable). */
   const syncChannelRef = useRef<BroadcastChannel | null>(null)
   /** Last-observed session-id set; shrinking ids = disposed sessions. */
@@ -382,6 +389,14 @@ export function SessionMonitorWidget(props: SessionMonitorWidgetProps) {
   const prevCurrentRef = useRef<string | undefined>(undefined)
   /** Skip the first run of that effect: the mount-time current is not an "opened" event. */
   const currentFirstRunRef = useRef(true)
+  /** False after the widget unmounts; late ack/refresh handlers check it so a
+   *  stale fetch response can't setState on an unmounted component. */
+  const liveRef = useRef(true)
+
+  useEffect(() => {
+    liveRef.current = true
+    return () => { liveRef.current = false }
+  }, [])
 
   useEffect(() => { settingsRef.current = settings }, [settings])
   useEffect(() => { doneIdsRef.current = doneIds }, [doneIds])
@@ -871,11 +886,15 @@ export function SessionMonitorWidget(props: SessionMonitorWidgetProps) {
   // Unread inbox badge: poll the Host inbox count independently of the toast
   // settings — the inbox is the durable "not handled yet" surface, so it must
   // light up even when round-completion toasts are off. An absent host (route
-  // 404) keeps the last value (0), degrading gracefully.
+  // 404) keeps the last value (0), degrading gracefully. Each tick first retries
+  // any inbox ack that did not commit, so the red dot can't be stranded on a
+  // session the user already opened.
   useEffect(() => {
     let cancelled = false
     const tick = async (): Promise<void> => {
       try {
+        await flushPendingAck()
+        if (cancelled) return
         const res = await fetch(INBOX_ROUTE, { cache: 'no-store' })
         if (!res.ok) throw new Error(`inbox ${res.status}`)
         const body: any = await res.json()
@@ -1075,6 +1094,19 @@ export function SessionMonitorWidget(props: SessionMonitorWidgetProps) {
     })
   }
 
+  /** Mark every inbox record read (POST ack { all: true }); rejects when the
+   *  Host is unreachable. */
+  function ackAll(): Promise<void> {
+    return fetch(INBOX_ACK_ROUTE, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ all: true }),
+      cache: 'no-store',
+    }).then((res) => {
+      if (!res.ok) throw new Error(`ack ${res.status}`)
+    })
+  }
+
   /** Re-read the inbox snapshot and update the badge count + newest-unread
    *  target (shared by the poll and the post-ack refresh). */
   function applyInboxSnapshot(body: any): void {
@@ -1093,22 +1125,68 @@ export function SessionMonitorWidget(props: SessionMonitorWidgetProps) {
     newestUnreadRef.current = newest
   }
 
+  /** Re-read the inbox snapshot and update the badge count + newest-unread
+   *  target (shared by the poll and the post-ack refresh). */
+  async function refreshInbox(): Promise<void> {
+    const res = await fetch(INBOX_ROUTE, { cache: 'no-store' })
+    if (!liveRef.current) return
+    if (!res.ok) throw new Error(`inbox ${res.status}`)
+    const body = await res.json()
+    if (!liveRef.current) return
+    applyInboxSnapshot(body)
+  }
+
+  /** Retry any inbox ack the Host did not commit. A failed ack stays in
+   *  {@link pendingAckRef} / {@link pendingAckAllRef} and is retried on the
+   *  next poll, so a transient Host outage no longer strands the red dot. A
+   *  committed `all` supersedes the session-scoped set. */
+  async function flushPendingAck(): Promise<void> {
+    const pending = pendingAckRef.current
+    if (pending.size > 0) {
+      const targets = Array.from(pending)
+      const results = await Promise.all(targets.map(async (id) => {
+        try { await ackSession(id); return true } catch { return false }
+      }))
+      results.forEach((ok, index) => { if (ok) pending.delete(targets[index]) })
+    }
+    if (pendingAckAllRef.current) {
+      try {
+        await ackAll()
+        pendingAckAllRef.current = false
+        pending.clear() // `all` is a superset of any session-scoped ack
+      } catch { /* keep for the next poll */ }
+    }
+  }
+
   /**
    * Unread-badge click = 处理 (handle): jump to the newest unread session and
    * mark that session's records read — the web-side equivalent of the desktop
    * inbox's 处理 + ackOnJump, and the ONLY way the red dot can clear from the
    * web widget (done/title/new-session records never auto-resolve). The badge
    * refreshes right AFTER the ack commits server-side, so the red dot drops
-   * without waiting for the next 5s poll.
+   * without waiting for the next 5s poll. If the ack does not commit (Host
+   * unreachable), the session stays in pendingAckRef and the poll retries it.
    */
   function handleInboxBadge(): void {
     const target = newestUnreadRef.current
     if (!target) return
+    // A per-session handle is the user's newest intent: drop any outstanding
+    // "mark all read" ack so it can't silently clear the rest of the inbox.
+    pendingAckAllRef.current = false
     try { open(target) } catch { /* unknown session — still ack the records */ }
-    ackSession(target)
-      .then(() => fetch(INBOX_ROUTE, { cache: 'no-store' }))
-      .then((res) => (res.ok ? res.json() : Promise.reject(new Error(`inbox ${res.status}`))))
-      .then((body: any) => { applyInboxSnapshot(body) })
+    pendingAckRef.current.add(target)
+    void flushPendingAck()
+      .then(() => refreshInbox())
+      .catch(() => { /* host absent — the next poll retries */ })
+  }
+
+  /** "全部已读" = clear the whole badge without navigating anywhere. Marks every
+   *  inbox record read; on a transient Host failure the intent stays in
+   *  pendingAckAllRef and the poll retries it, so the red dot can't strand. */
+  function handleAckAll(): void {
+    pendingAckAllRef.current = true
+    void flushPendingAck()
+      .then(() => refreshInbox())
       .catch(() => { /* host absent — the next poll retries */ })
   }
 
@@ -1293,6 +1371,17 @@ export function SessionMonitorWidget(props: SessionMonitorWidgetProps) {
               onClick={() => handleInboxBadge()}
             >
               {inboxUnread}
+            </button>
+          )}
+          {inboxUnread > 0 && (
+            <button
+              className={css.ackAllBtn}
+              title={t('ackAll')}
+              aria-label={t('ackAll')}
+              onPointerDown={(e) => e.stopPropagation()}
+              onClick={() => handleAckAll()}
+            >
+              ✓
             </button>
           )}
           <button

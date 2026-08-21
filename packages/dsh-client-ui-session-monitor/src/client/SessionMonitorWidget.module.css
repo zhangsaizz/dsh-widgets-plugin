@@ -158,6 +158,26 @@
 }
 .inboxBadge:hover { filter: brightness(1.12); }
 
+/* "Mark all read" icon button: clears the whole badge without navigating.
+   Compact to match the header's icon buttons. */
+.ackAllBtn {
+  flex: none;
+  width: 24px;
+  height: 24px;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--dsw-alias-state-business-primary, #4f8cff);
+  font-size: 14px;
+  line-height: 1;
+  cursor: pointer;
+  transition: background 120ms ease, color 120ms ease;
+}
+.ackAllBtn:hover {
+  background: var(--dsw-alias-bg-hover, rgba(255, 255, 255, 0.1));
+  color: var(--dsw-alias-label-primary, #e8eaf0);
+}
+
 .iconBtn {
   flex: none;
   width: 24px;
