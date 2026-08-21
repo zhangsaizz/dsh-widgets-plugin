@@ -138,7 +138,6 @@ export function mountToolAccent(): () => void {
   if (typeof document === 'undefined') return () => { /* dispose: no-op */ }
 
   const root = document.body ?? document.documentElement
-  const html = document.documentElement
 
   // Live gate: whether category colouring is applied (stamping) right now, so
   // the MutationObserver can refuse to stamp while the user has it switched off.
@@ -182,7 +181,11 @@ export function mountToolAccent(): () => void {
           // A following flow item that holds a newer action → the newer action is
           // the latest instead (nothing to supersede here).
           if (s.matches(ROW_SELECTOR) || s.querySelector(ROW_SELECTOR)) return false
-          // A following flow item with visible text = the 正文 reply.
+          // A following flow item with visible text = the 正文 reply. This is
+          // deliberately broad: it also covers turn-ending flow items
+          // (turn-error / compaction / turn-tail), so the sweep clears the
+          // moment the round closes — desired UX, not just the assistant's
+          // plain text.
           if ((s.textContent || '').trim()) return true
         }
         s = s.nextElementSibling
@@ -202,6 +205,11 @@ export function mountToolAccent(): () => void {
    *  time (no sticky state); only the header is swept, never the output body. */
   function setLatest(): void {
     const rows = root.querySelectorAll(ROW_SELECTOR)
+    // The transcript appends new actions chronologically, so the LAST matching
+    // row in document order is the newest action. That is a deliberate coupling
+    // to this DOM shape: if the chat view ever virtualizes or reorders the
+    // list, "last in document order" would no longer mean "newest" and this
+    // should be driven from a stable sequence instead.
     const latest = rows.length > 0 ? rows[rows.length - 1] : null
     const superseded = !!latest && isSuperseded(latest)
     for (const el of rows) {
