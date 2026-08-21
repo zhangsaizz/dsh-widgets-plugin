@@ -169,6 +169,25 @@ pnpm 版本由 root `package.json` 的 `packageManager` 固定（当前 `pnpm@11
 
 ## 本次会话的近期改动（了解现状用）
 
+- **跟进官方 API 至 v0.1.1-rc.2**：全部 `@deepseek-ai/*` 依赖范围升级到
+  `^0.1.1-rc.2`（root devDeps `dsh-host-webserver` 精确到 `0.1.1-rc.2`），
+  `pnpm-lock.yaml` 重解析到 rc.2；`pnpm typecheck` / `pnpm build` / `pnpm -r pack`
+  全绿。核对过官方 rc.7→rc.2 发布包：本仓库依赖面（`dsh-client-ui-slots` /
+  `dsh-client-runtime` / `dsh-api-remotes` / `dsh-settings` / `dsh-session` /
+  `dsh-typert-protocol` / `dsh-host-webserver` 等）的 `lib/*.d.ts` 无破坏性变更，
+  故无需改源码（typecheck/build 通过）。
+  **安装陷阱**：pnpm 11.7 的 `autoInstallPeers`（lockfile `settings` 里为 true）
+  自动安装 Host 侧 sandbox 兄弟包的 peer 时，对预发布 peer 范围会推导出非预发布
+  `>=0.1.1 <0.2.0-0`，无法命中已发布的 `0.1.1-rc.2`，首次 `pnpm install` 报
+  `ERR_PNPM_NO_MATCHING_VERSION`（对 `@deepseek-ai/dsh-sandbox` /
+  `dsh-sandbox-policy`）。**修复不是加 overrides**，而是让 pnpm 的 supply-chain
+  策略把这两个 fresh rc.2 版本自动写回 `pnpm-workspace.yaml` 的
+  `minimumReleaseAgeExclude`（`pnpm install` 跑一次即自动补录 11 个 rc.2 白名单，
+  `dsh-sandbox` / `dsh-sandbox-policy` / `dsh-client-ui-conversation` /
+  `dsh-shell` 等在列）；之后 `--frozen-lockfile` 通过。`pnpm-workspace.yaml` 的
+  `patchedDependencies: {}` 占位被 pnpm 重写时抹掉，已人工补回。
+  upstream monorepo 结构保持 `packages/<domain>/<pkg>` 不变，npm 包名扁平不变。
+
 - **跟进官方 API 至 v0.1.0-rc.7**：全部 `@deepseek-ai/*` 依赖范围升级到
   `^0.1.0-rc.7`（root devDeps `dsh-host-webserver` 精确到 `0.1.0-rc.7`），
   `pnpm-lock.yaml` 重解析到 rc.7；`pnpm typecheck` / `pnpm build` / `pnpm -r pack`
