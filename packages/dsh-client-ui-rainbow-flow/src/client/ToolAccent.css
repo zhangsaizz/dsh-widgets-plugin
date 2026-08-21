@@ -179,10 +179,9 @@
    (`background-clip: text`) that flows across its title / summary / file link,
    lighting each character in turn. `toolAccent.ts` marks only the newest action
    row (`data-rf-latest`) and clears it once a 正文 reply (the assistant's
-   plain-text markdown block) appears AFTER it, so the effect follows the most
-   recent command/think and turns off when the model writes its answer. NOT
-   gated on `data-state="running"` (fast tools like read/edit drop that almost
-   instantly). The output BODY (the stdout/results, a separate element) is
+   plain-text answer) appears after it, so the effect follows the most recent
+   command/think (instant commands like read/edit still show it) until the model
+   writes its answer. The output BODY (the stdout/results, a separate element) is
    deliberately NOT targeted, so only the header is swept. Independent of the
    category-colour stamp AND of `commandColor` — gated only by
    `html[data-rf-sweep='on']`, which `mountToolAccent` mirrors from

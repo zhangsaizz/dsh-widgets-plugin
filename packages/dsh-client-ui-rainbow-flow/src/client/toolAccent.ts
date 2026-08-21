@@ -22,15 +22,16 @@
  * The whole colouring is switched by `settings.commandColor`: when off, the
  * module stops stamping and clears `data-rf-tool-cat` / `title` from every
  * already-decorated row so cards revert to the shipped look. The latest-action
- * rainbow sweep (see the sweep CSS) is independent — it marks the LATEST action
- * row (`data-rf-latest`, the newest among tool command cards `[data-tool]` and
- * Think rows `[data-variant="think"]`) and clears it when a 正文 reply (the
- * assistant's plain-text markdown block) appears AFTER it, so the sweep follows
- * the most recent command/think and turns off once the model writes its answer.
- * The state is recomputed DETERMINISTICALLY from the live DOM on every change
- * (there is no sticky flag), so it behaves identically on a fresh render and
- * during streaming, and survives re-renders. Only the header text is swept,
- * never the output body, so it works whether or not colouring is on.
+ * rainbow sweep (see the sweep CSS) is independent — it marks with
+ * `data-rf-latest` the LATEST action row (tool command card `[data-tool]` /
+ * Think row `[data-variant="think"]`) and clears it once a 正文 reply (the
+ * assistant's plain-text answer) appears after it, so the effect follows the
+ * most recent command/think (including instant tools like read/edit) until the
+ * model writes its answer. Whether a 正文 reply follows is detected from the
+ * flow-item structure only (no `textContent` over-matching), and the state is
+ * recomputed deterministically from the live DOM on every change. Only the
+ * header text is swept — never the output body, so it works whether or not
+ * colouring is on.
  *
  * A single `MutationObserver` keeps the tags current without touching React:
  * it watches for added/dropped rows (childList — handles both added `Element`s
@@ -154,33 +155,51 @@ export function mountToolAccent(): () => void {
     }
   }
 
-  /** Is the latest action superseded by a 正文 reply? The 正文 is the
-   *  assistant's plain-text answer, which when it appears is a non-action text
-   *  sibling right after the command/think row (a Think row and its reply are
-   *  siblings inside the same message; a tool card's reply sits at a higher
-   *  level, which we conservatively leave highlighted rather than risk false
-   *  positives from climbing up the whole flow). Only the immediate siblings of
-   *  the row are examined — anything deeper is treated as "still active". This
-   *  is deliberately conservative: it never wrongly blanks a running command. */
+  /** Is the latest action superseded by a 正文 reply? Two reliable cases:
+   *  (a) a non-action text block immediately AFTER the row inside its message — a
+   *      Think row and its reply are siblings; (b) the row's own flow item
+   *      (`data-chat-flow-kind`) is followed by the reply flow item — a tool call
+   *      sits in its own `tool-call` flow item and the reply is the next
+   *      `assistant-step` item. Only flow-item siblings are inspected for (b), so
+   *      the composer / scroll chrome (not a flow item) can never mismatch. */
   function isSuperseded(latest: Element): boolean {
-    let n: Element | null = latest.nextElementSibling
-    while (n) {
-      // A newer action row right after → nothing to supersede (it'd be the latest).
-      if (n.matches(ROW_SELECTOR) || n.querySelector(ROW_SELECTOR)) return false
-      // A non-action text block immediately after → the 正文 reply.
-      if ((n.textContent || '').trim()) return true
-      n = n.nextElementSibling
+    // (a) immediate non-action text sibling (a Think row + its reply).
+    let sib = latest.nextElementSibling
+    while (sib) {
+      if (sib.matches(ROW_SELECTOR) || sib.querySelector(ROW_SELECTOR)) return false
+      if ((sib.textContent || '').trim()) return true
+      sib = sib.nextElementSibling
+    }
+    // (b) walk up to the row's flow item; then inspect FOLLOWING flow-item
+    //     siblings only.
+    let node: Element = latest
+    let parent = latest.parentElement
+    let guard = 0
+    while (parent && guard < 12) {
+      let s = node.nextElementSibling
+      while (s) {
+        if (s.hasAttribute('data-chat-flow-kind')) {
+          // A following flow item that holds a newer action → the newer action is
+          // the latest instead (nothing to supersede here).
+          if (s.matches(ROW_SELECTOR) || s.querySelector(ROW_SELECTOR)) return false
+          // A following flow item with visible text = the 正文 reply.
+          if ((s.textContent || '').trim()) return true
+        }
+        s = s.nextElementSibling
+      }
+      if (node.hasAttribute('data-chat-flow-kind')) break
+      node = parent
+      parent = parent.parentElement
+      guard++
     }
     return false
   }
 
-  /** Mark the LATEST decor element with `data-rf-latest` — the newest row in
-   *  document order among tool command cards (`data-tool`) AND Think reasoning
-   *  rows (`data-variant="think"`) — and clear it from every other one. The
-   *  rainbow sweep targets only this marker, so it follows whichever action was
-   *  produced last, and clears once a 正文 reply appears after it. Recomputed
-   *  DETERMINISTICALLY from the live DOM each time (no sticky state), so it
-   *  behaves the same on a fresh render and during streaming. */
+  /** Mark the LATEST action row (the newest `[data-tool]`/`[data-variant="think"]`
+   *  row in document order) with `data-rf-latest` unless it is superseded by a
+   *  正文 reply — so a fast command like read/edit stays highlighted until the
+   *  model writes its text answer. Recomputed deterministically from the DOM each
+   *  time (no sticky state); only the header is swept, never the output body. */
   function setLatest(): void {
     const rows = root.querySelectorAll(ROW_SELECTOR)
     const latest = rows.length > 0 ? rows[rows.length - 1] : null

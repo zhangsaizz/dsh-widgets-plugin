@@ -165,16 +165,17 @@ send/stop button with dynamic effects.
   the newest row in the transcript — a tool command card or a **"Think"**
   reasoning row — has its title / summary / file name painted with a **flowing
   rainbow gradient** (`background-clip: text`) that sweeps across each
-  character; the output **body is deliberately not targeted**. The effect
-  **follows the latest action and persists** there until the **next
-  command/Think appears OR a plain-text reply (正文) appears after it** — so
-  instant tools like read/edit don't cut it
-  off early, while a text reply clears it right away. Pure CSS, no DOM
-  re-render; it freezes to a static rainbow under `prefers-reduced-motion`, and
-  can be turned off via the config panel's **latest-action rainbow sweep**
-  switch. The command colouring is itself controlled by the **colour command
-  cards by category** switch (on by default; turning it off reverts the cards to
-  the shipped look), and both are independent of the composer-glow toggle.
+  character; the output **body is deliberately not targeted**. It **follows the
+  latest action and persists** there (instant commands like read/edit still show
+  it — it's not gated on `running`), until a **正文 reply appears after it**
+  (detected precisely from the flow-item structure, so the composer isn't
+  mistaken for it) — then it clears. Recomputed deterministically from the DOM,
+  pure CSS with no DOM re-render, freezes to a static rainbow under
+  `prefers-reduced-motion`, and can be turned off via the config panel's
+  **latest-action rainbow sweep** switch. The command colouring is itself
+  controlled by the **colour command cards by category** switch (on by default;
+  turning it off reverts the cards to the shipped look), and both are
+  independent of the composer-glow toggle.
 - **Graceful degradation**: browsers without `backdrop-filter` still get the
   translucent white glass (the frosted blur is an enhancement); browsers
   without `mix-blend-mode: screen` fall back to normally-blended shadows
