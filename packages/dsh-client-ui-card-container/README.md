@@ -27,6 +27,11 @@ English | [中文](README.zh.md)
 - Keyboard: focus a card (Tab), Enter/Space undocks, arrow keys reorder.
 - The grid uses a consistent gap (12px) and auto-fills or fixes the column
   count (configurable), so cards always line up evenly.
+- The container panel / docked cards / collapsed pill / group menu use a
+  **liquid-glass** material — the same recipe as the rainbow-flow input box
+  (translucent white glass gradient + light frosted backdrop blur + 1 px edge
+  reflections + soft drop shadow, with theme-aware dark/light glass
+  palettes).
 - Docked order, active group, groups and the panel position persist across
   reloads.
 - Touch devices (no hover): the chrome stays fully visible so the dock remains

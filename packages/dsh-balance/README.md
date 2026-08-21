@@ -56,7 +56,11 @@ hover tooltip / loading states, light & dark themes](../../docs/previews/balance
   `dsh.balance.view`), and the providers config panel into the widget
   manager's "Configure" dialog (`widgets.config` slot). A single
   `BalanceController` follows the current session + model and refreshes on a
-  fixed 30 s interval.
+  fixed 30 s interval. The dashboard panel / collapsed pill / multi-account
+  hover tip use a **liquid-glass** material — the same recipe as the
+  rainbow-flow input box (translucent white glass gradient + light frosted
+  backdrop blur + 1 px edge reflections + soft drop shadow, with theme-aware
+  dark/light glass palettes).
 
 ## Installation
 

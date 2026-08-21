@@ -126,6 +126,11 @@ rounds. Without the host half the widget still works (base notification kinds).
   app's own sidebar or a widget row — clears the badge and its reminders; or
   use the footer button). The badges persist to localStorage, so a reload
   keeps them (toasts and pending alerts stay in-memory and clear on reload).
+- **Liquid-glass look**: the panel / collapsed pill / round-completion toasts
+  use a **liquid-glass** material — the same recipe as the rainbow-flow input
+  box (translucent white glass gradient + light frosted backdrop blur + 1 px
+  edge reflections + soft drop shadow, with theme-aware dark/light glass
+  palettes).
 - **Configurable**: the widget-manager "Configure" dialog toggles notifications
   on/off, dismissal mode + seconds, sound, **browser notifications** (with
   permission status), whether to notify for the current session (off by
