@@ -10,8 +10,10 @@
     "module": "preserve",
     "rewriteRelativeImportExtensions": true,
     "paths": {
-      "@dsh-plugins/client-ui-widget-manager/client": ["./src/build-env.d.ts"]
+      "@dsh-plugins/client-ui-widget-manager/client": ["./src/build-env.d.ts"],
+      "@dsh-plugins/client-ui-card-container/client": ["./src/build-env.d.ts"]
     }
   },
-  "include": ["src/**/*.ts", "src/**/*.tsx"]
+  "include": ["src/**/*.ts", "src/**/*.tsx"],
+  "exclude": ["node_modules"]
 }

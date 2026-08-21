@@ -21,10 +21,14 @@ import type {} from '@deepseek-ai/dsh-client-locale/client'
 // Type-only: pulls the `widgets.config` SlotMap merge declared by the widget
 // manager (the config panel lives in its "Configure" dialog).
 import type {} from '@dsh-plugins/client-ui-widget-manager/client'
+// Type-only: pulls the `widgets.card` SlotMap merge the card registration
+// below type-checks against (declared by the card container).
+import type {} from '@dsh-plugins/client-ui-card-container/client'
 import { SessionMonitorWidget, RELAY_EVENT } from './SessionMonitorWidget.tsx'
 import type { SessionMonitorInject } from './SessionMonitorWidget.tsx'
 import { SessionSettings } from './SessionSettings.tsx'
 import type { SessionSettingsInjected } from './SessionSettings.tsx'
+import { SessionMonitorCard } from './cards.tsx'
 import { en, zh } from './locales.ts'
 import type { SessionMonitorKey } from './locales.ts'
 
@@ -255,6 +259,17 @@ export function apply(ctx: ClientContext): void {
       open: (sessionId) => { ctx.sessions.open(sessionId as SessionId) },
     }),
   }, SessionMonitorWidget))
+
+  // Own compact card in the card container's grid. Registered at priority 0 so
+  // it always wins over the container's built-in fallback views (priority 10).
+  // `locale: 'card-container'` reuses the card container's shared stat labels.
+  ctx.slots.inject('widgets.card', () => ctx.slots.register({
+    name: 'widgets.card',
+    id: 'session-monitor',
+    order: 90,
+    priority: 0,
+    locale: 'card-container',
+  }, SessionMonitorCard))
 
   // The config panel: registered only while the widget manager declares the
   // `widgets.config` slot, so installs without the manager simply skip it.

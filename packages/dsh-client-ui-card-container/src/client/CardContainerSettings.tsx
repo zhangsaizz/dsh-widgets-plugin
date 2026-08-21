@@ -11,9 +11,9 @@ import type { ReactNode } from 'react'
 import type { TranslateNS } from '@deepseek-ai/dsh-client-ui-slots'
 import {
   ACTIVE_GROUP_KEY, GROUPS_KEY, POS_KEY, SETTINGS_CHANGED_EVENT, SETTINGS_KEY,
-  readActiveGroup, readGroups, writeGroups,
+  loadColumns, readActiveGroup, readGroups, saveColumns, writeGroups,
 } from './controller.ts'
-import type { ColumnSetting } from './CardContainerWidget.tsx'
+import type { ColumnSetting } from './controller.ts'
 import css from './CardContainerSettings.module.css'
 
 /** Injected face: just the locale seat. */
@@ -34,28 +34,15 @@ function Row(props: { label: string; hint?: string; children: ReactNode }) {
   )
 }
 
-/** Read persisted column setting (validated). */
-function loadColumns(): ColumnSetting {
-  try {
-    const raw = window.localStorage.getItem(SETTINGS_KEY)
-    if (!raw) return 'auto'
-    const s: any = JSON.parse(raw)
-    if (s && (s.columns === 'auto' || s.columns === '2' || s.columns === '3' || s.columns === '4')) return s.columns
-    return 'auto'
-  } catch {
-    return 'auto'
-  }
-}
-
 export function CardContainerSettings({ t }: CardContainerSettingsInjected) {
   const [columns, setColumns] = useState<ColumnSetting>(loadColumns)
 
   function updateColumns(next: ColumnSetting): void {
     setColumns(next)
+    saveColumns(next)
     try {
-      window.localStorage.setItem(SETTINGS_KEY, JSON.stringify({ columns: next }))
       window.dispatchEvent(new CustomEvent(SETTINGS_CHANGED_EVENT))
-    } catch { /* storage / events */ }
+    } catch { /* events */ }
   }
 
   function clearDocked(): void {
@@ -71,7 +58,9 @@ export function CardContainerSettings({ t }: CardContainerSettingsInjected) {
     } catch { /* storage / events */ }
   }
 
-  function resetPosScale(): void {
+  /** Reset the whole container (position + groups + settings) — the mounted
+   *  widget re-reads everything on the change event. */
+  function resetAll(): void {
     try {
       window.localStorage.removeItem(POS_KEY)
       window.localStorage.removeItem(GROUPS_KEY)
@@ -97,7 +86,7 @@ export function CardContainerSettings({ t }: CardContainerSettingsInjected) {
       </Row>
       <div className={css.actions}>
         <button className={css.resetBtn} onClick={clearDocked}>{t('resetDocked')}</button>
-        <button className={css.resetBtn} onClick={resetPosScale}>{t('resetAll')}</button>
+        <button className={css.resetBtn} onClick={resetAll}>{t('resetAll')}</button>
       </div>
     </div>
   )

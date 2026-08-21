@@ -31,11 +31,16 @@ import type {} from '@deepseek-ai/dsh-client-locale/client'
 // manager (the config panel lives in its "Configure" dialog, not in the
 // settings menu).
 import type {} from '@dsh-plugins/client-ui-widget-manager/client'
+// Type-only: pulls the `widgets.card` SlotMap merge the card registration
+// below type-checks against (declared by the card container).
+import type {} from '@dsh-plugins/client-ui-card-container/client'
 import { TYPERT_REMOTE } from '../../lib/typert.remote-client.js'
 import { BalanceController } from './controller.ts'
 import type { BalanceRemote, ModelDirectoriesLike } from './controller.ts'
 import { BalanceWidget } from './BalanceWidget.tsx'
 import type { BalanceInject } from './BalanceWidget.tsx'
+import { BalanceCard } from './BalanceCard.tsx'
+import type { BalanceCardInject } from './BalanceCard.tsx'
 import { BalanceSettings } from './BalanceSettings.tsx'
 import type { BalanceSettingsInjected } from './BalanceSettings.tsx'
 import { createBalanceViewStore } from './store.ts'
@@ -44,6 +49,7 @@ import type { BalanceKey } from './locales.ts'
 
 export type { BalanceController, BalancePhase, BalanceRemote, BalanceViewState, ModelDirectoriesLike } from './controller.ts'
 export type { BalanceInject, BalanceWidgetProps } from './BalanceWidget.tsx'
+export type { BalanceCardInject } from './BalanceCard.tsx'
 export type { BalanceSettingsInjected } from './BalanceSettings.tsx'
 export type { BalanceKey } from './locales.ts'
 export { createBalanceViewStore } from './store.ts'
@@ -111,6 +117,20 @@ export async function apply(ctx: ClientContext): Promise<void> {
       controller.dispose()
     }
   }, 'balance: widget registration')
+
+  // Own compact card in the card container's grid. Registered at priority 0
+  // (the container registers no built-in cards, so this is the sole balance
+  // card); the inject face binds this plugin's controller to the card (the
+  // `useBalance` selector hook), so the card reads the same live balance the
+  // dashboard does.
+  ctx.slots.inject('widgets.card', () => ctx.slots.register({
+    name: 'widgets.card',
+    id: 'balance',
+    order: 100,
+    priority: 0,
+    locale: NS,
+    inject: (): BalanceCardInject => ({ hooks: { balance: controller } }),
+  }, BalanceCard))
 
   // The Balance providers config panel. It lives in the widget manager's
   // "Configure" dialog (`widgets.config` slot, declared by

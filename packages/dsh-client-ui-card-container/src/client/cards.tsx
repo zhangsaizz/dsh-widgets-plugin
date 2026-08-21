@@ -45,18 +45,16 @@
  * (MyWidgetCard as WidgetCardComponent).spec = 'medium'
  * ```
  *
- * The card container package ships built-in fallback views for the project's
- * known widgets (token-crit, session-monitor, balance-generic) registered at
- * priority 10 — they are REPLACED the moment the owning package registers its
- * own card, and other widgets fall back to the generic placeholder.
+ * The card container package ships NO built-in card views — it is generic.
+ * Each widget that provides a compact card registers it into `widgets.card`
+ * at priority 0 in its own package (token-crit, session-monitor, balance all
+ * do). A widget that ships no card falls back to the generic placeholder.
  */
 
-import type { PropsLocale, PropsRuntime, SlotComponent, TranslateNS } from '@deepseek-ai/dsh-client-ui-slots'
+import type { PropsRuntime, SlotComponent, TranslateNS } from '@deepseek-ai/dsh-client-ui-slots'
 import { resolveSlotLabel } from '@deepseek-ai/dsh-client-ui-slots'
 import type { ClientContext } from '@deepseek-ai/dsh-client-runtime/client'
-import type { SessionListState, SessionSummary } from '@deepseek-ai/dsh-client-runtime/client'
 import type { CardContainerKey } from './locales.ts'
-import css from './CardContainerWidget.module.css'
 
 /** Standard composed props for any `widgets.card` entry: the framework's
  *  global standard seat (`useSessions` / `useWorkspaces`). Extend with
@@ -122,103 +120,3 @@ export function widgetLabelOf(ctx: ClientContext, id: string, t: TranslateNS<'ca
   } catch { /* ledger read failed — fall through */ }
   return widgetName(id, t)
 }
-
-/** Compact number formatting (1.2K / 3.4M / 1.1B). */
-function compact(n: number): string {
-  if (n >= 1e9) return (n / 1e9).toFixed(1).replace(/\.0$/, '') + 'B'
-  if (n >= 1e6) return (n / 1e6).toFixed(1).replace(/\.0$/, '') + 'M'
-  if (n >= 1e4) return (n / 1e3).toFixed(1).replace(/\.0$/, '') + 'K'
-  return String(Math.round(n))
-}
-
-/** Cumulative token-usage projection value (from the token-meter). */
-interface TokenUsage {
-  uncachedInputTokens?: number
-  outputTokens?: number
-  cacheReadTokens?: number
-  cacheWriteTokens?: number
-}
-
-/** Select the current session's token usage (mirrors the token-crit widget).
- *  `projectionValues` is typed `Partial<SessionProjectionMap>` whose declared
- *  keys don't include `tokenUsage` — read through the projection-value record
- *  like the token-crit widget does. */
-function selectUsage(s: SessionListState): TokenUsage | undefined {
-  const cid = s.current
-  if (!cid) return undefined
-  const byId = s.byId as Readonly<Record<string, SessionSummary>>
-  const entry = byId[cid]
-  if (!entry || !entry.projectionValues) return undefined
-  const values = entry.projectionValues as Record<string, unknown>
-  return values.tokenUsage as TokenUsage | undefined
-}
-
-/** Compact token-usage card for the token-crit widget. */
-export function TokenCritCard(props: PropsRuntime<'widgets.card'> & PropsLocale<'card-container'>) {
-  const { useSessions, t } = props
-  const usage = useSessions(selectUsage)
-  const input = usage
-    ? (usage.uncachedInputTokens ?? 0) + (usage.cacheReadTokens ?? 0) + (usage.cacheWriteTokens ?? 0)
-    : 0
-  const output = usage ? (usage.outputTokens ?? 0) : 0
-  const total = input + output
-  return (
-    <div className={css.statCard}>
-      <span className={css.statValue}>{compact(total)}</span>
-      <span className={css.statLabel}>{t('cardTokenLabel')}</span>
-      <span className={css.statMeta}>
-        {t('cardTokenIn', { n: compact(input) })} · {t('cardTokenOut', { n: compact(output) })}
-      </span>
-    </div>
-  )
-}
-// One-column compact stat.
-(TokenCritCard as WidgetCardComponent).spec = 'small'
-
-/** Select the live session-list snapshot for the session-monitor card. */
-function selectSessions(s: SessionListState): SessionListState {
-  return s
-}
-
-/** Compact busy-count card for the session-monitor widget (running or busy). */
-export function SessionMonitorCard(props: PropsRuntime<'widgets.card'> & PropsLocale<'card-container'>) {
-  const { useSessions, t } = props
-  const sessions = useSessions(selectSessions)
-  // byId is keyed by SessionId (a branded string); index through a plain view.
-  const byId = sessions.byId as Readonly<Record<string, SessionSummary>>
-  const busy = sessions.ids.filter((id) => {
-    const row = byId[id]
-    if (!row || row.blank) return false
-    if (row.running) return true
-    if (row.pendingInteraction !== undefined) return true
-    return false
-  }).length
-  return (
-    <div className={css.statCard}>
-      <span className={css.statValue}>{busy}</span>
-      <span className={css.statLabel}>{t('cardBusyLabel')}</span>
-      <span className={css.statMeta}>{t('cardSessionMeta', { n: String(sessions.ids.length) })}</span>
-    </div>
-  )
-}
-// Two-column medium stat.
-(SessionMonitorCard as WidgetCardComponent).spec = 'medium'
-
-/** Generic card body for a widget without a compact view. */
-export function GenericCard({ name, hint }: { name: string; hint: string }) {
-  return (
-    <div className={css.genericCard}>
-      <span className={css.genericName}>{name}</span>
-      <span className={css.genericHint}>{hint}</span>
-    </div>
-  )
-}
-
-/** Built-in balance card: generic body (no remote wiring — full view lives in
- *  the floating dashboard, which is hidden while docked). */
-export function BalanceCard(props: PropsRuntime<'widgets.card'> & PropsLocale<'card-container'>) {
-  const { t } = props
-  return <GenericCard name={widgetName('balance', t)} hint={t('cardMissing')} />
-}
-// Full-row large card.
-(BalanceCard as WidgetCardComponent).spec = 'large'

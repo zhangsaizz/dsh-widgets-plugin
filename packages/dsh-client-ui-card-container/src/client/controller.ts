@@ -199,6 +199,32 @@ export function savePos(pos: { x: number; y: number } | null): void {
   } catch { /* storage unavailable */ }
 }
 
+/** Grid columns: 'auto' = auto-fill; a digit = fixed column count. */
+export type ColumnSetting = 'auto' | '2' | '3' | '4'
+
+/** Read the persisted column setting (validated; defaults to 'auto'). */
+export function loadColumns(): ColumnSetting {
+  try {
+    const raw = localStorage.getItem(SETTINGS_KEY)
+    if (!raw) return 'auto'
+    const s: unknown = JSON.parse(raw)
+    if (s && typeof s === 'object' && 'columns' in s) {
+      const cols = (s as { columns: unknown }).columns
+      if (cols === 'auto' || cols === '2' || cols === '3' || cols === '4') return cols
+    }
+    return 'auto'
+  } catch {
+    return 'auto'
+  }
+}
+
+/** Persist the column setting (best-effort). */
+export function saveColumns(columns: ColumnSetting): void {
+  try {
+    localStorage.setItem(SETTINGS_KEY, JSON.stringify({ columns }))
+  } catch { /* storage unavailable */ }
+}
+
 /** Per-widget dock controller; one instance per client plugin apply, published
  *  through the inject hooks compartment as `useContainer`. */
 export class CardContainerController implements HostObservable<ContainerSnapshot> {

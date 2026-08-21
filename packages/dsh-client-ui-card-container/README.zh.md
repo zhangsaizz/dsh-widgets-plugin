@@ -67,13 +67,10 @@ ctx.slots.inject('widgets.card', () => ctx.slots.register({
 挂载时是 no-op：
 `window.dispatchEvent(new CustomEvent('dsh.card-container.dock', { detail: 'my-widget' }))`。
 
-本包自带内置兜底视图（priority 10，小组件自己的卡片 priority 0 优先渲染）：
-
-| 小组件 | 内置卡片 | 规格 |
-|---|---|---|
-| `token-crit` | 紧凑 token 用量统计（当前会话） | small（1 列） |
-| `session-monitor` | 紧凑忙碌会话数 | medium（2 列） |
-| `balance` | 通用卡片（完整视图在浮动看板中） | large（整行） |
+本包**不**自带任何内置卡片视图——容器是通用的。每个提供紧凑卡片的挂件都在各自
+包里以 priority 0 注册进 `widgets.card`（token-crit、session-monitor、balance
+均已接入；见 `WIDGET-DEVELOPMENT.md` §2.5）。未注册卡片的停靠挂件在网格里回落到
+通用占位卡。
 
 ## 使用方法
 

@@ -82,14 +82,11 @@ container's dock-request window event (`detail` = its `shell.overlay` id) to
 dock itself — decoupled, no-op when the container is absent:
 `window.dispatchEvent(new CustomEvent('dsh.card-container.dock', { detail: 'my-widget' }))`.
 
-This package ships built-in fallback views (at priority 10, so a widget's own
-card at priority 0 wins when present):
-
-| Widget | Built-in card | Size |
-|---|---|---|
-| `token-crit` | Compact token-usage stat (current session) | small |
-| `session-monitor` | Compact busy-session count | medium |
-| `balance` | Generic card (full view lives in the floating dashboard) | large |
+This package ships **no** built-in card views — the container is generic. Each
+widget that provides a compact card registers it into `widgets.card` at
+priority 0 in its own package (token-crit, session-monitor and balance all do;
+see `WIDGET-DEVELOPMENT.md` §2.5). A docked widget with no registered card
+falls back to the generic placeholder in the grid cell.
 
 ## Usage
 

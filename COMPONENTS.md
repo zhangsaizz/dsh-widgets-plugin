@@ -31,7 +31,7 @@
 | 14 | 会话监控配置面板 `SessionSettings` | Web 配置弹窗 | `@dsh-plugins/client-ui-session-monitor` | `widgets.config`（管理器「配置」弹窗） | 提醒开关/关闭方式/秒数/音效/提醒范围与列表显示选项 + **「桌面端会话监控」开关**（默认关，打开时经 `dsh-smon://` 拉起桌面应用并开始监控，关闭后桌面挂件暂停），localStorage 持久化 |
 | 15 | 卡片容器 `CardContainerWidget` | Web 挂件 | `@dsh-plugins/client-ui-card-container` | `shell.overlay`（order 20） | 浮动容器面板：**多分组**（顶部分组标签 + ⋯ 管理菜单），托盘列出可停靠挂件，拖入网格即停靠（影子条目隐藏浮窗）、渲染紧凑卡片视图；卡片**实时换位**（ghost 跟随 + 其余让位，拖出网格=移出）、键盘可达（Enter/空格移出、方向键排序）、触屏常显、列数可配、状态持久化；面板/卡片/胶囊/分组菜单为**液态玻璃**材质（与彩虹流光输入框同一配方） |
 | 16 | 卡片容器控制器 `CardContainerController` | 客户端数据层 | `@dsh-plugins/client-ui-card-container` | 注入 hook | 多分组停靠（groups/active 持久化，旧单列表自动迁移）+ 可用托盘投影，注册/释放 priority -2 停靠影子，针对 overlay 台账自我修复 |
-| 17 | 卡片视图（内置） | Web 卡片视图 | `@dsh-plugins/client-ui-card-container` | `widgets.card`（容器声明子槽，priority 10 兜底） | token-crit / session-monitor 紧凑统计卡（标准 `useSessions` 数据）+ balance 通用卡；**标准接入规范**（`WidgetCardProps` + 槽级注入面 `CardSlotInject`，见 WIDGET-DEVELOPMENT.md §2.5）：挂件自己的卡片注册进 `widgets.card`（id = shell.overlay id、priority 默认 0、显示名优先读 shell.overlay 的 label）即优先渲染，不注册则用占位卡；卡片可声明**规格**（静态 `spec`：small 1 列 / medium 2 列 / large 整行） |
+| 17 | 卡片视图 | Web 卡片视图 | `@dsh-plugins/client-ui-token-crit` / `client-ui-session-monitor` / `balance` | `widgets.card`（容器声明子槽，**容器无内置卡片**） | **token-crit、session-monitor、balance 各自注册自己的紧凑卡片**（priority 0：token 用量 / 忙碌会话数 / 实时余额，见各自包源码）；**标准接入规范**（`WidgetCardProps` + 槽级注入面 `CardSlotInject`，见 WIDGET-DEVELOPMENT.md §2.5）：挂件自己注册进 `widgets.card`（id = shell.overlay id、priority 默认 0、显示名优先读 shell.overlay 的 label）即渲染，不注册则用占位卡；卡片可声明**规格**（静态 `spec`：small 1 列 / medium 2 列 / large 整行） |
 | 18 | 卡片容器配置面板 `CardContainerSettings` | Web 配置弹窗 | `@dsh-plugins/client-ui-card-container` | `widgets.config`（管理器「配置」弹窗） | 列数（自适应/2/3/4）+ 清空停靠/重置，localStorage 持久化 |
 | 19 | 安装 bundle | 分发层 | `@dsh-plugins/dsh-widgets-plugin` | `cordis.patch.yml` | 一次插入 6 个插件，一键挂载全部组件 |
 | 20 | 小组件管理页 `WidgetManagerSettings` | Web 设置页 | `@dsh-plugins/client-ui-widget-manager` | `settings.section`（order 10） | 实时列出小组件，支持「添加/关闭」，并为带配置的挂件提供「配置」弹窗；**未安装挂件提供「安装指引」弹窗**（装包命令 + `cordis.yml`/`cordis.patch.yml` 挂载行 + 重启提示）；**支持非 overlay 组件**（`configOnly`，如 rainbow-flow——启用/停用经 window 事件桥控制其自身开关 store，与工具栏圆点双向同步） |
@@ -59,7 +59,7 @@
 | `@dsh-plugins/balance` | 0.1.0 | 合并后的余额插件（Host 缝隙 + 厂商 + Web 看板） | `lib` | `.`、`./invariant`、`./types`、`./typert`、`./remote`、`./client` | 独立维护（已废弃 harness 同步） |
 | `@dsh-plugins/client-ui-token-crit` | 0.1.0 | Token 暴击挂件（浏览器端，纯 UI） | `lib` | `.`、`./client` | 独立维护 |
 | `@dsh-plugins/client-ui-session-monitor` | 0.1.0 | 会话监控看板（Host 半：turn/end 原因跟踪 + 通知 inbox + 路由；浏览器端看板） | `lib` | `.`、`./client` | 独立维护 |
-| `@dsh-plugins/client-ui-card-container` | 0.1.0 | 卡片容器（浏览器端，纯 UI：声明 `widgets.card` 子槽、停靠影子、内置卡片视图） | `lib` | `.`、`./client` | 独立维护 |
+| `@dsh-plugins/client-ui-card-container` | 0.1.0 | 卡片容器（浏览器端，纯 UI：声明 `widgets.card` 子槽、停靠影子，**无内置卡片**） | `lib` | `.`、`./client` | 独立维护 |
 | `@dsh-plugins/client-ui-rainbow-flow` | 0.1.0 | 彩虹流光（浏览器端，纯 UI：`conversation.input.left` 注册光环 + 开关） | `lib` | `.`、`./client` | 独立维护 |
 | `@dsh-plugins/client-ui-widget-manager` | 0.1.0 | 小组件管理设置页（浏览器端，纯 UI） | `lib` | `.`、`./client` | 独立维护 |
 | `@dsh-plugins/dsh-widgets-plugin` | 0.1.0 | 可安装 bundle | `cordis.patch.yml` | `./cordis.patch.yml` | 独立维护 |
@@ -179,11 +179,11 @@
 - **网格**：CSS grid，gap **12px**（间隔一致），列数 `auto`（auto-fill
   minmax(170px,1fr)）/ 2 / 3 / 4（设置持久化，配置变更经 window CustomEvent
   `dsh.card-container.settings-changed` 通知）；卡片可拖拽排序（`move(from,to)`）。
-- **内置卡片视图**（`cards.tsx`，注册进 `widgets.card`，**priority 10** 兜底——
-  挂件自己的卡片默认 priority 0 优先渲染）：`token-crit` 紧凑 token 用量统计
-  （标准 `useSessions` → `projectionValues.tokenUsage`）、`session-monitor`
-  紧凑忙碌会话计数、`balance` 通用卡（`BalanceCard`）；无卡片视图的挂件走
-  `renderSlot` 的 fallback。
+- **卡片视图**：`widgets.card` 为**标准、可选**的适配器契约（见
+  WIDGET-DEVELOPMENT.md §2.5）——`token-crit`、`session-monitor`、`balance`
+  各自在所属包的 `client` 里注册自己的紧凑卡（priority **0**：标准
+  `useSessions` 或余额控制器读数据）；容器本包**无内置卡片**；无卡片视图的挂件
+  走 `renderSlot` 的 fallback（通用占位卡）。
 - 面板位置持久化（`dsh-plugins.card-container.pos`，默认左上 16/96），头部拖动、
   「—」收起为胶囊（显示停靠数）、tap 展开（照抄 session-monitor 的拖拽/夹紧模式）。
 - **视觉**：面板表面（悬停时）/ 停靠卡片 / 收起胶囊 / 分组管理菜单 / 拖拽幽灵
@@ -687,7 +687,9 @@ Host 半用 esbuild，浏览器半用 **Vite library mode**（与官方 deepseek
 | `widgets.config` | `balance` | 0 | balance | `BalanceSettings`（管理页「配置」弹窗内容） |
 | `widgets.config` | `session-monitor` | 0 | client-ui-session-monitor | `SessionSettings`（管理页「配置」弹窗内容） |
 | `widgets.config` | `card-container` | 0 | client-ui-card-container | `CardContainerSettings`（管理页「配置」弹窗内容） |
-| `widgets.card` | `token-crit` / `session-monitor` / `balance` | priority 10（兜底） | client-ui-card-container | 内置紧凑卡片视图（挂件自己的卡片 priority 0 优先；槽级注入面 `CardSlotInject`：useContainer + dock/undock；标准接入规范见 WIDGET-DEVELOPMENT.md §2.5） |
+| `widgets.card` | `token-crit` | 0 | client-ui-token-crit | `TokenCritCard`（本包自卡，标准 `useSessions` 读 token 用量） |
+| `widgets.card` | `session-monitor` | 0 | client-ui-session-monitor | `SessionMonitorCard`（本包自卡，标准 `useSessions` 读忙碌会话数） |
+| `widgets.card` | `balance` | 0 | balance | `BalanceCard`（本包自卡，余额控制器 `useBalance` 读实时余额；槽级注入面 `CardSlotInject`：useContainer + dock/undock；标准接入规范见 WIDGET-DEVELOPMENT.md §2.5；容器无内置卡片，未注册的挂件走占位卡） |
 | `shell.overlay` | `balance` / `token-crit` / `session-monitor` | label thunk | balance / client-ui-token-crit / client-ui-session-monitor | 各自注册 `label`（thunk）——卡片容器托盘/卡片头优先读它作为显示名 |
 | `conversation.input.left` | `rainbow-flow-glow` | 99 | client-ui-rainbow-flow | `RainbowFlowGlow`（彩虹流光：呼吸彩虹光晕，明暗脉动节奏随 token 速率） |
 | `conversation.input.left` | `rainbow-flow-toggle` | 100 | client-ui-rainbow-flow | `RainbowFlowToggle`（开/关开关 + 运行状态点） |

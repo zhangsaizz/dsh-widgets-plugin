@@ -3,17 +3,14 @@
  *
  *  - one register() call contributes the floating CardContainerWidget into the
  *    shell.overlay list (id `card-container`) and, in the same breath, DECLARES
- *    the `widgets.card` child slot — the compact card-view seat. Widgets (or
- *    this package's built-in views) register card views there keyed by the
- *    widget id, and the container renders each docked widget's card through
- *    `renderSlot('widgets.card', {}, { only: id, fallback })`;
+ *    the `widgets.card` child slot — the compact card-view seat. Widgets
+ *    register card views there keyed by the widget id (each widget owns its
+ *    card; see the adapter contract), and the container renders each docked
+ *    widget's card through `renderSlot('widgets.card', {}, { only: id,
+ *    fallback })` — the fallback is the generic placeholder;
  *  - the controller (injected as the `useContainer` hook) owns the docked
  *    order, the dock shadows that hide the floating panels, and the tray of
  *    available widgets;
- *  - built-in compact card views for the known widgets (token-crit,
- *    session-monitor, balance-generic) are registered into `widgets.card` at a
- *    HIGH priority (10), so a widget package's own card (default priority 0,
- *    lower renders first) wins whenever one exists;
  *  - a configuration panel is registered into the widget manager's
  *    "Configure" dialog (`widgets.config`, id `card-container`).
  *
@@ -33,7 +30,7 @@ import type { CardContainerInject } from './CardContainerWidget.tsx'
 import { CardContainerSettings } from './CardContainerSettings.tsx'
 import type { CardContainerSettingsInjected } from './CardContainerSettings.tsx'
 import { CardContainerController, DOCK_REQUEST_EVENT, UNDOCK_REQUEST_EVENT } from './controller.ts'
-import { BalanceCard, SessionMonitorCard, TokenCritCard, cardSpecOf, widgetLabelOf } from './cards.tsx'
+import { cardSpecOf, widgetLabelOf } from './cards.tsx'
 import { en, zh } from './locales.ts'
 import type { CardContainerKey } from './locales.ts'
 
@@ -45,7 +42,7 @@ export {
   readGroups, writeGroups, readActiveGroup, writeActiveGroup, DEFAULT_GROUP,
 } from './controller.ts'
 export type { ContainerSnapshot, ContainerGroup } from './controller.ts'
-export { BalanceCard, SessionMonitorCard, TokenCritCard, widgetName, widgetLabelOf } from './cards.tsx'
+export { widgetName, widgetLabelOf } from './cards.tsx'
 // The standard card-view adapter contract: any widget package imports this
 // type (plus the SlotMap merge pulled in by the `import type {}` above) to
 // opt into providing its own compact card inside the container grid.
@@ -66,8 +63,8 @@ declare module '@deepseek-ai/dsh-client-ui-slots' {
      * docked widget's card through
      * `renderSlot('widgets.card', {}, { only: widgetId, fallback })`.
      * Declared (and exclusively rendered) by the card-container widget;
-     * entries register at the default priority 0, the container's built-in
-     * fallback views sit at priority 10.
+     * entries register at the default priority 0 (the container registers no
+     * built-in views — this is a generic, widget-owned seat).
      *
      * The slot-level `inject` face gives every card a live view of the
      * container (`useContainer` hook over the controller snapshot) plus the
@@ -165,29 +162,10 @@ export function apply(ctx: ClientContext): void {
     } catch { /* no window */ }
   }, 'card-container: dock/undock request listeners')
 
-  // Built-in compact card views for the known widgets. Registered at priority
-  // 10 so a widget package's own card (priority 0) shadows these when present.
-  ctx.slots.inject('widgets.card', () => ctx.slots.register({
-    name: 'widgets.card',
-    id: 'token-crit',
-    order: 10,
-    priority: 10,
-    locale: NS,
-  }, TokenCritCard))
-  ctx.slots.inject('widgets.card', () => ctx.slots.register({
-    name: 'widgets.card',
-    id: 'session-monitor',
-    order: 20,
-    priority: 10,
-    locale: NS,
-  }, SessionMonitorCard))
-  ctx.slots.inject('widgets.card', () => ctx.slots.register({
-    name: 'widgets.card',
-    id: 'balance',
-    order: 30,
-    priority: 10,
-    locale: NS,
-  }, BalanceCard))
+  // No built-in card views: every widget that ships a compact card registers
+  // it into `widgets.card` at priority 0 in its own package (the standard
+  // adapter contract). A docked widget with no registered card falls back to
+  // the generic placeholder in the renderSlot call.
 
   // The config panel: registered only while the widget manager declares the
   // `widgets.config` slot, so installs without the manager simply skip it.

@@ -268,8 +268,8 @@ ctx.slots.inject('widgets.config', () => ctx.slots.register({
   容器读获胜条目的组件规格自动排版。用容器包导出的 `WidgetCardComponent` 类型
   标记：`(MyWidgetCard as WidgetCardComponent).spec = 'medium'`。不声明就是
   `'small'`。
-- **数据**：卡片可以只用全局 `useSessions`（token-crit / session-monitor 的
-  内置卡就是这么读数据的，零 Host RPC）；需要业务数据就自己接（如 balance 的
+- **数据**：卡片可以只用全局 `useSessions`（token-crit / session-monitor 各自
+  注册的卡就是这么读数据的，零 Host RPC）；需要业务数据就自己接（如 balance 的
   remote），与浮窗互不干扰。
 
 ```ts

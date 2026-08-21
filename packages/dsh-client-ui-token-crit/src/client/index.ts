@@ -11,13 +11,17 @@
 import type { ClientContext } from '@deepseek-ai/dsh-client-runtime/client'
 // Type-only: pulls the shell.overlay SlotMap merge from ui-layout.
 import type {} from '@deepseek-ai/dsh-client-ui-layout/client'
+// Type-only: pulls the `widgets.card` SlotMap merge the card registration
+// below type-checks against (declared by the card container).
+import type {} from '@dsh-plugins/client-ui-card-container/client'
 import { TokenCritWidget } from './TokenCritWidget.tsx'
+import { TokenCritCard } from './cards.tsx'
 
 /** Required services: the slot system and the timer mixin. */
 export const inject = ['slots']
 
 /**
- * Client plugin body: the floating token counter.
+ * Client plugin body: the floating token counter + its compact card view.
  * @param ctx - client root context.
  */
 export function apply(ctx: ClientContext): void {
@@ -30,4 +34,15 @@ export function apply(ctx: ClientContext): void {
     // the label in sync with the page language.
     label: () => document.documentElement.lang === 'zh' ? 'Token 暴击' : 'Token crit',
   }, TokenCritWidget))
+
+  // Own compact card in the card container's grid. Registered at priority 0 so
+  // it always wins over the container's built-in fallback views (priority 10).
+  // `locale: 'card-container'` reuses the card container's shared stat labels.
+  ctx.slots.inject('widgets.card', () => ctx.slots.register({
+    name: 'widgets.card',
+    id: 'token-crit',
+    order: 50,
+    priority: 0,
+    locale: 'card-container',
+  }, TokenCritCard))
 }

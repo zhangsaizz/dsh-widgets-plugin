@@ -19,14 +19,14 @@
  */
 
 import { useEffect, useRef, useState } from 'react'
-import type { CSSProperties, DragEvent as ReactDragEvent, PointerEvent as ReactPointerEvent } from 'react'
+import type { CSSProperties, DragEvent as ReactDragEvent, KeyboardEvent as ReactKeyboardEvent, PointerEvent as ReactPointerEvent } from 'react'
 import type {
   InjectFace, PropsLocale, PropsRenderSlots, PropsRuntime,
 } from '@deepseek-ai/dsh-client-ui-slots'
 import {
-  POS_KEY, SETTINGS_CHANGED_EVENT, SETTINGS_KEY, loadPos, savePos, SELF_ID,
+  POS_KEY, SETTINGS_CHANGED_EVENT, loadColumns, loadPos, savePos, SELF_ID,
 } from './controller.ts'
-import type { CardContainerController, ContainerSnapshot } from './controller.ts'
+import type { CardContainerController, ColumnSetting, ContainerSnapshot } from './controller.ts'
 import type { CardSpec } from './cards.tsx'
 import css from './CardContainerWidget.module.css'
 
@@ -87,21 +87,10 @@ const DEFAULT_TOP = 96
 /** Panel width used to clamp dragging; matches the CSS width. */
 const PANEL_W = 380
 
-/** Grid columns: 'auto' = auto-fill; a digit = fixed column count. */
-export type ColumnSetting = 'auto' | '2' | '3' | '4'
-
-/** Read persisted column setting (validated). */
-function loadColumns(): ColumnSetting {
-  try {
-    const raw = window.localStorage.getItem(SETTINGS_KEY)
-    if (!raw) return 'auto'
-    const s: any = JSON.parse(raw)
-    if (s && (s.columns === 'auto' || s.columns === '2' || s.columns === '3' || s.columns === '4')) return s.columns
-    return 'auto'
-  } catch {
-    return 'auto'
-  }
-}
+/** Grid columns: 'auto' = auto-fill; a digit = fixed column count.
+ *  Shared single source of truth lives in ./controller.ts (used by both the
+ *  widget and its config panel). Re-exported here for backward compat. */
+export type { ColumnSetting } from './controller.ts'
 
 /** Keep the panel's top-left inside the viewport (with a small margin). */
 function clampToViewport(x: number, y: number, w: number, h: number): { x: number; y: number } {
@@ -180,6 +169,10 @@ export function CardContainerWidget(props: CardContainerWidgetProps) {
   } | null>(null)
   /** Latest preview order, mirrored for the once-subscribed document listeners. */
   const previewRef = useRef<readonly string[] | null>(null)
+  /** Latest pointer coords during a reorder drag, coalesced into one frame. */
+  const latestMoveRef = useRef<{ x: number; y: number } | null>(null)
+  /** Pending animation frame for the throttled reorder geometry recompute. */
+  const moveRafRef = useRef<number | null>(null)
   /** Whether the pointer has left the grid during the current reorder drag
    *  (releasing there undocks the card). Ref for the drag loop; mirrored to
    *  state so the ghost's target badge re-renders. */
@@ -431,32 +424,18 @@ export function CardContainerWidget(props: CardContainerWidgetProps) {
     return null
   }
 
-  /** Move the ghost with the pointer and live-shuffle the target order. */
-  function onReorderMove(e: PointerEvent): void {
+  /** Recompute the reorder preview from the given (latest) pointer coords.
+   *  Runs at most once per animation frame (see scheduleReorderFrame). The
+   *  ghost POSITION is updated per-event in onReorderMove (cheap); only the
+   *  geometry read + shuffle/state work is throttled here. */
+  function processReorderFrame(clientX: number, clientY: number): void {
     const r = reorderRef.current
-    if (!r || r.pointerId !== e.pointerId) return
-    // Deferred activation: a tap must not start a drag — only once the pointer
-    // moves beyond a small threshold does the ghost lift + preview begin.
-    if (previewRef.current === null) {
-      if (Math.abs(e.clientX - r.startX) + Math.abs(e.clientY - r.startY) <= 6) return
-      if (ghostRef.current) {
-        ghostRef.current.classList.remove(css.cardGhostOut)
-        ghostRef.current.style.left = `${e.clientX - r.grabX}px`
-        ghostRef.current.style.top = `${e.clientY - r.grabY}px`
-      }
-      setPreviewOrder([...snapshotRef.current.docked])
-      return
-    }
-    // Ghost follows the pointer 1:1 (keeping the original grab offset).
-    if (ghostRef.current) {
-      ghostRef.current.style.left = `${e.clientX - r.grabX}px`
-      ghostRef.current.style.top = `${e.clientY - r.grabY}px`
-    }
+    if (!r || previewRef.current === null) return
     // Cross-group drop target: hovering a GROUP TAB means the card moves to
     // that group on release. The ghost turns translucent so the (possibly
     // large) card stops hiding the tabs beneath; the green badge keeps the
     // destination unmistakable.
-    const overGroup = groupFromPointer(e.clientX, e.clientY)
+    const overGroup = groupFromPointer(clientX, clientY)
     if (overGroup !== dragGroupRef.current) {
       dragGroupRef.current = overGroup
       setDragGroup(overGroup)
@@ -475,8 +454,8 @@ export function CardContainerWidget(props: CardContainerWidgetProps) {
     // Dragging OUTSIDE the grid means "undock this card" — the ghost turns
     // red as an affordance; releasing there restores the floating panel. The
     // non-grid panel area (tray/header) counts as outside too.
-    const to = indexFromPointer(e.clientX, e.clientY)
-    const outside = to < 0 || isOutsideGrid(e.clientX, e.clientY)
+    const to = indexFromPointer(clientX, clientY)
+    const outside = to < 0 || isOutsideGrid(clientX, clientY)
     if (outside !== movedOutRef.current) {
       movedOutRef.current = outside
       setDragOut(outside)
@@ -494,6 +473,47 @@ export function CardContainerWidget(props: CardContainerWidgetProps) {
     setPreviewOrder(next)
   }
 
+  /** Coalesce a burst of pointermove events into a single per-frame recompute
+   *  of the reorder preview — the geometry read (querySelectorAll +
+   *  getBoundingClientRect over every card + tab) is the expensive part and
+   *  need not run on every event. */
+  function scheduleReorderFrame(): void {
+    if (moveRafRef.current !== null) return
+    moveRafRef.current = requestAnimationFrame(() => {
+      moveRafRef.current = null
+      const px = latestMoveRef.current
+      if (px !== null) processReorderFrame(px.x, px.y)
+    })
+  }
+
+  function onReorderMove(e: PointerEvent): void {
+    const r = reorderRef.current
+    if (!r || r.pointerId !== e.pointerId) return
+    // Deferred activation: a tap must not start a drag — only once the pointer
+    // moves beyond a small threshold does the ghost lift + preview begin. This
+    // check is cheap and must stay immediate so the ghost lifts on the first
+    // qualifying move.
+    if (previewRef.current === null) {
+      if (Math.abs(e.clientX - r.startX) + Math.abs(e.clientY - r.startY) <= 6) return
+      if (ghostRef.current) {
+        ghostRef.current.classList.remove(css.cardGhostOut)
+        ghostRef.current.style.left = `${e.clientX - r.grabX}px`
+        ghostRef.current.style.top = `${e.clientY - r.grabY}px`
+      }
+      setPreviewOrder([...snapshotRef.current.docked])
+      return
+    }
+    // Record the latest coords; the geometry-heavy work runs on the next frame.
+    latestMoveRef.current = { x: e.clientX, y: e.clientY }
+    // The ghost follows the pointer IMMEDIATELY (this is a cheap style write);
+    // only the geometry read + shuffle is throttled to the frame.
+    if (ghostRef.current) {
+      ghostRef.current.style.left = `${e.clientX - r.grabX}px`
+      ghostRef.current.style.top = `${e.clientY - r.grabY}px`
+    }
+    scheduleReorderFrame()
+  }
+
   /** End the live reorder: a tap that never activated the drag is a no-op;
    *  release over a GROUP TAB moves the card to that group; release inside
    *  the grid persists the new order; release OUTSIDE the grid UNDOCKS the
@@ -501,6 +521,15 @@ export function CardContainerWidget(props: CardContainerWidgetProps) {
   function endCardReorder(e: PointerEvent): void {
     const r = reorderRef.current
     if (!r || r.pointerId !== e.pointerId) return
+    // Flush any pending throttled frame so the drop target reflects the LAST
+    // pointer position (the final move may not have been recomputed yet).
+    if (moveRafRef.current !== null) {
+      cancelAnimationFrame(moveRafRef.current)
+      moveRafRef.current = null
+      const px = latestMoveRef.current
+      if (px !== null) processReorderFrame(px.x, px.y)
+    }
+    latestMoveRef.current = null
     reorderRef.current = null
     const preview = previewRef.current
     const outside = movedOutRef.current
@@ -534,6 +563,10 @@ export function CardContainerWidget(props: CardContainerWidgetProps) {
     document.addEventListener('pointerup', endCardReorder)
     document.addEventListener('pointercancel', endCardReorder)
     return () => {
+      if (moveRafRef.current !== null) {
+        cancelAnimationFrame(moveRafRef.current)
+        moveRafRef.current = null
+      }
       document.removeEventListener('pointermove', onReorderMove)
       document.removeEventListener('pointerup', endCardReorder)
       document.removeEventListener('pointercancel', endCardReorder)
@@ -652,14 +685,43 @@ export function CardContainerWidget(props: CardContainerWidgetProps) {
   const dragGroupName = dragGroup !== null
     ? snapshot.groups.find((g) => g.id === dragGroup)?.name ?? dragGroup
     : null
+  /** Widget ids docked across EVERY group (a widget lives in one group only). */
+  const totalDockedAll = snapshot.groups.reduce((n, g) => n + g.docked.length, 0)
+
+  /** ARIA tabs keyboard navigation: arrows/Home/End move focus AND activate
+   *  (auto-activation), the standard behaviour for a lightweight tab switcher. */
+  function onGroupTabKeyDown(e: ReactKeyboardEvent<HTMLButtonElement>, currentId: string): void {
+    const ids = snapshot.groups.map((g) => g.id)
+    const cur = ids.indexOf(currentId)
+    if (cur < 0) return
+    let next = -1
+    if (e.key === 'ArrowRight' || e.key === 'ArrowDown') next = (cur + 1) % ids.length
+    else if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') next = (cur - 1 + ids.length) % ids.length
+    else if (e.key === 'Home') next = 0
+    else if (e.key === 'End') next = ids.length - 1
+    else return
+    e.preventDefault()
+    const nextId = ids[next]
+    setActiveGroup(nextId)
+    groupTabRefs.current.get(nextId)?.focus()
+  }
 
   let body
   if (collapsed) {
     body = (
       <div
         className={[css.pill, dragging ? css.dragging : ''].filter(Boolean).join(' ')}
+        role="button"
+        tabIndex={0}
         title={t('expand')}
         onPointerDown={startDrag}
+        onKeyDown={(e) => {
+          // Keyboard access to expand the pill (pointer taps already expand via endDrag).
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault()
+            setCollapsed(false)
+          }
+        }}
       >
         <span className={css.pillIcon}>▦</span>
         <span className={css.pillText}>{t('title')}</span>
@@ -684,7 +746,7 @@ export function CardContainerWidget(props: CardContainerWidgetProps) {
           <div className={css.header} onPointerDown={startDrag}>
             <span className={css.titleDot} />
             <span className={css.title}>{t('title')}</span>
-            <span className={css.count}>{snapshot.docked.length} / {snapshot.available.length + snapshot.docked.length}</span>
+            <span className={css.count}>{snapshot.docked.length} / {snapshot.available.length + totalDockedAll}</span>
             <button
               className={css.iconBtn}
               title={t('collapse')}
@@ -699,7 +761,7 @@ export function CardContainerWidget(props: CardContainerWidgetProps) {
               cards are shown. The trailing button opens the group manager
               (add / rename / delete). */}
           <div className={css.groupBar}>
-            <div className={css.groupTabs} role="tablist">
+            <div className={css.groupTabs} role="tablist" aria-orientation="horizontal">
               {snapshot.groups.map((group) => (
                 <button
                   key={group.id}
@@ -709,13 +771,17 @@ export function CardContainerWidget(props: CardContainerWidgetProps) {
                   }}
                   type="button"
                   role="tab"
+                  id={`cc-tab-${group.id}`}
                   aria-selected={group.id === snapshot.activeGroup}
+                  aria-controls="cc-group-panel"
+                  tabIndex={group.id === snapshot.activeGroup ? 0 : -1}
                   className={[
                     css.groupTab,
                     group.id === snapshot.activeGroup ? css.groupTabActive : '',
                     dragGroup === group.id ? css.groupTabDrop : '',
                   ].filter(Boolean).join(' ')}
                   onClick={() => setActiveGroup(group.id)}
+                  onKeyDown={(e) => onGroupTabKeyDown(e, group.id)}
                 >
                   <span className={css.groupTabName}>{group.name}</span>
                   <span className={css.groupTabCount}>{group.docked.length}</span>
@@ -764,10 +830,19 @@ export function CardContainerWidget(props: CardContainerWidgetProps) {
                       key={id}
                       className={css.chip}
                       draggable
+                      role="button"
+                      tabIndex={0}
                       title={t('dock')}
                       onDragStart={(e) => startWidgetDrag(e, id)}
                       onDragEnd={endWidgetDrag}
                       onClick={() => dock(id)}
+                      onKeyDown={(e) => {
+                        // Keyboard access to dock (pointer click already docks).
+                        if (e.key === 'Enter' || e.key === ' ') {
+                          e.preventDefault()
+                          dock(id)
+                        }
+                      }}
                     >
                       <span className={css.chipDot} />
                       <span className={css.chipName}>{labelOf(id)}</span>
@@ -779,7 +854,7 @@ export function CardContainerWidget(props: CardContainerWidgetProps) {
         </div>
 
         {/* Grid: the docked widget cards, evenly spaced. */}
-        <div className={css.gridWrap}>
+        <div className={css.gridWrap} role="tabpanel" id="cc-group-panel" aria-labelledby={`cc-tab-${snapshot.activeGroup}`}>
           <div className={[css.sectionHead, css.chrome, chromeVisible ? css.chromeVisible : ''].filter(Boolean).join(' ')}>
             <span className={css.sectionTitle}>{t('gridTitle')}</span>
             <span className={css.sectionHint}>{t('gridHint')}</span>
@@ -810,7 +885,8 @@ export function CardContainerWidget(props: CardContainerWidgetProps) {
                   return (
                   <div
                     key={id}
-                    role="button"
+                    role="group"
+                    aria-label={labelOf(id)}
                     tabIndex={0}
                     className={[
                       css.card,
@@ -818,7 +894,6 @@ export function CardContainerWidget(props: CardContainerWidgetProps) {
                       spec === 'large' ? css.cardLarge : '',
                       isDragged ? css.cardGhostSlot : '',
                     ].filter(Boolean).join(' ')}
-                    title={t('cardKeys')}
                     onPointerDown={(e) => startCardReorder(e, id, index)}
                     onKeyDown={(e) => {
                       // Keyboard accessibility: Enter/Space undocks; arrow keys

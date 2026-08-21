@@ -23,5 +23,6 @@
       "@dsh-plugins/balance/client": ["./packages/dsh-balance/src/client/index.ts"]
     }
   },
-  "include": ["packages/*/src/**/*.ts", "packages/*/src/**/*.tsx"]
+  "include": ["packages/*/src/**/*.ts", "packages/*/src/**/*.tsx"],
+  "exclude": ["packages/dsh-balance/src/build-env.d.ts"]
 }

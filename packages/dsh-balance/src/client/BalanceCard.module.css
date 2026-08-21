@@ -1,0 +1,70 @@
+/* Balance compact card view for the card container grid (widgets.card).
+   Same stat-cell recipe as the other built-in cards, owned here so the widget
+   controls its own presentation inside the container. */
+
+.statCard {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  width: 100%;
+}
+
+.amountRow {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 6px;
+}
+
+.statValue {
+  font-size: 20px;
+  font-weight: 700;
+  line-height: 1.1;
+  color: var(--dsw-alias-label-primary, #e8eaf0);
+  font-variant-numeric: tabular-nums;
+}
+
+.statValue[data-trend='up'] {
+  color: var(--dsw-alias-state-success-primary, #3dd68c);
+}
+
+.statValue[data-trend='down'] {
+  color: var(--dsw-alias-state-error-primary, #ff6b6b);
+}
+
+.statCurrency {
+  font-size: 12px;
+  color: var(--dsw-alias-label-tertiary, rgba(232, 234, 240, 0.5));
+}
+
+.statTrend {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 10px;
+  line-height: 1;
+}
+
+.statTrend[data-trend='up'] {
+  color: var(--dsw-alias-state-success-primary, #3dd68c);
+}
+
+.statTrend[data-trend='down'] {
+  color: var(--dsw-alias-state-error-primary, #ff6b6b);
+}
+
+.statTrend[data-trend='flat'] {
+  color: var(--dsw-alias-label-secondary, rgba(232, 234, 240, 0.72));
+}
+
+.statName {
+  font-size: 10.5px;
+  color: var(--dsw-alias-label-tertiary, rgba(232, 234, 240, 0.45));
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.statNote {
+  font-size: 11.5px;
+  color: var(--dsw-alias-label-secondary, rgba(232, 234, 240, 0.62));
+}

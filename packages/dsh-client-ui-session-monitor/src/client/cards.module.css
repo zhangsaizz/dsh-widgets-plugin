@@ -1,0 +1,33 @@
+/* Compact card view for the card container grid (widgets.card). Same stat-cell
+   recipe as the other built-in card, owned here so the widget controls its own
+   presentation inside the container. */
+
+/* Compact stat card (busy session count). */
+.statCard {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  width: 100%;
+}
+
+.statValue {
+  font-size: 20px;
+  font-weight: 700;
+  line-height: 1.1;
+  color: var(--dsw-alias-label-primary, #e8eaf0);
+  font-variant-numeric: tabular-nums;
+}
+
+.statLabel {
+  font-size: 11px;
+  color: var(--dsw-alias-label-secondary, rgba(232, 234, 240, 0.72));
+}
+
+.statMeta {
+  margin-top: 3px;
+  font-size: 10.5px;
+  color: var(--dsw-alias-label-tertiary, rgba(232, 234, 240, 0.45));
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
