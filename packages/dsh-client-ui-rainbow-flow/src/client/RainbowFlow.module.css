@@ -167,10 +167,14 @@
      colours FLOWING around the edge — a slow living motion on top of the
      breathing. Purely a hue shift, so no geometry moves and the glow stays
      pinned to the card edge. */
-  animation: rf-hue-flow 48s linear infinite;
+  animation: rf-hue-flow 10s linear infinite;
 }
 
-/* The slow hue rotation. 48s per full wheel — a gentle drift, not a spin. */
+/* The hue rotation. 10s per full wheel — fast enough that the rainbow visibly
+   cycles around the card within a few seconds, so the "flow" actually reads;
+   still a smooth drift, not a spin. The old 48s wheel only moved ~29° in a 4s
+   clip, so on a dark page the glow read as a static teal halo instead of a
+   flowing rainbow. */
 @keyframes rf-hue-flow {
   from { filter: hue-rotate(0deg); }
   to { filter: hue-rotate(360deg); }
