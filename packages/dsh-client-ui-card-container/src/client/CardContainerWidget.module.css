@@ -1,12 +1,40 @@
 /* Card container widget: floating panel (header + tray + grid). Uses the host
    theme's --dsw-alias-* semantic tokens with conservative fallbacks so the
-   container stays readable even when the tokens are absent. */
+   container stays readable even when the tokens are absent.
+
+   The floating surfaces (panel surface / docked cards / pill / group menu)
+   use the SAME liquid-glass material as the rainbow-flow input box (see
+   dsh-client-ui-rainbow-flow's RainbowFlow.module.css): a translucent white
+   glass gradient, a light frosted backdrop blur on a ::before layer, 1px
+   edge reflections, and a soft drop shadow. The translucency is the glass —
+   the frost only softens what is behind. */
+
+/* Liquid-glass material tokens — same values as the rainbow-flow recipe. */
+:root {
+  --cc-glass-panel-hi: rgba(255, 255, 255, 0.07);
+  --cc-glass-panel-lo: rgba(255, 255, 255, 0.02);
+  --cc-glass-panel-mid: rgba(255, 255, 255, 0.04);
+  --cc-glass-hair: rgba(255, 255, 255, 0.16);
+  --cc-glass-shadow: 0 12px 40px rgba(0, 0, 0, 0.35);
+}
+
+@media (prefers-color-scheme: light) {
+  :root {
+    --cc-glass-panel-hi: rgba(255, 255, 255, 0.28);
+    --cc-glass-panel-lo: rgba(255, 255, 255, 0.08);
+    --cc-glass-panel-mid: rgba(255, 255, 255, 0.15);
+    --cc-glass-hair: rgba(255, 255, 255, 0.50);
+    --cc-glass-shadow: 0 12px 40px rgba(31, 35, 50, 0.22);
+  }
+}
 
 .anchor {
   position: fixed;
 }
 
 .panel {
+  position: relative;
+  isolation: isolate;
   width: 380px;
   max-height: min(520px, 70vh);
   display: flex;
@@ -22,19 +50,34 @@
   transition: border-color 160ms ease, background 160ms ease;
 }
 
-/* Hovered: the container gains its readable overlay surface (and the chrome
-   header/tray fades in, see .chrome). */
+/* Hovered: the container gains its readable liquid-glass surface (and the
+   chrome header/tray fades in, see .chrome). */
 .panelHover {
   background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.06), rgba(255, 255, 255, 0) 42%),
-    var(--dsw-alias-bg-overlay, rgba(24, 26, 32, 0.92));
-  backdrop-filter: blur(14px) saturate(1.2);
-  -webkit-backdrop-filter: blur(14px) saturate(1.2);
-  border-color: var(--dsw-alias-border-l2, rgba(255, 255, 255, 0.14));
+    linear-gradient(165deg,
+      var(--cc-glass-panel-hi) 0%,
+      var(--cc-glass-panel-lo) 55%,
+      var(--cc-glass-panel-mid) 100%);
+  border-color: var(--cc-glass-hair, rgba(255, 255, 255, 0.16));
   box-shadow:
-    0 1px 2px rgba(0, 0, 0, 0.08),
-    0 8px 20px rgba(0, 0, 0, 0.1),
-    0 24px 56px rgba(0, 0, 0, 0.14);
+    inset 0 1px 0 rgba(255, 255, 255, 0.40),
+    inset 0 -1px 0 rgba(255, 255, 255, 0.26),
+    var(--cc-glass-shadow);
+}
+
+/* Frosted layer for the hovered surface (and the always-on touch surface
+   below): blurs + saturates what is behind. The pseudo is a sibling of the
+   content, so its backdrop-filter never traps a fixed-position descendant
+   (the group menu is rendered at the anchor layer, outside this panel). */
+.panelHover::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  z-index: -1;
+  -webkit-backdrop-filter: blur(5px) saturate(1.35);
+  backdrop-filter: blur(5px) saturate(1.35);
 }
 
 /* Container chrome (header + tray + section labels): hidden at rest, fading
@@ -54,14 +97,31 @@
 }
 
 /* Touch / hover-less devices have no :hover to reveal the chrome — keep the
-   container fully visible (panel surface + header + tray + labels) at all
-   times, otherwise the dock becomes unreachable. */
+   container fully visible (liquid-glass panel surface + header + tray +
+   labels) at all times, otherwise the dock becomes unreachable. */
 @media (hover: none) {
   .panel {
     background:
-      linear-gradient(180deg, rgba(255, 255, 255, 0.06), rgba(255, 255, 255, 0) 42%),
-      var(--dsw-alias-bg-overlay, rgba(24, 26, 32, 0.92));
-    border-color: var(--dsw-alias-border-l2, rgba(255, 255, 255, 0.14));
+      linear-gradient(165deg,
+        var(--cc-glass-panel-hi) 0%,
+        var(--cc-glass-panel-lo) 55%,
+        var(--cc-glass-panel-mid) 100%);
+    border-color: var(--cc-glass-hair, rgba(255, 255, 255, 0.16));
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.40),
+      inset 0 -1px 0 rgba(255, 255, 255, 0.26),
+      var(--cc-glass-shadow);
+  }
+
+  .panel::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    pointer-events: none;
+    z-index: -1;
+    -webkit-backdrop-filter: blur(5px) saturate(1.35);
+    backdrop-filter: blur(5px) saturate(1.35);
   }
 
   .chrome {
@@ -69,15 +129,6 @@
     max-height: 460px;
     pointer-events: auto;
   }
-}
-
-.panel::before {
-  content: '';
-  position: absolute;
-  inset: 0 0 auto 0;
-  height: 1px;
-  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.22), transparent);
-  pointer-events: none;
 }
 
 .dragging {
@@ -258,9 +309,11 @@
 }
 
 /* The lifted card ghost: follows the pointer 1:1, elevated above the grid.
-   Positioned in fixed coordinates by the drag handlers (left/top inline). */
+   Positioned in fixed coordinates by the drag handlers (left/top inline).
+   Same liquid-glass body as the docked cards. */
 .cardGhost {
   position: fixed;
+  isolation: isolate;
   z-index: 10001;
   width: 220px;
   display: flex;
@@ -268,8 +321,14 @@
   min-height: 84px;
   border: 1px solid var(--dsw-alias-state-business-primary, #4f8cff);
   border-radius: 11px;
-  background: var(--dsw-alias-bg-layer-2, rgba(30, 32, 40, 0.96));
+  background:
+    linear-gradient(165deg,
+      var(--cc-glass-panel-hi) 0%,
+      var(--cc-glass-panel-lo) 55%,
+      var(--cc-glass-panel-mid) 100%);
   box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.40),
+    inset 0 -1px 0 rgba(255, 255, 255, 0.26),
     0 2px 4px rgba(0, 0, 0, 0.16),
     0 12px 32px rgba(0, 0, 0, 0.32);
   overflow: hidden;
@@ -280,11 +339,25 @@
   transition: border-color 120ms ease, box-shadow 120ms ease;
 }
 
+.cardGhost::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  z-index: -1;
+  -webkit-backdrop-filter: blur(5px) saturate(1.35);
+  backdrop-filter: blur(5px) saturate(1.35);
+}
+
 /* Dragged OUT of the grid: releasing there undocks the card (restores the
-   floating panel) — danger tint signals the affordance. */
+   floating panel) — danger tint signals the affordance. The inset edge
+   reflections stay so the glass body reads even in the danger state. */
 .cardGhostOut {
   border-color: var(--dsw-alias-state-danger, #ff6b6b);
   box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.40),
+    inset 0 -1px 0 rgba(255, 255, 255, 0.26),
     0 2px 4px rgba(0, 0, 0, 0.16),
     0 12px 32px rgba(255, 80, 80, 0.35);
 }
@@ -299,6 +372,8 @@
 .cardGhostGroup {
   border-color: var(--dsw-alias-state-success, #3dd68c);
   box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.40),
+    inset 0 -1px 0 rgba(255, 255, 255, 0.26),
     0 2px 4px rgba(0, 0, 0, 0.16),
     0 12px 32px rgba(61, 214, 140, 0.35);
 }
@@ -318,7 +393,11 @@
 }
 
 .cardGhostTranslucent {
-  background: color-mix(in srgb, var(--dsw-alias-bg-layer-2, rgba(30, 32, 40, 0.96)) 35%, transparent);
+  background:
+    linear-gradient(165deg,
+      rgba(255, 255, 255, 0.03) 0%,
+      rgba(255, 255, 255, 0.01) 55%,
+      rgba(255, 255, 255, 0.02) 100%);
 }
 
 /* Group tab while a card drag hovers it: drop target highlight. */
@@ -337,15 +416,39 @@
 }
 
 .card {
+  position: relative;
+  isolation: isolate;
   display: flex;
   flex-direction: column;
   min-height: 84px;
-  border: 1px solid var(--dsw-alias-border-l2, rgba(255, 255, 255, 0.12));
+  border: 1px solid var(--cc-glass-hair, rgba(255, 255, 255, 0.12));
   border-radius: 11px;
-  background: var(--dsw-alias-bg-layer-2, rgba(30, 32, 40, 0.9));
+  /* Liquid glass card body — same recipe as the panel. */
+  background:
+    linear-gradient(165deg,
+      var(--cc-glass-panel-hi) 0%,
+      var(--cc-glass-panel-lo) 55%,
+      var(--cc-glass-panel-mid) 100%);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.40),
+    inset 0 -1px 0 rgba(255, 255, 255, 0.26),
+    0 6px 18px rgba(0, 0, 0, 0.12);
   overflow: hidden;
   cursor: grab;
   transition: border-color 120ms ease, box-shadow 120ms ease;
+}
+
+/* Frosted layer behind the card content — the child-slot card views render
+   above it. */
+.card::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  z-index: -1;
+  -webkit-backdrop-filter: blur(5px) saturate(1.35);
+  backdrop-filter: blur(5px) saturate(1.35);
 }
 
 /* Card size specs: the declared grid footprint (see WidgetCardComponent.spec).
@@ -465,20 +568,38 @@
   color: var(--dsw-alias-label-tertiary, rgba(232, 234, 240, 0.5));
 }
 
-/* Collapsed pill */
+/* Collapsed pill — same liquid glass as the panel. */
 .pill {
+  position: relative;
+  isolation: isolate;
   display: flex;
   align-items: center;
   gap: 7px;
   padding: 7px 12px;
-  border: 1px solid var(--dsw-alias-border-l2, rgba(255, 255, 255, 0.14));
+  border: 1px solid var(--cc-glass-hair, rgba(255, 255, 255, 0.16));
   border-radius: 999px;
-  background: var(--dsw-alias-bg-overlay, rgba(24, 26, 32, 0.92));
-  backdrop-filter: blur(12px) saturate(1.2);
-  -webkit-backdrop-filter: blur(12px) saturate(1.2);
-  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.16);
+  background:
+    linear-gradient(165deg,
+      var(--cc-glass-panel-hi) 0%,
+      var(--cc-glass-panel-lo) 55%,
+      var(--cc-glass-panel-mid) 100%);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.40),
+    inset 0 -1px 0 rgba(255, 255, 255, 0.26),
+    var(--cc-glass-shadow);
   cursor: grab;
   user-select: none;
+}
+
+.pill::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  z-index: -1;
+  -webkit-backdrop-filter: blur(5px) saturate(1.35);
+  backdrop-filter: blur(5px) saturate(1.35);
 }
 
 .pillIcon {
@@ -603,19 +724,39 @@
 }
 
 /* Group manager popover: fixed-position overlay at the anchor layer, so the
-   overflow-hidden panel never clips it. Positioned by inline left/top. */
+   overflow-hidden panel never clips it. Positioned by inline left/top.
+   Liquid-glass surface, same recipe as the panel. */
 .groupMenu {
   position: fixed;
+  isolation: isolate;
   z-index: 10002;
   min-width: 220px;
   padding: 8px;
-  border: 1px solid var(--dsw-alias-border-l2, rgba(255, 255, 255, 0.14));
+  border: 1px solid var(--cc-glass-hair, rgba(255, 255, 255, 0.16));
   border-radius: 10px;
-  background: var(--dsw-alias-bg-layer-2, rgba(30, 32, 40, 0.97));
-  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.28);
+  background:
+    linear-gradient(165deg,
+      var(--cc-glass-panel-hi) 0%,
+      var(--cc-glass-panel-lo) 55%,
+      var(--cc-glass-panel-mid) 100%);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.40),
+    inset 0 -1px 0 rgba(255, 255, 255, 0.26),
+    0 10px 28px rgba(0, 0, 0, 0.28);
   display: flex;
   flex-direction: column;
   gap: 4px;
+}
+
+.groupMenu::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  z-index: -1;
+  -webkit-backdrop-filter: blur(5px) saturate(1.35);
+  backdrop-filter: blur(5px) saturate(1.35);
 }
 
 .groupMenuRow {

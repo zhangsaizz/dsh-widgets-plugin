@@ -1,6 +1,35 @@
 /* Session monitor dashboard: floating panel + toast stack. Uses the host
    theme's --dsw-alias-* semantic tokens with conservative fallbacks so the
-   widget stays readable even when the tokens are absent. */
+   widget stays readable even when the tokens are absent.
+
+   The floating surfaces (panel / pill / toast) use the SAME liquid-glass
+   material as the rainbow-flow input box (see dsh-client-ui-rainbow-flow's
+   RainbowFlow.module.css): a translucent white glass gradient, a light
+   frosted backdrop blur on a ::before/::after layer (so no fixed-position
+   descendant is trapped by backdrop-filter's containing block), 1px edge
+   reflections, and a soft drop shadow. The translucency is the glass — the
+   frost only softens what is behind. */
+
+/* Liquid-glass material tokens — dark theme keeps the white faint (the
+   translucency does the work), light theme swaps in a stronger white pane
+   with a visible hairline edge. Same values as the rainbow-flow recipe. */
+:root {
+  --smon-glass-panel-hi: rgba(255, 255, 255, 0.07);
+  --smon-glass-panel-lo: rgba(255, 255, 255, 0.02);
+  --smon-glass-panel-mid: rgba(255, 255, 255, 0.04);
+  --smon-glass-hair: rgba(255, 255, 255, 0.16);
+  --smon-glass-shadow: 0 12px 40px rgba(0, 0, 0, 0.35);
+}
+
+@media (prefers-color-scheme: light) {
+  :root {
+    --smon-glass-panel-hi: rgba(255, 255, 255, 0.28);
+    --smon-glass-panel-lo: rgba(255, 255, 255, 0.08);
+    --smon-glass-panel-mid: rgba(255, 255, 255, 0.15);
+    --smon-glass-hair: rgba(255, 255, 255, 0.50);
+    --smon-glass-shadow: 0 12px 40px rgba(31, 35, 50, 0.22);
+  }
+}
 
 .anchor {
   position: fixed;
@@ -26,32 +55,44 @@
 }
 
 .panel {
+  position: relative;
+  isolation: isolate;
   width: 268px;
   max-height: min(420px, 62vh);
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  border: 1px solid var(--dsw-alias-border-l2, rgba(255, 255, 255, 0.14));
+  border: 1px solid var(--smon-glass-hair, rgba(255, 255, 255, 0.16));
   border-radius: 14px;
+  /* Liquid glass body: translucent white gradient (the translucency IS the
+     glass), 1px top/bottom edge reflections + a soft drop shadow. The
+     frosted blur lives on ::before below. */
   background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.06), rgba(255, 255, 255, 0) 42%),
-    var(--dsw-alias-bg-overlay, rgba(24, 26, 32, 0.92));
-  backdrop-filter: blur(14px) saturate(1.2);
-  -webkit-backdrop-filter: blur(14px) saturate(1.2);
+    linear-gradient(165deg,
+      var(--smon-glass-panel-hi) 0%,
+      var(--smon-glass-panel-lo) 55%,
+      var(--smon-glass-panel-mid) 100%);
   box-shadow:
-    0 1px 2px rgba(0, 0, 0, 0.08),
-    0 8px 20px rgba(0, 0, 0, 0.1),
-    0 24px 56px rgba(0, 0, 0, 0.14);
+    inset 0 1px 0 rgba(255, 255, 255, 0.40),
+    inset 0 -1px 0 rgba(255, 255, 255, 0.26),
+    var(--smon-glass-shadow);
   user-select: none;
 }
 
+/* Frosted layer: softly blurs + saturates what is behind the panel. The
+   pseudo is a sibling of the content (not its ancestor), so its
+   backdrop-filter never traps a fixed-position descendant; isolation gives
+   the panel its own stacking context so the z-index -1 frost paints above
+   the glass body but below the content. */
 .panel::before {
   content: '';
   position: absolute;
-  inset: 0 0 auto 0;
-  height: 1px;
-  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.22), transparent);
+  inset: 0;
+  border-radius: inherit;
   pointer-events: none;
+  z-index: -1;
+  -webkit-backdrop-filter: blur(5px) saturate(1.35);
+  backdrop-filter: blur(5px) saturate(1.35);
 }
 
 .dragging {
@@ -388,20 +429,38 @@
   color: var(--dsw-alias-label-primary, #e8eaf0);
 }
 
-/* Collapsed pill */
+/* Collapsed pill — same liquid glass as the panel. */
 .pill {
+  position: relative;
+  isolation: isolate;
   display: flex;
   align-items: center;
   gap: 7px;
   padding: 7px 12px;
-  border: 1px solid var(--dsw-alias-border-l2, rgba(255, 255, 255, 0.14));
+  border: 1px solid var(--smon-glass-hair, rgba(255, 255, 255, 0.16));
   border-radius: 999px;
-  background: var(--dsw-alias-bg-overlay, rgba(24, 26, 32, 0.92));
-  backdrop-filter: blur(12px) saturate(1.2);
-  -webkit-backdrop-filter: blur(12px) saturate(1.2);
-  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.16);
+  background:
+    linear-gradient(165deg,
+      var(--smon-glass-panel-hi) 0%,
+      var(--smon-glass-panel-lo) 55%,
+      var(--smon-glass-panel-mid) 100%);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.40),
+    inset 0 -1px 0 rgba(255, 255, 255, 0.26),
+    var(--smon-glass-shadow);
   cursor: grab;
   user-select: none;
+}
+
+.pill::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  z-index: -1;
+  -webkit-backdrop-filter: blur(5px) saturate(1.35);
+  backdrop-filter: blur(5px) saturate(1.35);
 }
 
 .pillIcon {
@@ -465,18 +524,38 @@
   /* Per-kind accent: set by the toastDone / toastQuestion / toastSubagent
      variants below and consumed by the accent bar and the title color. */
   --toast-accent: var(--dsw-alias-state-warning, #f5b544);
-  border: 1px solid var(--dsw-alias-border-l2, rgba(255, 255, 255, 0.16));
+  border: 1px solid var(--smon-glass-hair, rgba(255, 255, 255, 0.16));
   border-radius: 12px;
-  background: var(--dsw-alias-bg-layer-2, rgba(30, 32, 40, 0.96));
-  backdrop-filter: blur(14px) saturate(1.2);
-  -webkit-backdrop-filter: blur(14px) saturate(1.2);
+  /* Liquid glass body — same recipe as the panel. */
+  background:
+    linear-gradient(165deg,
+      var(--smon-glass-panel-hi) 0%,
+      var(--smon-glass-panel-lo) 55%,
+      var(--smon-glass-panel-mid) 100%);
   box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.40),
+    inset 0 -1px 0 rgba(255, 255, 255, 0.26),
     0 1px 2px rgba(0, 0, 0, 0.1),
     0 10px 28px rgba(0, 0, 0, 0.24);
   padding: 10px 12px;
   animation: toastIn 200ms ease-out;
   user-select: none;
   position: relative;
+  isolation: isolate;
+}
+
+/* Frosted layer on ::after — the toast's ::before is already the left
+   accent bar, so the frost uses the other pseudo (same recipe as the
+   panel's ::before). */
+.toast::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  z-index: -1;
+  -webkit-backdrop-filter: blur(5px) saturate(1.35);
+  backdrop-filter: blur(5px) saturate(1.35);
 }
 
 /* Left accent bar makes the notification state legible at a glance. */
