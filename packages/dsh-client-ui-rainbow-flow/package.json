@@ -1,6 +1,6 @@
 {
   "name": "@dsh-plugins/client-ui-rainbow-flow",
-  "description": "Rainbow flow around the composer input (web): a flowing rainbow ring + soft halo around the input card while the session runs, with rotation speed driven by the live output-token rate, plus an on/off toggle in the tool row",
+  "description": "Breathing rainbow halo around the composer input (web): a soft blurred rainbow glow around the input card pulses like a breath while the session runs, the breathing rhythm driven by the live output-token rate, plus an on/off toggle in the tool row",
   "version": "0.1.0",
   "license": "MIT",
   "repository": {

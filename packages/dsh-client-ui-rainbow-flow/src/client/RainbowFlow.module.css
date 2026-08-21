@@ -1,17 +1,22 @@
-/* Rainbow flow around the composer card — the look is liquid glass first,
-   rainbow second: while the effect is on, the composer card itself becomes a
-   translucent frosted-glass panel (white glass gradient + backdrop blur), a
-   wide glass rim with a specular top highlight carries the material, and a
-   stream of rainbow light particles flows along the rim — the softened
-   rainbow reads as light refracting through the glass edge, not as a
-   self-luminous neon ring. Only the particle canvas redraws per frame (the
-   rAF loop in RainbowFlowGlow); the blurred halo, the glass rim and the
-   specular highlight are static (ambient tint + material, painted once), so
-   no per-frame blur recompute. `.flow` is promoted to its own compositor
-   layer so the per-frame canvas repaint never dirties the composer card. */
+/* Rainbow flow around the composer card — the look is see-through glass
+   first, rainbow second: while the effect is on, the composer card itself
+   becomes a translucent glass panel (subtle white glass gradient + light
+   frosted backdrop blur — no artificial top highlight, the translucency
+   does the work), and a soft rainbow glow around its edge BREATHES. The
+   halo is sixteen directional box-shadows (one pure rainbow hue per
+   direction, screen-blended so the colours stay luminous on a dark page,
+   rounded to the card's corners via border-radius), and the whole rainbow's
+   hue slowly flows around the wheel via a CSS hue-rotate animation. Two
+   stacked halo layers (warm rainbow + cool blue/violet) cross-fade for the
+   thinking cool-tint; only their opacity pulses per frame (compositor-
+   friendly, the static shadow layers are rasterized once — the rAF loop in
+   RainbowFlowGlow). The glow lives on the card's edge, so only the ring of
+   light breathes — the glass panel itself never flashes. `.flow` is
+   promoted to its own compositor layer so the per-frame writes never dirty
+   the composer card. */
 
 :root {
-  /* Softened rainbow palette (ring + halo + toggle dot + send button).
+  /* Softened rainbow palette (toggle dot + send button + halo ring).
      Pastel-leaning: same hue identity as the original, lower saturation and
      higher lightness so the refraction reads gentle instead of neon. */
   --rf-palette: #ff8a8a, #ffb36b, #ffe066, #5ec8e8, #6f9bff, #b08aff, #f27cc0, #ff8a8a;
@@ -20,14 +25,16 @@
      glass brightens against a dark page), swapped to a deeper, higher-contrast
      glass in the light theme (the white-glass values would vanish on a light
      page). Every glass layer reads these tokens so both themes stay legible.
-     The panel keeps a MODERATE white so the card still reads as glass against
-     the dark page (too low → it melts into the background and the glass look
-     disappears); the TRANSLUCENCY comes from the light frosted blur on the
-     card's `::before` (14px — heavy 26px made the panel a milky wall). */
-  --rf-glass-panel-hi: rgba(255, 255, 255, 0.14);
-  --rf-glass-panel-lo: rgba(255, 255, 255, 0.04);
-  --rf-glass-panel-mid: rgba(255, 255, 255, 0.09);
-  --rf-glass-hair: rgba(255, 255, 255, 0.18);
+     The panel keeps a FAINT white so the card reads as SEE-THROUGH glass
+     against the dark page — the translucency does the work, not the tint
+     (too high → a milky wall; too low → it melts into the background). The
+     see-through quality comes from the LIGHT frosted blur on the card's
+     `::before` (5px — just enough to soften what is behind, the backdrop
+     stays clearly visible). */
+  --rf-glass-panel-hi: rgba(255, 255, 255, 0.07);
+  --rf-glass-panel-lo: rgba(255, 255, 255, 0.02);
+  --rf-glass-panel-mid: rgba(255, 255, 255, 0.04);
+  --rf-glass-hair: rgba(255, 255, 255, 0.16);
   --rf-shadow: 0 12px 40px rgba(0, 0, 0, 0.35);
 }
 
@@ -36,28 +43,32 @@
     /* Light theme: keep the glass readable on a light page — a soft white
        pane with a clearly visible hairline edge and a stronger drop shadow
        for depth (the shipped dark theme's white-glass would be invisible). */
-    --rf-glass-panel-hi: rgba(255, 255, 255, 0.40);
-    --rf-glass-panel-lo: rgba(255, 255, 255, 0.15);
-    --rf-glass-panel-mid: rgba(255, 255, 255, 0.28);
-    --rf-glass-hair: rgba(255, 255, 255, 0.55);
+    --rf-glass-panel-hi: rgba(255, 255, 255, 0.28);
+    --rf-glass-panel-lo: rgba(255, 255, 255, 0.08);
+    --rf-glass-panel-mid: rgba(255, 255, 255, 0.15);
+    --rf-glass-hair: rgba(255, 255, 255, 0.50);
     --rf-shadow: 0 12px 40px rgba(31, 35, 50, 0.22);
   }
 }
 
 /* Liquid glass panel: while the rainbow toggle is on, the composer card
-   itself becomes a transparent frosted-glass panel. The shipped solid dark
-   background is replaced with a WHITE translucent glass gradient — on a dark
-   theme a semi-transparent white glass reads as frosted glass (the card
-   visibly brightens against the background and shows it through softly
-   blurred), whereas a semi-transparent version of the shipped dark grey
+   itself becomes a SEE-THROUGH glass panel. The shipped solid dark
+   background is replaced with a SUBTLE white translucent glass gradient —
+   on a dark theme a faint white glass reads as glass (the card gently
+   brightens against the background and shows what is behind it through a
+   light frost), whereas a semi-transparent version of the shipped dark grey
    blends into the dark background and reads as solid. The card's `::before`
-   frosted layer blurs everything behind it.
-   WHY `::before` and not a card-level backdrop-filter: backdrop-filter turns
-   the element into the containing block of `position: fixed` descendants,
-   and the composer's Tooltip bubbles are fixed-position elements rendered
-   inside the card (`.trailing`). The `::before` pseudo-element is a sibling
-   of those contents (not their ancestor) and has no descendants of its own,
-   so its backdrop-filter blurs the backdrop without moving any popup.
+   frosted layer softly blurs what is behind the card — enough to read as
+   glass, light enough that the backdrop stays clearly visible (that
+   translucency IS the quality). Thin 1px reflections on the top and bottom
+   edges (box-shadow inset) catch the light and make the glass edge read —
+   restrained, no large highlight arc.
+   WHY `::before` and not a card-level effect: backdrop-filter turns the
+   element into the containing block of `position: fixed` descendants, and
+   the composer's Tooltip bubbles are fixed-position elements rendered inside
+   the card (`.trailing`). The pseudo-element is a sibling of those contents
+   (not their ancestor) and has no descendants of its own, so its
+   backdrop-filter blurs the backdrop without moving any popup.
    `isolation: isolate` gives the card its own stacking context so the
    `z-index: -1` frosted layer paints above the card background but below the
    input content. The ring/halo layers and the send-button styles all key off
@@ -67,11 +78,31 @@
    frosted blur is an enhancement); the gradient needs no modern feature. */
 :global([data-composer-card][data-rf-send]) {
   isolation: isolate;
+  /* A clean, understated glass body: a gentle two-stop white gradient that
+     reads as light falling through the pane. Subtle 1px edge reflections on
+     the top and bottom edges (brighter top, softer bottom) catch the light
+     and make the glass edge read — crisp but restrained, no large highlight
+     arc. The see-through quality comes from the frost behind it. */
   background:
-    linear-gradient(150deg, var(--rf-glass-panel-hi), var(--rf-glass-panel-lo) 45%, var(--rf-glass-panel-mid)) !important;
-  box-shadow: var(--rf-shadow);
+    linear-gradient(165deg,
+      var(--rf-glass-panel-hi) 0%,
+      var(--rf-glass-panel-lo) 55%,
+      var(--rf-glass-panel-mid) 100%) !important;
+  /* Top/bottom edge reflections + a soft outer drop shadow for depth. The
+     1px lines are fine, so they can carry a bright highlight without looking
+     heavy — the top edge (0.40) catches the light, the bottom edge (0.26) a
+     softer re-glow. */
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.40),
+    inset 0 -1px 0 rgba(255, 255, 255, 0.26),
+    var(--rf-shadow);
 }
 
+/* Frosted layer: softly blurs + SATURATES what is behind the card so the
+   glass shows a smooth, VIVID backdrop — light blur keeps the content behind
+   clearly legible, and the saturation boost makes its colours glow through
+   the pane (heavy blur would turn it into a milky wall — "opaque glass";
+   no saturation would make the glass look like plain tinted plastic). */
 :global([data-composer-card][data-rf-send])::before {
   content: "";
   position: absolute;
@@ -79,12 +110,8 @@
   border-radius: inherit;
   pointer-events: none;
   z-index: -1;
-  /* A LIGHT frost: enough blur to read as glass, but the content behind the
-     card stays visible through it (a heavy 26px blur + strong saturation
-     would turn the panel into a milky wall — that is "opaque glass", not
-     translucent). */
-  -webkit-backdrop-filter: blur(14px) saturate(1.3);
-  backdrop-filter: blur(14px) saturate(1.3);
+  -webkit-backdrop-filter: blur(5px) saturate(1.35);
+  backdrop-filter: blur(5px) saturate(1.35);
 }
 
 .flow {
@@ -96,43 +123,197 @@
   will-change: transform; /* isolate per-frame repaints onto a compositor layer */
 }
 
-/* Static halo: wide, diffuse, low opacity — ambient light only, so the
-   flowing particle ribbon stays the protagonist. Fixed `from 0deg` (never
-   inherits the ring's --rf-angle), painted once, blurred. */
-.glow {
+/* The breathing halo: a soft rainbow glow around the card's edge. Two
+   transparent layers carry sixteen directional box-shadows each (one pure
+   rainbow hue per direction) — box-shadow lives OUTSIDE the element, so the
+   card interior stays completely clean, and it FOLLOWS the element's
+   border-radius, so the glow hugs the card's rounded corners (a mask-carved
+   ring can't: linear-gradient masks are straight-edged and square off the
+   corners — that is why this uses shadows instead). Every shadow uses
+   **spread 0**: a positive spread carves an opaque core from the element
+   edge, painting a hard bright line where the shadow starts — the visible
+   "inner outline". With spread 0 the blur owns the whole falloff, so the
+   peak sits on the edge and fades in BOTH directions; the soft inset shadows
+   complete the effect so the rainbow reads as light the card itself EMITS
+   rather than a ring stuck on its edge. Colours are drawn with
+   `mix-blend-mode: screen` (additive): on a dark page a semi-transparent
+   colour over near-black collapses into a dark smudge, but screen-blended it
+   stays luminous and vivid — the rainbow reads clearly. Two stacked layers
+   (warm + cool) cross-fade for the thinking cool-tint; each frame only
+   writes opacity (compositor-friendly, the static shadow layers are
+   rasterized once — the slow hue-rotate animation aside, which the browser
+   re-rasterizes as it drifts). `will-change` keeps them on their own
+   compositor layers so those writes never repaint the composer card. */
+.glow,
+.glowCool {
   position: absolute;
-  inset: 0;
-  border-radius: inherit;
-  padding: 14px;
-  background: conic-gradient(from 0deg, var(--rf-palette));
-  filter: blur(14px);
-  opacity: 0.18;
-}
-
-/* The rainbow edge is a canvas of flowing light particles (see particles.ts
-   and the rAF loop in RainbowFlowGlow) — it covers the whole flow layer and
-   draws along the rounded-rect rim path itself, so it needs no mask or
-   background: just full-size, block, and never intercepting pointers. */
-.ring {
-  display: block;
-  width: 100%;
-  height: 100%;
+  /* The `.flow` layer hangs 5px beyond the card; pulling the glow layers
+     back by that same 5px puts their border box EXACTLY on the card's edge,
+     so the shadow peak sits on the edge itself — outward = the halo hugs the
+     card, inward (inset) = the glass edge glows. That is what makes it read
+     as the card emitting light, not a ring hovering around it. */
+  inset: 5px;
+  /* Card edge radius: the `.flow` box is 5px larger all around (27px), so
+     the card's own corner radius is 27 - 5 = 22px. */
+  border-radius: 22px;
   pointer-events: none;
+  mix-blend-mode: screen;
+  transform: scale(1);
+  transform-origin: center;
+  will-change: opacity, transform;
+  /* Slowly rotate the whole rainbow's hue around the wheel: the sixteen
+     directional colours keep their positions but every hue drifts to the
+     next one over time (red→orange→yellow→…→pink→red), which reads as the
+     colours FLOWING around the edge — a slow living motion on top of the
+     breathing. Purely a hue shift, so no geometry moves and the glow stays
+     pinned to the card edge. */
+  animation: rf-hue-flow 48s linear infinite;
 }
 
-/* No mask support: the glow uses mask-carved rings, so hide it and use a soft
-   outer box-shadow glow instead. The particle canvas needs no mask — it
-   draws its own rim path — so it stays visible. */
-@media not all and (mask-composite: exclude) {
-  .glow {
-    display: none;
+/* The slow hue rotation. 48s per full wheel — a gentle drift, not a spin. */
+@keyframes rf-hue-flow {
+  from { filter: hue-rotate(0deg); }
+  to { filter: hue-rotate(360deg); }
+}
+
+/* Warm rainbow layer — SIXTEEN directional shadows, one pure rainbow hue per
+   direction (22.5° apart, full colour wheel: red → orange → yellow → green →
+   cyan → blue → violet → pink, with an intermediate hue between each). A
+   plain stacked shadow would blend every hue over the whole edge into one
+   muddy mix; giving each layer a small directional OFFSET distributes the
+   hues around the card. Sixteen directions (22.5° apart) with a small 7px
+   offset and a wide 34px blur overlap every hue with its neighbours on both
+   sides, so the colour ring reads as a smooth continuous gradient — no
+   visible banding at all. NO spread on any of them: a positive spread carves
+   an opaque core from the element edge, which paints a hard bright line where
+   the shadow starts — the "visible inner outline". With spread 0 the blur
+   owns the whole falloff, so the peak sits on the edge and fades in BOTH
+   directions (outward into the halo, inward into the card). Soft inset glows
+   complete the "the card emits the light" feel. Screen blend keeps the
+   colours luminous on a dark page. */
+.glow {
+  box-shadow:
+    inset 0 0 14px 0 rgba(255, 255, 255, 0.10),
+    0 -7px 34px 0 rgba(255, 72, 72, 0.42),
+    3px -6px 34px 0 rgba(255, 108, 52, 0.41),
+    5px -5px 34px 0 rgba(255, 146, 46, 0.40),
+    6px -3px 34px 0 rgba(255, 182, 52, 0.39),
+    7px 0 34px 0 rgba(255, 216, 62, 0.38),
+    6px 3px 34px 0 rgba(222, 228, 70, 0.38),
+    5px 5px 34px 0 rgba(172, 226, 86, 0.39),
+    3px 6px 34px 0 rgba(118, 220, 118, 0.40),
+    0 7px 34px 0 rgba(78, 208, 168, 0.41),
+    -3px 6px 34px 0 rgba(72, 192, 218, 0.42),
+    -5px 5px 34px 0 rgba(78, 158, 250, 0.43),
+    -6px 3px 34px 0 rgba(102, 126, 255, 0.44),
+    -7px 0 34px 0 rgba(142, 104, 255, 0.45),
+    -6px -3px 34px 0 rgba(188, 92, 252, 0.44),
+    -5px -5px 34px 0 rgba(228, 88, 240, 0.43),
+    -3px -6px 34px 0 rgba(255, 82, 198, 0.42);
+}
+
+/* Cool layer for the thinking cool-tint: the same ring shifted cool —
+   blue/violet-dominant hues around all directions, faded in/out by the eased
+   mood factor (the cross-fade IS the mood transition). Same spread-0
+   treatment so the cool tint also reads as emitted light. */
+.glowCool {
+  opacity: 0;
+  box-shadow:
+    inset 0 0 14px 0 rgba(255, 255, 255, 0.10),
+    0 -7px 34px 0 rgba(78, 208, 218, 0.44),
+    3px -6px 34px 0 rgba(82, 178, 250, 0.44),
+    5px -5px 34px 0 rgba(104, 148, 255, 0.45),
+    6px -3px 34px 0 rgba(136, 120, 255, 0.46),
+    7px 0 34px 0 rgba(176, 100, 255, 0.47),
+    6px 3px 34px 0 rgba(214, 86, 250, 0.45),
+    5px 5px 34px 0 rgba(196, 82, 255, 0.44),
+    3px 6px 34px 0 rgba(152, 84, 255, 0.44),
+    0 7px 34px 0 rgba(108, 102, 255, 0.44),
+    -3px 6px 34px 0 rgba(86, 128, 255, 0.44),
+    -5px 5px 34px 0 rgba(84, 158, 255, 0.45),
+    -6px 3px 34px 0 rgba(94, 184, 255, 0.46),
+    -7px 0 34px 0 rgba(116, 202, 255, 0.47),
+    -6px -3px 34px 0 rgba(112, 210, 255, 0.46),
+    -5px -5px 34px 0 rgba(104, 206, 252, 0.45),
+    -3px -6px 34px 0 rgba(92, 196, 240, 0.44);
+}
+
+/* Light theme: `screen` would blow out against a light page, so blend
+   normally and soften the shadow alphas (the breathing opacity still lands
+   the visible range around 0.10..0.20 — a soft pastel glow). */
+@media (prefers-color-scheme: light) {
+  .glow,
+  .glowCool {
+    mix-blend-mode: normal;
   }
 
-  .flow {
+  .glow {
     box-shadow:
-      0 0 22px 8px rgba(176, 138, 255, 0.18),
-      0 0 14px 4px rgba(255, 224, 102, 0.12),
-      0 0 10px 2px rgba(94, 200, 232, 0.12);
+      inset 0 0 14px 0 rgba(255, 255, 255, 0.06),
+      0 -7px 34px 0 rgba(255, 72, 72, 0.22),
+      3px -6px 34px 0 rgba(255, 108, 52, 0.21),
+      5px -5px 34px 0 rgba(255, 146, 46, 0.21),
+      6px -3px 34px 0 rgba(255, 182, 52, 0.20),
+      7px 0 34px 0 rgba(255, 216, 62, 0.20),
+      6px 3px 34px 0 rgba(222, 228, 70, 0.20),
+      5px 5px 34px 0 rgba(172, 226, 86, 0.20),
+      3px 6px 34px 0 rgba(118, 220, 118, 0.21),
+      0 7px 34px 0 rgba(78, 208, 168, 0.21),
+      -3px 6px 34px 0 rgba(72, 192, 218, 0.22),
+      -5px 5px 34px 0 rgba(78, 158, 250, 0.22),
+      -6px 3px 34px 0 rgba(102, 126, 255, 0.23),
+      -7px 0 34px 0 rgba(142, 104, 255, 0.23),
+      -6px -3px 34px 0 rgba(188, 92, 252, 0.23),
+      -5px -5px 34px 0 rgba(228, 88, 240, 0.22),
+      -3px -6px 34px 0 rgba(255, 82, 198, 0.22);
+  }
+
+  .glowCool {
+    box-shadow:
+      inset 0 0 14px 0 rgba(255, 255, 255, 0.06),
+      0 -7px 34px 0 rgba(78, 208, 218, 0.23),
+      3px -6px 34px 0 rgba(82, 178, 250, 0.23),
+      5px -5px 34px 0 rgba(104, 148, 255, 0.23),
+      6px -3px 34px 0 rgba(136, 120, 255, 0.24),
+      7px 0 34px 0 rgba(176, 100, 255, 0.24),
+      6px 3px 34px 0 rgba(214, 86, 250, 0.23),
+      5px 5px 34px 0 rgba(196, 82, 255, 0.23),
+      3px 6px 34px 0 rgba(152, 84, 255, 0.23),
+      0 7px 34px 0 rgba(108, 102, 255, 0.23),
+      -3px 6px 34px 0 rgba(86, 128, 255, 0.23),
+      -5px 5px 34px 0 rgba(84, 158, 255, 0.23),
+      -6px 3px 34px 0 rgba(94, 184, 255, 0.24),
+      -7px 0 34px 0 rgba(116, 202, 255, 0.24),
+      -6px -3px 34px 0 rgba(112, 210, 255, 0.24),
+      -5px -5px 34px 0 rgba(104, 206, 252, 0.23),
+      -3px -6px 34px 0 rgba(92, 196, 240, 0.23);
+  }
+}
+
+/* CSS resting opacity for the warm layer: matches the mid-breath value
+   (0.18 + 0.20·0.5 = 0.28) so the first frame before the rAF loop writes
+   (the loop's very first frame only seeds the sampler) never flashes at full
+   strength. The cool layer rests at 0 until the mood cross-fade fades it in. */
+.glow {
+  opacity: 0.28;
+}
+
+/* No screen-blend support (very old browsers): fall back to a softer,
+   normally-blended shadow so the glow is still visible (dimmer but intact).
+   The shadow lives outside the card and never tints it. */
+@supports not (mix-blend-mode: screen) {
+  .glow,
+  .glowCool {
+    mix-blend-mode: normal;
+  }
+}
+
+/* Reduced motion: freeze the hue flow (the breathing is already static via
+   the JS paintStatic frame; the colour drift should stop too). */
+@media (prefers-reduced-motion: reduce) {
+  .glow,
+  .glowCool {
+    animation: none;
   }
 }
 

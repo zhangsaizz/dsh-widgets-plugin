@@ -6,21 +6,30 @@
  *  - `RainbowFlowToggle` — a small rainbow-dot button at the left end of the
  *    composer tool row; clicking enables/disables the effect. A live status
  *    dot turns green while the current session runs.
- *  - `RainbowFlowGlow` — the decorative ring + soft halo carved around the
- *    composer card, plus a liquid-glass rim (frosted band + specular top
- *    highlight) that carries the ring like light inside glass. It renders
- *    only while the session runs AND the toggle is on. Its rotation speed
- *    follows the estimated output-token rate sampled from the streaming
- *    `partial` content: faster generation → faster spin; thinking / tool gaps
- *    glide back to a slow drift. Only the crisp ring rotates — the blurred
- *    halo, the glass rim and the specular highlight stay static (ambient
- *    tint + material, painted once, so no per-frame blur recompute). The
- *    ring angle is integrated in a rAF loop while the angular velocity eases
- *    exponentially toward the sampled target, so fast↔slow transitions
- *    accelerate/decelerate smoothly and the rainbow never jumps phase (a
- *    plain `animation-duration` swap would snap the animation's current time
- *    and visibly jump). The loop is gated on visibility — it runs only while
- *    the ring is actually rendered, so an idle composer schedules no rAF
+ *  - `RainbowFlowGlow` — the decorative halo around the composer card. It
+ *    renders only while the session runs AND the toggle is on. Two stacked
+ *    box-shadow layers (warm rainbow + cool blue/violet), screen-blended so
+ *    the colours stay luminous on a dark page, whose
+ *    opacity pulses on a sine wave (pure intensity breathing — no transform,
+ *    so the glow stays pinned to the card edge and never exposes an inner
+ *    outline), and the breathing rhythm follows
+ *    the estimated output-token rate sampled from the streaming `partial`
+ *    content — faster generation → faster breathing; thinking / tool gaps
+ *    glide back to a slow, calm breath. The breathing frequency is
+ *    integrated in a rAF loop while the frequency itself eases exponentially
+ *    toward the sampled target, so fast↔slow transitions accelerate/
+ *    decelerate smoothly and the phase never jumps (a plain
+ *    `animation-duration` swap would snap the animation's current time and
+ *    visibly jump). Per frame, only opacity is written on the
+ *    two static shadow layers (compositor-friendly — nothing re-rasterizes;
+ *    the slow CSS hue-rotate flow is the only thing that re-rasterizes, and
+ *    it is a 48s drift, not per-frame JS work).
+ *    The thinking cool-tint is a cross-fade: the eased mood factor moves
+ *    opacity from the warm layer to the cool layer, pure opacity animation.
+ *    Box-shadow lives OUTSIDE the element and follows its border-radius —
+ *    the card interior stays completely clean and the glow hugs the card's
+ *    rounded corners. The loop is gated on visibility — it runs only while
+ *    the halo is actually rendered, so an idle composer schedules no rAF
  *    callback at all.
  *  - `RainbowFlowSend` — the send/stop button beautification probe (see its
  *    own doc block below).
@@ -36,43 +45,27 @@
 import type { PropsRuntime, TranslateNS } from '@deepseek-ai/dsh-client-ui-slots'
 import React from 'react'
 import styles from './RainbowFlow.module.css'
-import {
-  RIM_RADIUS,
-  advanceParticles,
-  createParticles,
-  rimPoint,
-} from './particles'
 import { CHARS_PER_TOKEN, SAMPLE_MS, easeSpeed, rateToDuration } from './rate'
 import {
   getSettings,
   subscribeSettings,
 } from './settings'
 
-/**
- * Inset of the particle path from the flow layer's edge (px). The flow layer
- * hangs 5px beyond the composer card (inset: -5px); there is no glass rim band
- * anymore, so the particles run exactly along the card's edge (5px inside the
- * flow's outer boundary).
- */
-const RIM_INSET = 5
-
-/** Hue shift (deg) applied to the clouds while the model is thinking or
- *  running a tool (no new output): +120° turns the rainbow cool (toward
- *  blue/violet) as a subtle "working" mood; it eases back to 0 (full
- *  rainbow) while output streams. */
-const COOL_SHIFT = 120
-
-/** Precomputed HSLA fill styles per hue (0-359), one palette for the soft
- *  cloud glow pass and one for the brighter cloud body pass. Built once at
- *  module load and reused every frame — no per-frame string interpolation.
- *  The alpha is applied via `ctx.globalAlpha` per sample, so the styles here
- *  carry only saturation/lightness. */
-const GLOW_STYLES: string[] = []
-const CORE_STYLES: string[] = []
-for (let h = 0; h < 360; h++) {
-  GLOW_STYLES.push(`hsla(${h}, 88%, 70%, 1)`)
-  CORE_STYLES.push(`hsla(${h}, 92%, 66%, 1)`)
-}
+/** Breathing envelope of the halo: the sine wave runs 0..1 and maps to
+ *  opacity between `BREATH_OPACITY_BASE` (peak-in) and `BASE + AMPLITUDE`
+ *  (peak-out) — multiplied by the user's opacity setting. Breathing is
+ *  PURELY an intensity pulse — deliberately NO transform/scale: scaling the
+ *  glow layers would move their edges off the card (the card itself does not
+ *  scale), which re-opens the inner-outline gap at the peak of each breath.
+ *  Keeping the layers pinned to the card edge means the shadow peak stays on
+ *  the edge at every phase; the stronger brightness swing (0.18..0.38, a 2.1×
+ *  contrast) reads as the light expanding with each breath without any
+ *  geometry moving. The halo is screen-blended box-shadow (soft, rounded,
+ *  outside the card), so the base sits wide: the vivid shadow colours × this
+ *  breathing opacity land the visible intensity around 0.12..0.28 — clearly
+ *  colourful but soft, while the glass panel itself never flashes. */
+const BREATH_OPACITY_BASE = 0.18
+const BREATH_OPACITY_AMPLITUDE = 0.20
 
 /** Owner/standard props of a `conversation.input.left` entry (InputZone share
  *  plus the framework session kit). */
@@ -158,48 +151,74 @@ export function RainbowFlowToggle({ session, t }: RainbowFlowProps & RainbowFlow
   )
 }
 
-/** The rainbow edge — a stream of colored light particles flowing along the
- *  composer card's glass rim, speed-driven by the live output-token rate.
- *  The particles are drawn on a canvas that covers the card's glass rim band;
- *  their position on the rounded-rect path is a scalar advanced each frame by
- *  the eased turns-per-second target, so speed changes glide smoothly instead
- *  of stepping or jumping phase. */
+/** The breathing rainbow halo around the composer card. Two stacked
+ *  screen-blended box-shadow layers (a warm rainbow layer + a cool blue/
+ *  violet layer), living outside the card and following its border-radius,
+ *  whose opacity pulses on a sine
+ *  wave (pure intensity — no transform, so the layers stay pinned to the
+ *  card edge and never expose an inner outline); the breathing frequency
+ *  follows
+ *  the live output-token rate (same 5s↔1s mapping the old flow used for
+ *  rotation). Motion is written imperatively on the layers each frame
+ *  (opacity only — compositor-friendly, the static shadow
+ *  layers are rasterized once), and the frequency eases exponentially toward
+ *  the sampled target so fast↔slow transitions glide instead of snapping
+ *  phase. The thinking cool-tint is a cross-fade: the eased mood factor moves
+ *  opacity from the warm layer to the cool layer — pure opacity animation,
+ *  nothing re-rasterizes (see the module header). */
 export function RainbowFlowGlow({ session }: RainbowFlowProps): React.JSX.Element | null {
   const on = React.useSyncExternalStore(subscribe, getSnapshot)
   const running = !!session && session.running
-  // Settings (wisps / opacity / speed / mood) — re-read live on change.
+  // Settings (opacity / speed / mood) — re-read live on change.
   const settings = React.useSyncExternalStore(subscribeSettings, getSettings)
 
   // Keep the latest snapshot readable from the rAF loop below.
   const sessionRef = React.useRef(session)
   sessionRef.current = session
 
-  // The canvas is written imperatively each frame; React never touches it.
-  const canvasRef = React.useRef<HTMLCanvasElement | null>(null)
+  // The two halo layers are written imperatively each frame; React never
+  // touches them.
+  const warmRef = React.useRef<HTMLDivElement | null>(null)
+  const coolRef = React.useRef<HTMLDivElement | null>(null)
 
   // Motion state lives in refs so it survives the effect re-runs that gate
-  // the loop on visibility (toggle / running flips): the stream resumes at
-  // its previous particle positions and speed seamlessly.
+  // the loop on visibility (toggle / running flips): the breath resumes at
+  // its previous phase and rhythm seamlessly.
   const emaRef = React.useRef(0)
-  const speedRef = React.useRef(0)
-  const targetSpeedRef = React.useRef(0)
-  const particlesRef = React.useRef(createParticles(settings.wisps))
+  const hzRef = React.useRef(0)
+  const targetHzRef = React.useRef(0)
+  const phaseRef = React.useRef(0)
   // Settings mirrored into refs so the rAF loop reads them without re-render.
   const settingsRef = React.useRef(settings)
   settingsRef.current = settings
-  // Mood-driven hue shift (deg): eased toward 0 while the model streams
-  // output (full rainbow) and toward the cool shift while it thinks or runs
-  // a tool (no new output).
-  const moodShiftRef = React.useRef(0)
+  // Mood factor 0..1 (0 = full rainbow, 1 = fully cool): eased toward 1
+  // while the model thinks or runs a tool, back to 0 while it streams output.
+  const moodFactorRef = React.useRef(0)
   const moodTargetRef = React.useRef(0)
 
-  // Drive the particle flow only while the canvas is actually rendered: when
-  // the toggle is off or the session is idle the effect body returns early
-  // and no rAF callback is ever scheduled, so an idle composer costs nothing.
+  // Apply the current breathing envelope + mood cross-fade to both layers.
+  // Shared by the live loop and the reduced-motion static frame. Only opacity
+  // is written — no transform, so the glow layers stay pinned to the card
+  // edge at every breath phase (scaling them would expose an inner outline
+  // when the layer edges drift off the unscaled card).
+  const applyFrame = (env: number, moodFactor: number): void => {
+    const warm = warmRef.current
+    const cool = coolRef.current
+    if (!warm || !cool) return
+    const breath = settingsRef.current.opacity * (BREATH_OPACITY_BASE + BREATH_OPACITY_AMPLITUDE * env)
+    const warmOpacity = breath * (1 - moodFactor)
+    const coolOpacity = breath * moodFactor
+    warm.style.opacity = String(warmOpacity)
+    cool.style.opacity = String(coolOpacity)
+  }
+
+  // Drive the breathing only while the halo is actually rendered: when the
+  // toggle is off or the session is idle the effect body returns early and
+  // no rAF callback is ever scheduled, so an idle composer costs nothing.
   React.useEffect(() => {
     if (!on || !running) return
 
-    // Reduced motion: leave the stream static (no rAF, no draw). The query is
+    // Reduced motion: leave the halo static (no rAF, no writes). The query is
     // re-evaluated on every frame and a change listener restarts the loop.
     const reducedQuery = window.matchMedia('(prefers-reduced-motion: reduce)')
 
@@ -211,7 +230,7 @@ export function RainbowFlowGlow({ session }: RainbowFlowProps): React.JSX.Elemen
     let raf = 0
 
     // Sample the streaming output length and update the EMA rate -> target
-    // turns per second (1 / rotation period: faster output -> faster flow).
+    // breathing frequency in Hz (1 / period: faster output -> faster breath).
     const sample = (now: number): void => {
       const partial = sessionRef.current?.partial ?? null
       let len = 0
@@ -235,92 +254,9 @@ export function RainbowFlowGlow({ session }: RainbowFlowProps): React.JSX.Elemen
         ema = ema === 0 ? tps : ema * 0.7 + tps * 0.3
       }
       emaRef.current = ema
-      // Particle flow speed: turns per second = 1 / rotation period, scaled
-      // by the user's speed sensitivity setting.
-      targetSpeedRef.current = (1 / rateToDuration(ema)) * settingsRef.current.speed
-    }
-
-    const draw = (): void => {
-      const canvas = canvasRef.current
-      if (!canvas) return
-      const ctx = canvas.getContext('2d')
-      if (!ctx) return
-
-      // Size the backing store to the CSS size × device pixel ratio. The
-      // canvas covers the whole flow layer; the rim path is drawn inside it
-      // at RIM_RADIUS so the particles run along the glass band's center.
-      const cssW = canvas.clientWidth
-      const cssH = canvas.clientHeight
-      const dpr = window.devicePixelRatio || 1
-      if (canvas.width !== Math.round(cssW * dpr) || canvas.height !== Math.round(cssH * dpr)) {
-        canvas.width = Math.round(cssW * dpr)
-        canvas.height = Math.round(cssH * dpr)
-      }
-      ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
-      ctx.clearRect(0, 0, cssW, cssH)
-
-      const w = cssW
-      const h = cssH
-      const r = RIM_RADIUS
-      // The path is inset by RIM_INSET so the particles run along the glass
-      // rim's centerline; rimPoint returns local coords, so offset the draw.
-      const pw = Math.max(0, w - 2 * RIM_INSET)
-      const ph = Math.max(0, h - 2 * RIM_INSET)
-      // Cloud rendering: each particle is one SOFT, PUFFY cloud drifting along
-      // the rim — a thick, rounded puff (wide low-alpha glow + gentle core)
-      // with a nearly-flat envelope. The edge reads as ONE CONTINUOUS flowing
-      // cloud band, never as separated particles:
-      //  - the wisp span is 1.8× the spacing (heavy overlap), so neighbouring
-      //    wisps merge — no visible gap anywhere along the rim;
-      //  - the envelope stays ≥ 0.7 (0.7 + 0.3·sin): brightness barely
-      //    undulates, so no dark seams read between wisps.
-      // Density comes from the count, continuity from overlap + flat envelope.
-      const WISP_SPAN = 1.8 / Math.max(1, particlesRef.current.length)
-      // Dense sampling: SEGMENTS is sized so the sample spacing (~0.3% of the
-      // perimeter ≈ 5px) is well below the cloud dot diameter (glow up to
-      // 16px, core ≥ 8px) — the dots always overlap into a continuous ribbon,
-      // even while flowing, so no "separated particles" flash between samples.
-      const SEGMENTS = 96
-      // Mood-driven hue shift: when the model is thinking or running a tool
-      // (no new output), the clouds cool toward blue/violet; while it streams
-      // output they warm back to the full rainbow. `moodShiftRef` is eased
-      // each frame so the transition glides instead of snapping. Disabled when
-      // the user turns the mood knob off.
-      const shift = settingsRef.current.mood ? moodShiftRef.current : 0
-      const opacity = settingsRef.current.opacity
-
-      for (const p of particlesRef.current) {
-        // The wisp's front edge is at p.t; walk backward over its span.
-        for (let j = 0; j <= SEGMENTS; j++) {
-          const u = j / SEGMENTS // 0 = rear end, 1 = front end
-          // Nearly-flat envelope: 0.85 ± 0.15 — brightness stays high and
-          // almost constant along the rim (core alpha ≥ 0.27, glow ≥ 0.16).
-          // With 1.8× wisp overlap every point is covered by multiple wisps,
-          // so the flowing edge never reads as separated particles; only a
-          // very gentle undulation hints at the cloud wisps.
-          const env = 0.85 + 0.15 * Math.sin(u * Math.PI)
-          const t = (p.t - WISP_SPAN * (1 - u) + 1) % 1
-          const pt = rimPoint(pw, ph, r, t)
-          const x = pt.x + RIM_INSET
-          const y = pt.y + RIM_INSET
-          const hue = (p.hue + u * 20 + shift) % 360 // gentle hue drift inside the wisp
-          // Pass 1 — wide cloud glow: big, faint, puffy.
-          ctx.beginPath()
-          ctx.arc(x, y, 4 + 4 * env, 0, Math.PI * 2)
-          ctx.fillStyle = GLOW_STYLES[Math.round(hue)]
-          ctx.globalAlpha = (0.05 + 0.13 * env) * opacity
-          ctx.fill()
-          // Pass 2 — cloud body: medium, soft. Radius floor 4px keeps the core
-          // diameter (≥8px) above the ~5px sample spacing at every envelope
-          // value, so flowing samples never leave a visible gap between them.
-          ctx.beginPath()
-          ctx.arc(x, y, 4 + 1.5 * env, 0, Math.PI * 2)
-          ctx.fillStyle = CORE_STYLES[Math.round(hue)]
-          ctx.globalAlpha = (0.10 + 0.20 * env) * opacity
-          ctx.fill()
-        }
-      }
-      ctx.globalAlpha = 1
+      // Breathing frequency: 1 / breath period (the old flow's 5s..1s span,
+      // calm at rest, quick while streaming), scaled by the speed sensitivity.
+      targetHzRef.current = (1 / rateToDuration(ema)) * settingsRef.current.speed
     }
 
     const frame = (now: number): void => {
@@ -338,38 +274,36 @@ export function RainbowFlowGlow({ session }: RainbowFlowProps): React.JSX.Elemen
       // Mood: cool toward blue/violet while the model is thinking or running
       // a tool (no new output), warm back to the full rainbow while it
       // streams output. `runningCalls` marks tool execution; a live EMA means
-      // output is flowing. Eased so the palette glides, not snaps.
+      // output is flowing. Eased so the cross-fade glides, not snaps.
       const snap = sessionRef.current
       const toolWorking = !!snap && Array.isArray(snap.runningCalls) && snap.runningCalls.length > 0
       const outputting = emaRef.current > 0.05
-      moodTargetRef.current = toolWorking || !outputting ? COOL_SHIFT : 0
-      moodShiftRef.current = easeSpeed(moodShiftRef.current, moodTargetRef.current, dt)
+      moodTargetRef.current = toolWorking || !outputting ? 1 : 0
+      moodFactorRef.current = easeSpeed(moodFactorRef.current, moodTargetRef.current, dt)
 
-      // Rebuild the stream when the wisp-count setting changes. The new wisps
-      // start evenly spaced (positions reset) — a brief re-layout of the cloud
-      // positions is expected and acceptable for a rare setting change; the
-      // existing eased speed carries over so the flow direction is preserved.
-      if (particlesRef.current.length !== settingsRef.current.wisps) {
-        particlesRef.current = createParticles(settingsRef.current.wisps)
-      }
+      // Ease the actual breathing frequency toward the sampled target
+      // (frame-rate independent exponential approach), then integrate the
+      // phase — the breath accelerates/decelerates smoothly and never jumps.
+      let hz = easeSpeed(hzRef.current, targetHzRef.current, dt)
+      if (Math.abs(hz) < 0.003) hz = 0
+      hzRef.current = hz
+      phaseRef.current += hz * Math.PI * 2 * dt
 
-      // Ease the actual turns-per-second toward the sampled target
-      // (frame-rate independent exponential approach), then advance the
-      // particle stream — the flow accelerates/decelerates smoothly and the
-      // particles never jump position.
-      let tps = easeSpeed(speedRef.current, targetSpeedRef.current, dt)
-      if (Math.abs(tps) < 0.003) tps = 0
-      speedRef.current = tps
-      advanceParticles(particlesRef.current, dt, tps)
-
-      draw()
+      // Apply the breathing envelope + mood cross-fade. Only opacity is
+      // written (compositor-friendly) — the static box-shadow layers are
+      // rasterized once; the slow CSS hue-rotate flow is the only per-frame
+      // re-rasterization, and it is browser-driven, not JS work.
+      const env = 0.5 + 0.5 * Math.sin(phaseRef.current)
+      applyFrame(env, settingsRef.current.mood ? moodFactorRef.current : 0)
     }
 
-    // Reduced motion: render ONE static frame of the clouds (particles at
-    // their current positions, not advancing) so the effect stays visible
-    // without animating — then stop scheduling. A change listener resumes the
-    // live loop when the OS setting flips back.
-    const paintStatic = (): void => { draw() }
+    // Reduced motion: render ONE static mid-breath frame of the halo (halo at
+    // its resting opacity, mood at its current eased value) so the
+    // effect stays visible without animating — then stop scheduling. A change
+    // listener resumes the live loop when the OS setting flips back.
+    const paintStatic = (): void => {
+      applyFrame(0.5, settingsRef.current.mood ? moodFactorRef.current : 0)
+    }
     const onReducedChange = (): void => {
       if (reducedQuery.matches) {
         window.cancelAnimationFrame(raf)
@@ -396,7 +330,7 @@ export function RainbowFlowGlow({ session }: RainbowFlowProps): React.JSX.Elemen
           window.cancelAnimationFrame(raf)
         }
       })
-    if (observer && canvasRef.current) observer.observe(canvasRef.current)
+    if (observer && warmRef.current) observer.observe(warmRef.current)
 
     if (reducedQuery.matches) paintStatic()
     else raf = window.requestAnimationFrame(frame)
@@ -411,8 +345,8 @@ export function RainbowFlowGlow({ session }: RainbowFlowProps): React.JSX.Elemen
 
   return (
     <div className={styles.flow}>
-      <div className={styles.glow} />
-      <canvas ref={canvasRef} className={styles.ring} />
+      <div ref={warmRef} className={styles.glow} />
+      <div ref={coolRef} className={styles.glowCool} />
     </div>
   )
 }

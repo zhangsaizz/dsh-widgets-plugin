@@ -1,8 +1,8 @@
 /**
  * Rainbow-flow motion model (pure: no DOM, no React).
  *
- * Maps the estimated output-token rate to the ring's target angular velocity
- * and defines the exponential easing used to approach it smoothly. Kept free
+ * Maps the estimated output-token rate to the halo's breathing period and
+ * defines the exponential easing used to approach it smoothly. Kept free
  * of imports so the smoke test can bundle it standalone (see
  * docs/speed-smoke-test.cjs).
  *
@@ -15,21 +15,24 @@ export const CHARS_PER_TOKEN = 2
 /** Sample cadence of the output-rate estimator (ms). */
 export const SAMPLE_MS = 500
 
-/** Time constant of the angular-velocity easing (s): how quickly the ring
- *  accelerates/decelerates toward the sampled target speed. Larger = smoother
- *  but more laggy; 0.8 s keeps fast↔slow transitions fluid and gentle while
- *  staying responsive to the token stream. */
+/** Time constant of the breathing-frequency easing (s): how quickly the
+ *  breath speeds up/slows down toward the sampled target frequency. Larger =
+ *  smoother but more laggy; 0.8 s keeps fast↔slow transitions fluid and
+ *  gentle while staying responsive to the token stream. */
 export const SPEED_EASE_TAU = 0.8
 
-/** Map an estimated output-token rate (tokens/sec) to the ring rotation
- *  period: faster streaming -> shorter duration (spins faster). Softer range
- *  than the original 3.2s..0.45s: a 5s..1s span keeps the rainbow calm at
- *  rest and never whips it around at peak throughput. */
+/** Map an estimated output-token rate (tokens/sec) to the halo's breathing
+ *  period in seconds: faster streaming -> shorter period (breathes faster).
+ *  A 5s..1s span keeps the rainbow calm at rest and never makes it pant at
+ *  peak throughput. */
 export function rateToDuration(tps: number): number {
   return Math.min(5, Math.max(1, 5 - tps * 0.06))
 }
 
-/** Target angular velocity (deg/s) for a token rate: 360 / rotation period. */
+/** Cycles per second as an angle: 360 / breathing period (deg/s). The
+ *  breathing loop derives its frequency in Hz directly from `rateToDuration`
+ *  (1 / period); this deg/s view is kept as the model's angular equivalent
+ *  and covered by the motion-model smoke test. */
 export function rateToSpeed(tps: number): number {
   return 360 / rateToDuration(tps)
 }

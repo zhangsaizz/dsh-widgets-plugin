@@ -1,15 +1,20 @@
 /**
- * Rainbow-flow settings (browser half): the configurable knobs for the cloud
- * effect, persisted to localStorage and shared with the `widgets.config`
- * settings panel through a module-level store + `useSyncExternalStore`.
+ * Rainbow-flow settings (browser half): the configurable knobs for the
+ * breathing-glow effect, persisted to localStorage and shared with the
+ * `widgets.config` settings panel through a module-level store +
+ * `useSyncExternalStore`.
  *
  * Unlike the on/off toggle (a single boolean in `dsh.rnglow.enabled`), the
  * settings are a small object under `dsh.rnglow.settings`:
  *
- *  - `wisps`         — number of cloud wisps around the rim (4 / 6 / 8 / 10).
  *  - `opacity`       — overall effect opacity (0.4 / 0.7 / 1.0).
  *  - `speed`         — token-rate sensitivity (0.5× slow / 1× default / 1.5× fast).
  *  - `mood`          — whether the thinking/tool "cool shift" palette is on.
+ *
+ * (The old `wisps` knob — cloud wisp count around the rim — was removed
+ * together with the particle-flow effect: the halo is one continuous glow,
+ * so there is no wisp count to configure. Persisted settings containing the
+ * stale key are ignored.)
  *
  * The glow and the settings panel both subscribe; writes are announced so a
  * mounted effect re-reads them live without a reload.
@@ -21,17 +26,14 @@
 export const SETTINGS_KEY = 'dsh.rnglow.settings'
 
 /** Valid values for each knob. */
-export const WISP_OPTIONS = [4, 6, 8, 10] as const
 export const OPACITY_OPTIONS = [0.4, 0.7, 1.0] as const
 export const SPEED_OPTIONS = [0.5, 1, 1.5] as const
 
 /** The persisted settings shape. */
 export interface RainbowFlowSettings {
-  /** Number of cloud wisps around the rim. */
-  wisps: number
   /** Overall effect opacity (multiplier on every drawn alpha). */
   opacity: number
-  /** Token-rate sensitivity multiplier (1 = the 5s↔1s default mapping). */
+  /** Token-rate sensitivity multiplier (1 = the 5s↔1s default breathing span). */
   speed: number
   /** Whether the thinking/tool cool-shift palette is applied. */
   mood: boolean
@@ -39,7 +41,6 @@ export interface RainbowFlowSettings {
 
 /** Defaults — match the effect's original hardcoded behaviour. */
 export const DEFAULT_SETTINGS: RainbowFlowSettings = {
-  wisps: 6,
   opacity: 1,
   speed: 1,
   mood: true,
@@ -53,9 +54,6 @@ export function loadSettings(): RainbowFlowSettings {
     if (raw) Object.assign(s, JSON.parse(raw))
   } catch { /* storage unavailable: keep defaults */ }
   return {
-    wisps: (WISP_OPTIONS as readonly number[]).includes(s.wisps as number)
-      ? s.wisps as number
-      : DEFAULT_SETTINGS.wisps,
     opacity: (OPACITY_OPTIONS as readonly number[]).includes(s.opacity as number)
       ? s.opacity as number
       : DEFAULT_SETTINGS.opacity,

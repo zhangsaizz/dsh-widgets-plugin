@@ -4,9 +4,13 @@
  *
  *  - id `rainbow-flow-toggle` (order 100) — the on/off switch with a live
  *    running dot, sitting at the left end of the composer tool row.
- *  - id `rainbow-flow-glow` (order 99) — the rainbow ring + halo carved around
- *    the composer card while the session runs, spinning at a rate driven by
- *    the live output-token speed (angular velocity eases toward the sampled
+ *  - id `rainbow-flow-glow` (order 99) — the breathing rainbow halo around
+ *    the composer card while the session runs: a sixteen-direction rainbow
+ *    box-shadow ring whose opacity pulses on a sine wave (pure intensity
+ *    breathing — no transform, so the glow stays pinned to the card edge),
+ *    with the hues slowly flowing around the wheel; the breathing frequency
+ *    driven by
+ *    the live output-token speed (frequency eases toward the sampled
  *    target, so fast↔slow transitions glide smoothly).
  *  - id `rainbow-flow-send` (order 150, `conversation.input.right`) — the
  *    send/stop button beautification: an invisible probe mirrors the button's
@@ -15,8 +19,8 @@
  *    dynamic effects (breathing glow while idle with a draft; rotating
  *    rainbow + expanding pulse ring while running).
  *  - id `rainbow-flow-settings` (`widgets.config`) — the configuration panel
- *    opened from the widget manager ("Configure"), editing wisps / opacity /
- *    speed / mood in the shared settings store.
+ *    opened from the widget manager ("Configure"), editing opacity / speed /
+ *    mood in the shared settings store.
  *
  * The slot is declared by ui-conversation (`InputZone` owner share: the
  * point-in-time session/input snapshots), so all entries read

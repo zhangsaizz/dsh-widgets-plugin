@@ -5,9 +5,8 @@
  * Self-contained: reads/writes the same settings store as the glow
  * (`./settings.ts`), so changes apply live to a mounted effect without a
  * reload. Knobs:
- *  - wisps    — number of cloud wisps around the rim.
  *  - opacity  — overall effect opacity.
- *  - speed    — token-rate sensitivity.
+ *  - speed    — token-rate sensitivity (breathing rhythm follows output rate).
  *  - mood     — thinking/tool cool-shift palette.
  * Localized through the injected `t` seat (`rainbow-flow` namespace).
  */
@@ -19,7 +18,6 @@ import styles from './SettingsPanel.module.css'
 import {
   OPACITY_OPTIONS,
   SPEED_OPTIONS,
-  WISP_OPTIONS,
   loadSettings,
   saveSettings,
   type RainbowFlowSettings,
@@ -53,22 +51,13 @@ export function RainbowFlowSettings({ t }: RainbowFlowSettingsInjected): React.J
   }
 
   function reset(): void {
-    const next: RainbowFlowSettings = { wisps: 6, opacity: 1, speed: 1, mood: true }
+    const next: RainbowFlowSettings = { opacity: 1, speed: 1, mood: true }
     setSettings(next)
     saveSettings(next)
   }
 
   return (
     <div className={styles.panel}>
-      <Row label={t('wispsLabel')} hint={t('wispsHint')}>
-        <select
-          className={styles.select}
-          value={settings.wisps}
-          onChange={(e) => update({ wisps: Number(e.target.value) })}
-        >
-          {WISP_OPTIONS.map((n) => <option key={n} value={n}>{n}{t('wispsUnit')}</option>)}
-        </select>
-      </Row>
       <Row label={t('opacityLabel')} hint={t('opacityHint')}>
         <select
           className={styles.select}

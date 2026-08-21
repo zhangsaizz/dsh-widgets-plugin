@@ -57,7 +57,7 @@ export const zh: Record<WidgetManagerLocaleKey, string> = {
   cardContainerName: '卡片容器',
   cardContainerDescription: '把其他小组件拖进一个整齐、等间距的卡片网格中集中摆放，浮窗自动收起。',
   rainbowFlowName: '彩虹流光',
-  rainbowFlowDescription: '输入框变成通透的液态玻璃，几缕彩虹云光沿边缘流动，速度随输出 token 速率变化。',
+  rainbowFlowDescription: '输入框变成通透的液态玻璃，一圈柔和的彩虹光晕像呼吸一样明暗脉动，节奏随输出 token 速率变化。',
 }
 
 /** English dictionary. */
@@ -86,5 +86,5 @@ export const en: Record<WidgetManagerLocaleKey, string> = {
   cardContainerName: 'Card container',
   cardContainerDescription: 'Dock other widgets into a tidy, evenly-gapped card grid; their floating panels hide while docked.',
   rainbowFlowName: 'Rainbow flow',
-  rainbowFlowDescription: 'Turns the composer into translucent liquid glass with wisps of rainbow cloud drifting along its edge, sped by the output-token rate.',
+  rainbowFlowDescription: 'Turns the composer into translucent liquid glass with a soft rainbow halo breathing around it, its rhythm sped by the output-token rate.',
 }

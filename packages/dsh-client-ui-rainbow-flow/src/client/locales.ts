@@ -13,8 +13,6 @@ export type RainbowFlowKey =
   | 'toggleOff'
   | 'running'
   | 'idle'
-  | 'wispsLabel'
-  | 'wispsHint'
   | 'opacityLabel'
   | 'opacityHint'
   | 'speedLabel'
@@ -23,7 +21,6 @@ export type RainbowFlowKey =
   | 'moodHint'
   | 'on'
   | 'off'
-  | 'wispsUnit'
   | 'percent'
   | 'reset'
 
@@ -33,17 +30,14 @@ export const zh: Record<RainbowFlowKey, string> = {
   toggleOff: '开启彩虹流光',
   running: '运行中',
   idle: '空闲',
-  wispsLabel: '云缕数量',
-  wispsHint: '边缘云团的缕数，越少越稀疏',
   opacityLabel: '光效透明度',
   opacityHint: '整体亮度',
   speedLabel: '速度灵敏度',
-  speedHint: '模型输出越快，云流越快的程度',
+  speedHint: '模型输出越快，光晕呼吸得越快',
   moodLabel: '思考冷色调',
-  moodHint: '思考/调用工具时云缕偏蓝紫',
+  moodHint: '思考/调用工具时光晕偏蓝紫',
   on: '开',
   off: '关',
-  wispsUnit: '缕',
   percent: '%',
   reset: '重置默认',
 }
@@ -54,17 +48,14 @@ export const en: Record<RainbowFlowKey, string> = {
   toggleOff: 'Turn on rainbow flow',
   running: 'running',
   idle: 'idle',
-  wispsLabel: 'Cloud wisps',
-  wispsHint: 'Number of cloud wisps along the edge; fewer = sparser',
   opacityLabel: 'Opacity',
   opacityHint: 'Overall effect brightness',
   speedLabel: 'Speed sensitivity',
-  speedHint: 'How much the cloud drift follows the output-token rate',
+  speedHint: 'How much the halo breathing follows the output-token rate',
   moodLabel: 'Thinking cool tint',
-  moodHint: 'Shift the clouds blue/violet while thinking or calling tools',
+  moodHint: 'Shift the halo blue/violet while thinking or calling tools',
   on: 'On',
   off: 'Off',
-  wispsUnit: '',
   percent: '%',
   reset: 'Reset to defaults',
 }
