@@ -1,0 +1,174 @@
+/* Tool-command colour accents (part of the rainbow-flow plugin).
+ *
+ * The chat transcript renders each model TOOL CALL as a card (ToolRow) whose
+ * root carries a stable `data-tool="<name>"` attribute, and the assistant's
+ * reasoning block as a "Think" row whose root carries `data-variant="think"`.
+ * This plain (non-module) stylesheet tints both by category — shell, read,
+ * search, write, edit, code, web, ask, plan, memory, think — so different
+ * commands (and thinking) read differently at a glance. Each row gets a
+ * **category-coloured left edge** AND its **related text** (the row title such
+ * as "Bash"/"Read"/"Think", the leading icon, and the summary line) picks up
+ * the category colour, with the title drawn as a **soft gradient**
+ * (theme-aware, so it stays legible on both the dark and light themes).
+ *
+ * Wiring: `toolAccent.ts` (a MutationObserver) reads each row's `data-tool`
+ * name (or `data-variant="think"`), classifies it with `classify.ts`, and
+ * stamps the category onto the same element as `data-rf-tool-cat="<category>"`
+ * plus a native `title` tooltip. This file only paints; the category drives
+ * the accent colour. The root selector is simply `[data-rf-tool-cat]` — that
+ * attribute is only ever stamped on the decorated tool/think rows, so it is a
+ * safe, stable anchor that covers both kinds without depending on hashed
+ * classes or the `data-tool`/`data-variant` values.
+ *
+ * Selector strategy: the row's own class is a CSS-module hash, so it is
+ * deliberately avoided. Its title/leading/summary use CSS-module classes
+ * whose local-name SUFFIX is stable across builds (`_title` / `_leading` /
+ * `_summary`) even though the hash prefix changes — the exact technique the
+ * shipped `SendButton.css` uses with `_primary`. An error state's summary span
+ * carries BOTH `_summary` and `_errorSummary`, so the `_summary` rule excludes
+ * `_errorSummary` to leave the red error accent untouched.
+ *
+ * Colours are mid-brightness saturated hues that stay legible on both themes.
+ */
+
+:root {
+  /* Category palette (shared with the classifier's category ordering).
+     Chosen so every pair is clearly distinguishable — one colour per hue
+     family, and the cool "blue/purple" categories (read/search/plan/code/
+     think) are spread across blue → cyan → indigo → violet → lavender so no
+     two read alike. The warm set is green/yellow/orange/brown, red is reserved
+     for "ask", and only "other" is neutral grey. */
+  --rf-tool-shell: #22c55e;  /* green   */
+  --rf-tool-read: #3b82f6;   /* blue    */
+  --rf-tool-search: #06b6d4; /* cyan    */
+  --rf-tool-write: #eab308;  /* yellow  */
+  --rf-tool-edit: #ea580c;   /* orange  */
+  --rf-tool-code: #8b5cf6;   /* violet  */
+  --rf-tool-web: #d946ef;    /* fuchsia */
+  --rf-tool-ask: #ef4444;    /* red     */
+  --rf-tool-plan: #4f46e5;   /* indigo  */
+  --rf-tool-memory: #b45309; /* brown   */
+  --rf-tool-think: #c084fc;  /* lavender/purple */
+  --rf-tool-other: #9ca3af;  /* grey    */
+}
+
+/* Every decorated row: a category-coloured left edge plus a `--rf-tool-accent`
+   custom property (the category colour) that the text rules below and their
+   descendants read. `other` is the neutral default. */
+[data-rf-tool-cat] {
+  border-left: 3px solid var(--rf-tool-other);
+  --rf-tool-accent: var(--rf-tool-other);
+}
+
+[data-rf-tool-cat='shell'] {
+  border-left-color: var(--rf-tool-shell);
+  --rf-tool-accent: var(--rf-tool-shell);
+}
+
+[data-rf-tool-cat='read'] {
+  border-left-color: var(--rf-tool-read);
+  --rf-tool-accent: var(--rf-tool-read);
+}
+
+[data-rf-tool-cat='search'] {
+  border-left-color: var(--rf-tool-search);
+  --rf-tool-accent: var(--rf-tool-search);
+}
+
+[data-rf-tool-cat='write'] {
+  border-left-color: var(--rf-tool-write);
+  --rf-tool-accent: var(--rf-tool-write);
+}
+
+[data-rf-tool-cat='edit'] {
+  border-left-color: var(--rf-tool-edit);
+  --rf-tool-accent: var(--rf-tool-edit);
+}
+
+[data-rf-tool-cat='code'] {
+  border-left-color: var(--rf-tool-code);
+  --rf-tool-accent: var(--rf-tool-code);
+}
+
+[data-rf-tool-cat='web'] {
+  border-left-color: var(--rf-tool-web);
+  --rf-tool-accent: var(--rf-tool-web);
+}
+
+[data-rf-tool-cat='ask'] {
+  border-left-color: var(--rf-tool-ask);
+  --rf-tool-accent: var(--rf-tool-ask);
+}
+
+[data-rf-tool-cat='plan'] {
+  border-left-color: var(--rf-tool-plan);
+  --rf-tool-accent: var(--rf-tool-plan);
+}
+
+[data-rf-tool-cat='memory'] {
+  border-left-color: var(--rf-tool-memory);
+  --rf-tool-accent: var(--rf-tool-memory);
+}
+
+[data-rf-tool-cat='think'] {
+  border-left-color: var(--rf-tool-think);
+  --rf-tool-accent: var(--rf-tool-think);
+}
+
+/* Related text picks up the category colour:
+   - the leading icon (SVG, so solid `currentColor`);
+   - the row title (a soft theme-aware gradient, drawn via background-clip);
+   - the summary line (a muted category tint, so it stays secondary text).
+   An error summary span carries BOTH `_summary` and `_errorSummary`, so the
+   `:not([class*='_errorSummary'])` keeps the red error accent intact. */
+[data-rf-tool-cat] [class*='_leading'] {
+  color: var(--rf-tool-accent);
+}
+
+[data-rf-tool-cat] [class*='_summary']:not([class*='_errorSummary']) {
+  color: color-mix(in srgb, var(--rf-tool-accent) 55%, var(--dsw-alias-label-tertiary, #9aa1aa));
+}
+
+/* File tools (read / write / edit) show their FILE NAME / PATH as a clickable
+   `_fileLink` button instead of the `_summary` span, so it needs its own rule.
+   Keep it a solid accent (a gradient would need background-clip: text, which
+   would knock out the link's underline), and keep the underline matching. */
+[data-rf-tool-cat] [class*='_fileLink'] {
+  color: var(--rf-tool-accent);
+  text-decoration-color: currentcolor;
+}
+
+[data-rf-tool-cat] [class*='_fileLink']:hover {
+  color: var(--rf-tool-accent);
+  text-decoration-color: currentcolor;
+}
+
+/* Title: the category colour as a solid fallback, upgraded to a gradient where
+   the browser supports background-clip: text. The gradient runs accent → a
+   theme-aware lighter stop (label-primary is near-white on the dark theme and
+   near-black on the light theme), so the sheen stays legible on both. */
+[data-rf-tool-cat] [class*='_title'] {
+  color: var(--rf-tool-accent);
+}
+
+@supports ((-webkit-background-clip: text) or (background-clip: text)) and (color: color-mix(in srgb, #f00, #00f)) {
+  [data-rf-tool-cat] [class*='_title'] {
+    background-image: linear-gradient(
+      90deg,
+      var(--rf-tool-accent) 0%,
+      color-mix(in srgb, var(--rf-tool-accent) 60%, var(--dsw-alias-label-primary, #fff)) 100%
+    );
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+    -webkit-text-fill-color: transparent;
+  }
+}
+
+/* Reduced motion: colour is a static property; kept explicit so any future
+   transition cannot reintroduce motion here. */
+@media (prefers-reduced-motion: reduce) {
+  [data-rf-tool-cat] {
+    transition: none;
+  }
+}

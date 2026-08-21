@@ -44,7 +44,9 @@ import { RainbowFlowSettings } from './SettingsPanel.tsx'
 import type { RainbowFlowSettingsInjected } from './SettingsPanel.tsx'
 import { en, zh } from './locales.ts'
 import type { RainbowFlowKey } from './locales.ts'
+import { mountToolAccent } from './toolAccent.ts'
 import './SendButton.css'
+import './ToolAccent.css'
 
 declare module '@deepseek-ai/dsh-client-ui-slots' {
   interface LocaleNamespaceMap {
@@ -73,6 +75,12 @@ export function apply(ctx: ClientContext): void {
   // events to the on/off store, so the manager page can enable/disable the
   // effect exactly like the toolbar dot. Disposed with this fiber.
   ctx.effect(() => mountManagerBridge(), 'rainbow-flow: manager toggle bridge')
+
+  // Tool-command colour accents: tag every command card in the transcript with
+  // its category (`data-tool` -> `data-rf-tool-cat`), so `ToolAccent.css` can
+  // colour each one differently. Pure DOM decoration — always on, independent
+  // of the composer-glow toggle. Disposed with this fiber.
+  ctx.effect(() => mountToolAccent(), 'rainbow-flow: tool command accents')
 
   // The toggle: left end of the composer tool row. `conversation.input.left`
   // carries only the InputZone owner share (no locale seat), so the toggle's

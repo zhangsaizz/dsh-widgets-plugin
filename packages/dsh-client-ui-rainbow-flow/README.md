@@ -131,6 +131,29 @@ send/stop button with dynamic effects.
   under `prefers-reduced-motion`. The selector anchors on the stable
   `[data-composer-card]` attribute plus the `_primary` CSS-module suffix, so
   it survives harness upgrades.
+- **Command cards coloured by type**: each model **tool call (command) card**
+  in the transcript is **heuristically classified by its tool name** into a
+  category — **shell, read, search, write, edit, code, web, ask, plan,
+  memory** — each with its **own colour**: the card gets a **coloured left
+  edge**, and its **related text is coloured by category too** — the **row
+  title** (e.g. Bash/Read/Write) drawn as a **theme-aware gradient**
+  (`background-clip: text`, category colour → brightness), the **leading
+  icon** in the category colour, the **summary line** in a soft category
+  tint (kept readable as secondary text), and the **file name / path of
+  read/write/edit tools** (a clickable link) in a solid category colour (so the
+  link's underline is preserved) — hover the card for the category name. The
+  assistant's **"Think" reasoning row** (the model's reasoning block
+  — `data-variant="think"`, not a tool card) is coloured the **same way**, in
+  the `think` lavender category. It reads the card's stable
+  `data-tool="<name>"` attribute (shipped by
+  the harness ToolRow), a `MutationObserver` writes the category back as
+  `data-rf-tool-cat`, and `ToolAccent.css` paints it — **no re-render, no
+  changes to the product's DOM**, so it survives harness upgrades (the text is
+  matched on the CSS-module local-name suffix `_title`/`_leading`/`_summary`,
+  the same trick `SendButton.css` uses with `_primary`; the title falls back to
+  a solid category colour where `background-clip: text` or `color-mix` is
+  unsupported); an unknown tool falls back to the neutral "Tool" colour.
+  **Always on**, independent of the composer-glow toggle.
 - **Graceful degradation**: browsers without `backdrop-filter` still get the
   translucent white glass (the frosted blur is an enhancement); browsers
   without `mix-blend-mode: screen` fall back to normally-blended shadows
@@ -148,9 +171,13 @@ src/client/SettingsPanel.module.css # config panel styles
 src/client/settings.ts            # settings store (opacity/speed/mood, localStorage)
 src/client/locales.ts             # `rainbow-flow` dictionary namespace (zh / en)
 src/client/rate.ts                # pure motion model (token rate -> breathing freq, easing)
+src/client/classify.ts            # pure tool-name -> category classification (heuristic + bilingual labels)
+src/client/toolAccent.ts          # tags transcript command cards with a category (MutationObserver)
+src/client/ToolAccent.css         # command-card colour accents by category (plain CSS)
 src/client/RainbowFlow.module.css # glass panel/halo/toggle/probe styles
 src/client/SendButton.css         # global send/stop button beautification (plain CSS)
 docs/speed-smoke-test.cjs         # motion-model smoke test (esbuild-bundled source)
+docs/classify-smoke-test.cjs      # command-classifier smoke test (esbuild-bundled source)
 lib/index.js                      # host build output (static)
 lib/client.js                     # browser bundle (ModuleLoader CJS + inlined CSS)
 ```
@@ -193,3 +220,6 @@ No configuration needed after mounting:
 4. **Reduced motion** — with `prefers-reduced-motion`, the halo renders as a
    static frame (visible but not breathing), and the send/stop button
    animations freeze.
+5. **Command-card colours** — in the transcript, each tool/command card lights
+   up with a different-coloured left edge by category (requires the rainbow
+   flow plugin mounted); hover a card to see its category.

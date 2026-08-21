@@ -43,6 +43,7 @@
 | 26 | 发送/停止按钮美化 `RainbowFlowSend` | Web 输入框控制 | `@dsh-plugins/client-ui-rainbow-flow` | `conversation.input.right`（order 150） | 对输入框主操作发送/停止按钮做**液态玻璃**图标美化 + 动态效果：`conversation.input.right` 探针把按钮有效状态镜像到输入卡 `data-rf-send`，全局样式表给按钮做半透明玻璃面板（白色渐变 + backdrop blur + 顶部高光）透出柔和彩虹 + 细玻璃描边——空闲有草稿时呼吸光晕、运行中彩虹旋转 + 扩散雷达脉冲环；与开关共用开关状态、禁用态不生效、`prefers-reduced-motion` 冻结动画；选择器锚定 `[data-composer-card]` + `_primary` 后缀，harness 升级后仍生效 |
 | 27 | 彩虹流光配置面板 `RainbowFlowSettings` | Web 配置弹窗 | `@dsh-plugins/client-ui-rainbow-flow` | `widgets.config`（管理器「配置」弹窗） | 可调**透明度**（40/70/100%）、**速度灵敏度**（0.5×/1×/1.5×）、**思考冷色调开关**；经 `settings.ts` store 持久化到 localStorage（`dsh.rnglow.settings`），已挂载的效果实时生效 |
 | 28 | 彩虹流光设置 store `settings.ts` | 客户端状态 | `@dsh-plugins/client-ui-rainbow-flow` | 注入 store | 透明度/速度/冷色调的读取/保存/订阅（uSES），与配置面板和光环共享；**启用/停用经 window 事件桥与管理页双向同步**（`dsh.rnglow.manager-toggle` / `enabled-change`，与工具栏圆点同一开关 store）；另含**心情感知色调 = 双层交叉淡化**（思考/工具调用时 mood 因子缓动到 1，暖层→冷层 opacity 纯动画）、**reduced-motion 单帧静态**、**IntersectionObserver 视口外停 rAF**、**零重栅格化**（静态 box-shadow 层只栅格化一次） |
+| 29 | 彩虹流光命令卡上色 `toolAccent` | Web 输入框装饰（会话记录命令卡） | `@dsh-plugins/client-ui-rainbow-flow` | 非插槽（`MutationObserver` + `[data-tool]`/`[data-variant="think"]` 装饰） | 会话记录里模型每个**工具调用（命令）卡片**按工具名启发式分类（shell/read/search/write/edit/code/web/ask/plan/memory/other，另 **「Think」思考推理行** `data-variant="think"` 归入 `think` 淡紫类别）：卡片左侧亮起**对应颜色边条**，**相关文字也按类别上色**——**标题用主题感知渐变**（`background-clip: text`）、**前导图标**类别色、**摘要**柔和色调、**读/写/编辑类文件的路径链接（`_fileLink`）**用纯类别色（悬停显示类别名）；读卡片稳定 `data-tool` 属性 → `classify.ts` 分类 → `data-rf-tool-cat` 属性 + `ToolAccent.css` 上色；**不重渲染卡片、不改产品 DOM**，harness 升级后仍生效（文字按 CSS-module 本地名后缀 `_title`/`_leading`/`_summary` 选中，同发送按钮 `_primary`），未知工具归入"命令"默认色；**始终开启**（独立于输入框光晕开关） |
 
 > 1–10 全部由 `@dsh-plugins/balance` 一个包、一个插件行承载（原 `balance` 缝隙 +
 > `balance-vendors` + `client-ui-balance` 三个包已合并）。
@@ -513,6 +514,31 @@
     跳过；`prefers-reduced-motion` 冻结全部动画。选择器锚定稳定的
     `[data-composer-card]` 属性 + CSS-module `_primary` 后缀（哈希前缀随
     harness 构建变化、本地名不变），harness 升级后仍生效。
+  - **会话命令卡按类型上色**（`src/client/toolAccent.ts` + `classify.ts` +
+    `ToolAccent.css`，**非插槽、纯 DOM 装饰，始终开启**）：会话记录里模型每个
+    工具调用卡片读取其稳定的 `data-tool="<工具名>"` 属性（harness ToolRow
+    自带）→ `classifyTool()` 按工具名启发式分类（shell/read/search/write/edit/
+    code/web/ask/plan/memory/other，首条正则命中即定，含 bash/pwsh/read_file/
+    apply_patch/web_search/ask_user_question 等常见工具名）→ 一个
+    `MutationObserver`（`childList` + `attributes[data-tool]`，仅写
+    `data-rf-tool-cat`/`title` 这两个不被观察的属性，无自触发）把类别写回卡片，
+    再由 `ToolAccent.css` 给卡片上色：左侧亮一条**对应颜色的边条**，**相关
+    文字也按类别上色**——**标题用主题感知渐变**（`background-clip: text`，
+    `--rf-tool-accent` → 主题感知亮端，`@supports` 同时要求 `background-clip`
+    与 `color-mix`，否则标题回退纯类别色）、**前导图标**类别色（`currentColor`）、
+    **摘要行**用类别色与 `--dsw-alias-label-tertiary` 的 `color-mix` 柔和色调
+    （保持次级可读；`_errorSummary` 大写成 `_Summary` 故不误染错误红）；
+    **读/写/编辑类工具的文件路径**是 `_fileLink` 可点击链接（不是 `_summary`），
+    用**纯类别色**渲染并 `text-decoration-color: currentColor` 保下划线（不用渐变，
+    以免 `background-clip: text` 吃掉下划线）；文字
+    按 CSS-module **本地名后缀** `_title`/`_leading`/`_summary`/`_fileLink` 选中
+    （同发送按钮
+    `_primary` 技巧），悬停 native `title` 显示类别名——**不重渲染卡片、不改动
+    产品 DOM**，harness 升级后仍生效；未知工具归入"命令"默认色。observer 除
+    `[data-tool]` 外还识出 **「Think」思考推理行**（`data-variant="think"`，模型
+    的 reasoning 块、非工具卡），归类为新增的 **`think`**（淡紫 `--rf-tool-think`
+    `#c084fc`）并同款上色。全套 12 色**一色一家族、明显可区分**（暖色系 绿/黄/橙/棕，
+     冷色系 蓝→青→靛→紫→淡紫 逐一错开，红色专属 ask，仅 other 为灰）。
 - **呼吸节奏随 token 速率**：光环组件内 500ms 采样 `session.partial`（流式输出
   内容）文本长度增量 → 估算每秒输出 token 数（约 2 字符/token，EMA 平滑）
   → 映射呼吸周期 5s（慢）↔ 1s（快）——静止时是舒缓的深呼吸、峰值输出时是

@@ -87,6 +87,23 @@
   （空草稿）不生效，`prefers-reduced-motion` 下动画冻结。选择器锚定稳定的
   `[data-composer-card]` 属性 + `_primary` CSS-module 后缀（哈希前缀随 harness
   构建变化、本地名不变），harness 升级后仍生效。
+- **会话命令卡按类型上色**：会话记录（transcript）里模型的每个**工具调用
+  （命令）卡片**会**按工具名启发式分类**成不同类别——**命令/终端（shell）、
+  读取（read）、搜索（search）、写入（write）、编辑（edit）、代码（code）、
+  网络（web）、询问（ask）、规划（plan）、记忆（memory）**——每类一个**专属
+  颜色**：命令卡左侧亮起一条**对应颜色的边条**，卡片里的**相关文字也按类别上色**
+  ——**标题**（如 Bash/Read/Write）用**主题感知的渐变色**（`background-clip:
+  text`，类别色 → 亮度渐变），**前导图标**用类别色，**摘要行**用类别色的柔和
+  色调（保持次级可读）；**读/写/编辑类工具的文件名/路径（可点击链接）**用
+  纯类别色渲染（不破坏链接下划线）——悬停卡片还显示类别名。中间的**「Think」思考推理行**（模型
+  的 reasoning 块，`data-variant="think"`，不属于工具卡）也按**同款方式**着色，
+  归入 `think` 淡紫类别。它读取每张
+  卡片稳定的 `data-tool="<工具名>"` 属性（harness ToolRow 自带的），用一个
+  `MutationObserver` 把类别写回 `data-rf-tool-cat`，再由 `ToolAccent.css`
+  上色——**不重渲染卡片、不改动产品 DOM**，harness 升级后仍生效（按 CSS-module
+  本地名后缀 `_title`/`_leading`/`_summary` 选中文字，与发送按钮的 `_primary`
+  同一技巧；不支持 `background-clip: text` 或 `color-mix` 时标题回退为纯类别色）；
+  未知工具归入"命令"默认色。**始终开启**，独立于输入框光晕开关。
 - **优雅降级**：不支持 `backdrop-filter` 的浏览器仍保留半透明白色玻璃（磨砂
   模糊是增强）；不支持 `mix-blend-mode: screen` 的浏览器回退为普通混合的阴影
   （变暗但完整——同样不染色输入框）；`prefers-reduced-motion` 下光晕渲染为
@@ -103,9 +120,13 @@ src/client/SettingsPanel.module.css # 配置面板样式
 src/client/settings.ts            # 设置 store（透明度/速度/冷色调，localStorage）
 src/client/locales.ts             # `rainbow-flow` 字典命名空间（zh / en）
 src/client/rate.ts                # 纯运动模型（token 速率 → 呼吸频率、指数缓动）
+src/client/classify.ts            # 纯工具名→类别分类（启发式 + 双语标签）
+src/client/toolAccent.ts          # 给会话命令卡打类别标签（MutationObserver）
+src/client/ToolAccent.css         # 命令卡按类别上色（纯 CSS）
 src/client/RainbowFlow.module.css # 玻璃面板/光晕/开关/探针样式
 src/client/SendButton.css         # 发送/停止按钮美化全局样式（纯 CSS）
 docs/speed-smoke-test.cjs         # 运动模型冒烟测试（esbuild 打包真实源码）
+docs/classify-smoke-test.cjs      # 命令分类冒烟测试（esbuild 打包真实源码）
 lib/index.js                      # Host 构建产物（静态）
 lib/client.js                     # 浏览器构建产物（ModuleLoader CJS + 内联 CSS）
 ```
@@ -141,3 +162,5 @@ pnpm build   # 等价于 node scripts/build.mjs
    原厂外观。
 4. **减少动态效果**——`prefers-reduced-motion` 下光晕渲染为单帧静态（可见但不
    呼吸）；发送/停止按钮的动画同样冻结。
+5. **命令卡上色**——会话记录里模型运行的不同工具/命令卡片会按类别亮起不同颜色
+   的左边条（需要彩虹流光插件已挂载）；悬停命令卡可看到类别名。
