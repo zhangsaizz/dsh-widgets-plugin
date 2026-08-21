@@ -172,3 +172,53 @@
     transition: none;
   }
 }
+
+/* Latest action header — a rainbow band sweeps across its text. The LATEST
+   action row — a tool command card (`data-tool`) or a Think reasoning row
+   (`data-variant="think"`) — is repainted as a MOVING rainbow gradient
+   (`background-clip: text`) that flows across its title / summary / file link,
+   lighting each character in turn. `toolAccent.ts` marks only the newest action
+   row (`data-rf-latest`) and clears it once a 正文 reply (the assistant's
+   plain-text markdown block) appears AFTER it, so the effect follows the most
+   recent command/think and turns off when the model writes its answer. NOT
+   gated on `data-state="running"` (fast tools like read/edit drop that almost
+   instantly). The output BODY (the stdout/results, a separate element) is
+   deliberately NOT targeted, so only the header is swept. Independent of the
+   category-colour stamp AND of `commandColor` — gated only by
+   `html[data-rf-sweep='on']`, which `mountToolAccent` mirrors from
+   `settings.commandSweep`. */
+@supports ((-webkit-background-clip: text) or (background-clip: text)) {
+  html[data-rf-sweep='on'] [data-rf-latest] [class*='_title'],
+  html[data-rf-sweep='on'] [data-rf-latest] [class*='_summary']:not([class*='_errorSummary']),
+  html[data-rf-sweep='on'] [data-rf-latest] [class*='_fileLink'] {
+    background-image: linear-gradient(90deg,
+      #ff6b6b, #ffb36b, #ffe66d, #7ee08a, #6fb9ff, #b48aff, #ee88ff, #ff6b6b);
+    background-size: 200% auto;
+    background-position: 0% center;
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+    -webkit-text-fill-color: transparent;
+    animation: rf-text-rainbow-sweep 2.4s linear infinite;
+  }
+}
+
+/* The sweep: a 0%→200% background-position loop over a 200%-wide gradient.
+   Because the image is 200% of the text width, 200% position moves the band by
+   exactly one image period (the gradient repeats its first stop at the end), so
+   the rainbow travels across the characters and loops seamlessly. */
+@keyframes rf-text-rainbow-sweep {
+  to {
+    background-position: 200% center;
+  }
+}
+
+/* Reduced motion: freeze the sweep — a static rainbow fill remains so the text
+   stays legible, but nothing animates (the sweep is motion-dependent). */
+@media (prefers-reduced-motion: reduce) {
+  html[data-rf-sweep='on'] [data-rf-latest] [class*='_title'],
+  html[data-rf-sweep='on'] [data-rf-latest] [class*='_summary']:not([class*='_errorSummary']),
+  html[data-rf-sweep='on'] [data-rf-latest] [class*='_fileLink'] {
+    animation: none;
+  }
+}

@@ -8,6 +8,8 @@
  *  - opacity      — overall effect opacity.
  *  - speed        — token-rate sensitivity (breathing rhythm follows output rate).
  *  - mood         — thinking/tool cool-shift palette.
+ *  - commandColor — whether command cards are coloured by category.
+ *  - commandSweep — whether a running command's text is swept by a rainbow.
  *  - toolColors   — per-category command-card text accent colours (a swatch
  *                   per command class, each with a per-row reset).
  * Localized through the injected `t` seat (`rainbow-flow` namespace).
@@ -66,6 +68,8 @@ export function RainbowFlowSettings({ t }: RainbowFlowSettingsInjected): React.J
       opacity: 1,
       speed: 1,
       mood: true,
+      commandColor: true,
+      commandSweep: true,
       toolColors: { ...DEFAULT_TOOL_COLORS },
     }
     setSettings(next)
@@ -100,6 +104,26 @@ export function RainbowFlowSettings({ t }: RainbowFlowSettingsInjected): React.J
             onChange={(e) => update({ mood: e.target.checked })}
           />
           <span>{settings.mood ? t('on') : t('off')}</span>
+        </label>
+      </Row>
+      <Row label={t('commandColorLabel')} hint={t('commandColorHint')}>
+        <label className={styles.switch}>
+          <input
+            type="checkbox"
+            checked={settings.commandColor}
+            onChange={(e) => update({ commandColor: e.target.checked })}
+          />
+          <span>{settings.commandColor ? t('on') : t('off')}</span>
+        </label>
+      </Row>
+      <Row label={t('commandSweepLabel')} hint={t('commandSweepHint')}>
+        <label className={styles.switch}>
+          <input
+            type="checkbox"
+            checked={settings.commandSweep}
+            onChange={(e) => update({ commandSweep: e.target.checked })}
+          />
+          <span>{settings.commandSweep ? t('on') : t('off')}</span>
         </label>
       </Row>
       <div className={styles.colorSection}>

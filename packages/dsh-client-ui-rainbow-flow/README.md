@@ -104,7 +104,9 @@ send/stop button with dynamic effects.
   widget — **Enable/Disable** toggles the effect (bidirectionally synced with
   the toolbar dot), and **Configure** opens a panel to adjust the overall
   opacity (40/70/100%), token-rate speed sensitivity (0.5×/1×/1.5×), the
-  thinking cool-shift palette on/off, and the **command text colours** — a
+  thinking cool-shift palette on/off, the **command-card colouring by category**
+  on/off, the **latest-action rainbow sweep**
+  on/off, and the **command text colours** — a
   per-category swatch for each command class (shell, read, search, write,
   edit, code, web, ask, plan, memory, think, tool) with a per-row reset —
   persisted to `localStorage` (`dsh.rnglow.settings`) and applied live to the
@@ -159,7 +161,20 @@ send/stop button with dynamic effects.
   unsupported); an unknown tool falls back to the neutral "Tool" colour.
   **The colours are user-customisable per category** in the config panel (see
   Configurable; written to `--rf-tool-*` variables and applied live).
-  **Always on**, independent of the composer-glow toggle.
+  **The latest action's title/summary is swept by a rainbow (not its body)**:
+  the newest row in the transcript — a tool command card or a **"Think"**
+  reasoning row — has its title / summary / file name painted with a **flowing
+  rainbow gradient** (`background-clip: text`) that sweeps across each
+  character; the output **body is deliberately not targeted**. The effect
+  **follows the latest action and persists** there until the **next
+  command/Think appears OR a plain-text reply (正文) appears after it** — so
+  instant tools like read/edit don't cut it
+  off early, while a text reply clears it right away. Pure CSS, no DOM
+  re-render; it freezes to a static rainbow under `prefers-reduced-motion`, and
+  can be turned off via the config panel's **latest-action rainbow sweep**
+  switch. The command colouring is itself controlled by the **colour command
+  cards by category** switch (on by default; turning it off reverts the cards to
+  the shipped look), and both are independent of the composer-glow toggle.
 - **Graceful degradation**: browsers without `backdrop-filter` still get the
   translucent white glass (the frosted blur is an enhancement); browsers
   without `mix-blend-mode: screen` fall back to normally-blended shadows
@@ -230,4 +245,6 @@ No configuration needed after mounting:
    up with a different-coloured left edge by category (requires the rainbow
    flow plugin mounted); hover a card to see its category. In the config
    panel's **command text colours** you can pick a custom colour per command
-   class and the already-coloured cards recolor live.
+   class and the already-coloured cards recolor live. While a command is
+   **running**, its text is swept by a flowing rainbow over each character,
+   reverting when it finishes.

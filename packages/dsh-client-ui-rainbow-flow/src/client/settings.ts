@@ -10,6 +10,8 @@
  *  - `opacity`       — overall effect opacity (0.4 / 0.7 / 1.0).
  *  - `speed`         — token-rate sensitivity (0.5× slow / 1× default / 1.5× fast).
  *  - `mood`          — whether the thinking/tool "cool shift" palette is on.
+ *  - `commandColor`  — whether command cards are coloured by category.
+ *  - `commandSweep`  — whether a running command's text is swept by a rainbow.
  *  - `toolColors`    — the per-category command-card text accent colours
  *                      (see `DEFAULT_TOOL_COLORS`; the settings panel lets the
  *                      user pick each one, applied as `--rf-tool-*` CSS vars).
@@ -84,6 +86,10 @@ export interface RainbowFlowSettings {
   speed: number
   /** Whether the thinking/tool cool-shift palette is applied. */
   mood: boolean
+  /** Whether command cards are coloured by category (edge + related text). */
+  commandColor: boolean
+  /** Whether a running command's text is swept by a rainbow. */
+  commandSweep: boolean
   /** Per-category command-card text accent colours. */
   toolColors: ToolColors
 }
@@ -93,6 +99,8 @@ export const DEFAULT_SETTINGS: RainbowFlowSettings = {
   opacity: 1,
   speed: 1,
   mood: true,
+  commandColor: true,
+  commandSweep: true,
   toolColors: { ...DEFAULT_TOOL_COLORS },
 }
 
@@ -111,6 +119,8 @@ export function loadSettings(): RainbowFlowSettings {
       ? s.speed as number
       : DEFAULT_SETTINGS.speed,
     mood: typeof s.mood === 'boolean' ? s.mood : DEFAULT_SETTINGS.mood,
+    commandColor: typeof s.commandColor === 'boolean' ? s.commandColor : DEFAULT_SETTINGS.commandColor,
+    commandSweep: typeof s.commandSweep === 'boolean' ? s.commandSweep : DEFAULT_SETTINGS.commandSweep,
     toolColors: loadToolColors(s.toolColors),
   }
 }

@@ -19,6 +19,19 @@
  *     picks (the settings panel's "command text colours" section) take effect
  *     live.
  *
+ * The whole colouring is switched by `settings.commandColor`: when off, the
+ * module stops stamping and clears `data-rf-tool-cat` / `title` from every
+ * already-decorated row so cards revert to the shipped look. The latest-action
+ * rainbow sweep (see the sweep CSS) is independent — it marks the LATEST action
+ * row (`data-rf-latest`, the newest among tool command cards `[data-tool]` and
+ * Think rows `[data-variant="think"]`) and clears it when a 正文 reply (the
+ * assistant's plain-text markdown block) appears AFTER it, so the sweep follows
+ * the most recent command/think and turns off once the model writes its answer.
+ * The state is recomputed DETERMINISTICALLY from the live DOM on every change
+ * (there is no sticky flag), so it behaves identically on a fresh render and
+ * during streaming, and survives re-renders. Only the header text is swept,
+ * never the output body, so it works whether or not colouring is on.
+ *
  * A single `MutationObserver` keeps the tags current without touching React:
  * it watches for added/dropped rows (childList — handles both added `Element`s
  * and added `DocumentFragment`s, so an inserted batch is covered) and for a
@@ -47,6 +60,15 @@ const VARIANT_ATTR = 'data-variant'
 const THINK_VARIANT = 'think'
 /** Attribute this module stamps with the classified category. */
 const CAT_ATTR = 'data-rf-tool-cat'
+
+/** Attribute stamped on the LATEST command card (the newest in document
+ *  order), which the rainbow sweep CSS targets — the effect follows the most
+ *  recent command rather than every card. */
+export const LATEST_ATTR = 'data-rf-latest'
+
+/** Document-root attribute that gates the command-card rainbow sweep CSS
+ *  (`on` / `off`), so the effect can be switched from the config panel. */
+export const SWEEP_GATE_ATTR = 'data-rf-sweep'
 
 /** Root selector for every row this decorator colours: tool-call cards (they
  *  carry `data-tool`) plus the assistant's reasoning "Think" rows (they carry
@@ -78,22 +100,33 @@ function scan(root: ParentNode): void {
   for (const el of root.querySelectorAll(ROW_SELECTOR)) applyTo(el)
 }
 
-/** Write the settings' per-category colours onto the document root as the
- *  `--rf-tool-<cat>` custom properties that `ToolAccent.css` reads. An inline
- *  variable on `<html>` overrides the stylesheet's `:root` default, so the
- *  user's picks take effect and live-update without touching the shipped CSS.
- *  Only categories whose colour differs from the shipped palette are written;
- *  a default/reset category has its inline var REMOVED so the stylesheet
- *  `:root` value stays authoritative (editing `ToolAccent.css` keeps working,
- *  and resetting truly restores the shipped look). */
-function applyToolColorVars(): void {
+/** Apply the settings' per-category colours AND the command-card sweep gate
+ *  onto the document root.
+ *
+ *  Colours — written as the `--rf-tool-<cat>` custom properties that
+ *  `ToolAccent.css` reads; an inline variable on `<html>` overrides the
+ *  stylesheet's `:root` default, so the user's picks take effect live without
+ *  touching the shipped CSS. Only categories whose colour differs from the
+ *  shipped palette are written; a default/reset category has its inline var
+ *  REMOVED so the stylesheet `:root` value stays authoritative (editing
+ *  `ToolAccent.css` keeps working, and resetting truly restores the shipped
+ *  look).
+ *
+ *  Sweep gate — `data-rf-sweep='on'|'off'` on `<html>` mirrors
+ *  `settings.commandSweep`, so the latest-action rainbow sweep CSS can be
+ *  switched off from the config panel. The sweep selector keys off the
+ *  `data-rf-latest` marker (the newest command/think row), NOT the category
+ *  stamp, so it works independently of `commandColor`. */
+function applyToolAccentSettings(): void {
   const root = document.documentElement
-  const colors: ToolColors = getSettings().toolColors
+  const s = getSettings()
+  const colors: ToolColors = s.toolColors
   for (const cat of TOOL_CATEGORIES) {
     const v = colors[cat]
     if (v === DEFAULT_TOOL_COLORS[cat]) root.style.removeProperty(`--rf-tool-${cat}`)
     else root.style.setProperty(`--rf-tool-${cat}`, v)
   }
+  root.setAttribute(SWEEP_GATE_ATTR, s.commandSweep ? 'on' : 'off')
 }
 
 /**
@@ -103,41 +136,125 @@ function applyToolColorVars(): void {
 export function mountToolAccent(): () => void {
   if (typeof document === 'undefined') return () => { /* dispose: no-op */ }
 
-  // Apply the user's per-category colours and keep them live regardless of
-  // whether observation is available — the overrides affect already-stamped
-  // rows too, so they never depend on the MutationObserver below.
-  applyToolColorVars()
-  const unsubscribeColors = subscribeSettings(applyToolColorVars)
+  const root = document.body ?? document.documentElement
+  const html = document.documentElement
+
+  // Live gate: whether category colouring is applied (stamping) right now, so
+  // the MutationObserver can refuse to stamp while the user has it switched off.
+  let colorOn = true
+  let applied = false
+
+  /** Remove the category stamp + tooltip from every decorated row — used when
+   *  the user turns command colouring OFF, so already-coloured cards revert to
+   *  the shipped look immediately. */
+  function clearAllStamps(): void {
+    for (const el of root.querySelectorAll(`[${CAT_ATTR}]`)) {
+      el.removeAttribute(CAT_ATTR)
+      el.removeAttribute('title')
+    }
+  }
+
+  /** Is the latest action superseded by a 正文 reply? The 正文 is the
+   *  assistant's plain-text answer, which when it appears is a non-action text
+   *  sibling right after the command/think row (a Think row and its reply are
+   *  siblings inside the same message; a tool card's reply sits at a higher
+   *  level, which we conservatively leave highlighted rather than risk false
+   *  positives from climbing up the whole flow). Only the immediate siblings of
+   *  the row are examined — anything deeper is treated as "still active". This
+   *  is deliberately conservative: it never wrongly blanks a running command. */
+  function isSuperseded(latest: Element): boolean {
+    let n: Element | null = latest.nextElementSibling
+    while (n) {
+      // A newer action row right after → nothing to supersede (it'd be the latest).
+      if (n.matches(ROW_SELECTOR) || n.querySelector(ROW_SELECTOR)) return false
+      // A non-action text block immediately after → the 正文 reply.
+      if ((n.textContent || '').trim()) return true
+      n = n.nextElementSibling
+    }
+    return false
+  }
+
+  /** Mark the LATEST decor element with `data-rf-latest` — the newest row in
+   *  document order among tool command cards (`data-tool`) AND Think reasoning
+   *  rows (`data-variant="think"`) — and clear it from every other one. The
+   *  rainbow sweep targets only this marker, so it follows whichever action was
+   *  produced last, and clears once a 正文 reply appears after it. Recomputed
+   *  DETERMINISTICALLY from the live DOM each time (no sticky state), so it
+   *  behaves the same on a fresh render and during streaming. */
+  function setLatest(): void {
+    const rows = root.querySelectorAll(ROW_SELECTOR)
+    const latest = rows.length > 0 ? rows[rows.length - 1] : null
+    const superseded = !!latest && isSuperseded(latest)
+    for (const el of rows) {
+      if (el === latest && !superseded) el.setAttribute(LATEST_ATTR, 'on')
+      else el.removeAttribute(LATEST_ATTR)
+    }
+  }
+
+  /** Apply the user's colours + the sweep gate, then (re)stamp or clear the
+   *  command rows to match `settings.commandColor`, and keep the latest-card
+   *  marker current (deterministic from the current DOM). */
+  function sync(): void {
+    const s = getSettings()
+    // Colour vars + sweep gate are written regardless of colouring — the vars
+    // are harmless with no stamped card, and the sweep is independent of it.
+    applyToolAccentSettings()
+    const next = s.commandColor
+    if (!applied || next !== colorOn) {
+      if (next) scan(root)
+      else clearAllStamps()
+      colorOn = next
+    }
+    setLatest()
+    applied = true
+  }
+
+  // Apply the user's colours + gate, and keep them live regardless of whether
+  // observation is available — the overrides affect already-stamped rows too.
+  sync()
+  const unsubscribeSettings = subscribeSettings(sync)
 
   if (typeof MutationObserver === 'undefined') {
     // Nothing to decorate (or too old to observe) — colour overrides still
     // applied and tracked, so dispose just unsubscribes.
-    return () => { unsubscribeColors() }
+    return () => { unsubscribeSettings() }
   }
 
-  const root = document.body ?? document.documentElement
-
-  // Tag whatever is already rendered.
-  scan(root)
+  // Recompute the latest marker once per animation frame after any DOM change,
+  // so it tracks live streaming exactly like a fresh render (no sticky state).
+  let rafPending = false
+  const scheduleLatest = (): void => {
+    if (rafPending) return
+    rafPending = true
+    window.requestAnimationFrame(() => {
+      rafPending = false
+      setLatest()
+    })
+  }
 
   const observer = new MutationObserver((mutations) => {
+    let changed = false
     for (const mutation of mutations) {
       if (mutation.type === 'attributes') {
         // Only `data-tool` / `data-variant` are observed; if one flipped,
         // re-classify the row. `applyTo` writes neither observed attribute,
-        // so this cannot recurse.
+        // so this cannot recurse. Skipped entirely while colouring is off.
+        if (!colorOn) continue
         if (mutation.attributeName === TOOL_ATTR || mutation.attributeName === VARIANT_ATTR) {
           applyTo(mutation.target as Element)
         }
+        changed = true
       } else {
         // childList: an inserted batch may arrive as individual Elements OR as
         // a single DocumentFragment — scan whichever was added (both are
         // queryable) so a whole window of results is covered in one pass.
+        changed = true
         for (const node of mutation.addedNodes) {
-          if (node instanceof Element || node instanceof DocumentFragment) scan(node)
+          if (colorOn && (node instanceof Element || node instanceof DocumentFragment)) scan(node)
         }
       }
     }
+    if (changed) scheduleLatest()
   })
 
   observer.observe(root, {
@@ -149,6 +266,6 @@ export function mountToolAccent(): () => void {
 
   return () => {
     observer.disconnect()
-    unsubscribeColors()
+    unsubscribeSettings()
   }
 }

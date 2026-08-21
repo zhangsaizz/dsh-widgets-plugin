@@ -19,6 +19,10 @@ export type RainbowFlowKey =
   | 'speedHint'
   | 'moodLabel'
   | 'moodHint'
+  | 'commandColorLabel'
+  | 'commandColorHint'
+  | 'commandSweepLabel'
+  | 'commandSweepHint'
   | 'toolColorsLabel'
   | 'toolColorsHint'
   | 'colorReset'
@@ -39,6 +43,10 @@ export const zh: Record<RainbowFlowKey, string> = {
   speedHint: '模型输出越快，光晕呼吸得越快',
   moodLabel: '思考冷色调',
   moodHint: '思考/调用工具时光晕偏蓝紫',
+  commandColorLabel: '命令按类别上色',
+  commandColorHint: '命令卡的边条与文字按类别着色',
+  commandSweepLabel: '最新行动彩虹扫字',
+  commandSweepHint: '最新命令/思考的标题/摘要被彩虹扫过（正文除外）',
   toolColorsLabel: '命令文字颜色',
   toolColorsHint: '为每类命令的标题、图标与边条分别着色',
   colorReset: '恢复默认',
@@ -60,6 +68,10 @@ export const en: Record<RainbowFlowKey, string> = {
   speedHint: 'How much the halo breathing follows the output-token rate',
   moodLabel: 'Thinking cool tint',
   moodHint: 'Shift the halo blue/violet while thinking or calling tools',
+  commandColorLabel: 'Colour command cards by category',
+  commandColorHint: 'Colour each command card’s edge and text by category',
+  commandSweepLabel: 'Latest-action rainbow sweep',
+  commandSweepHint: 'Sweep the latest command/think header (not its body)',
   toolColorsLabel: 'Command text colours',
   toolColorsHint: 'Colour each command category’s title, icon and edge separately',
   colorReset: 'Reset',
