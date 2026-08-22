@@ -104,11 +104,15 @@ send/stop button with dynamic effects.
   widget — **Enable/Disable** toggles the effect (bidirectionally synced with
   the toolbar dot), and **Configure** opens a panel to adjust the overall
   opacity (40/70/100%), token-rate speed sensitivity (0.5×/1×/1.5×), the
-  thinking cool-shift palette on/off, the **command-card colouring by category**
-  on/off, the **latest-action rainbow sweep**
-  on/off, and the **command text colours** — a
+  thinking cool-shift palette on/off, the **latest-action rainbow sweep**
+  on/off, and the **command text colours** — its section header carries the
+  master **colour command cards by category** toggle, and below it a
   per-category swatch for each command class (shell, read, search, write,
-  edit, code, web, ask, plan, memory, think, tool) with a per-row reset —
+  edit, code, web, ask, plan, memory, think, other), each row showing the
+  web-native tool name (bash, read_file, apply_patch, …) beside the harness's
+  own command-card icon, both tinted live by that row's colour, plus a
+  per-row reset; when the master toggle is off the palette dims to a holding
+  state (colours saved, not applied) —
   persisted to `localStorage` (`dsh.rnglow.settings`) and applied live to the
   mounted effect and the coloured command cards. **Reset to defaults** restores
   the shipped look including the command colours. (The old "cloud wisps" knob

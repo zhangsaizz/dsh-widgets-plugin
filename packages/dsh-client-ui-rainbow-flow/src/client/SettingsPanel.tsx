@@ -18,6 +18,20 @@
 import { useState } from 'react'
 import type { ReactNode } from 'react'
 import type { TranslateNS } from '@deepseek-ai/dsh-client-ui-slots'
+import {
+  IconApiOutline14,
+  IconBrowseOutline16,
+  IconChecklistOutline14,
+  IconCodeOutline16,
+  IconDataOutline16,
+  IconEditOutline16,
+  IconGlobeOutline14,
+  IconListPenOutline16,
+  IconQuestionOutline14,
+  IconSearchOutline16,
+  IconSparkle16,
+  IconThinkOutline14,
+} from '@deepseek-ai/dsh-client-ui-primitives'
 import styles from './SettingsPanel.module.css'
 import {
   DEFAULT_TOOL_COLORS,
@@ -35,10 +49,57 @@ export interface RainbowFlowSettingsInjected {
   t: TranslateNS<'rainbow-flow'>
 }
 
+/** Per-category icon shown in the colour grid. Reuses the harness's official
+ *  `ic_ds_*` glyph set (`@deepseek-ai/dsh-client-ui-primitives`) — the very
+ *  icons the web chat's command cards use — so the panel reads like the rest
+ *  of the UI. Every glyph draws with `fill="currentColor"`, so each icon is
+ *  tinted by its row's configured colour (a live link between the glyph and
+ *  the command class it stands for). */
+const TOOL_ICON: Readonly<Record<ToolCategory, (size: number) => ReactNode>> = {
+  shell: (size) => <IconApiOutline14 size={size} />,
+  read: (size) => <IconBrowseOutline16 size={size} />,
+  search: (size) => <IconSearchOutline16 size={size} />,
+  write: (size) => <IconListPenOutline16 size={size} />,
+  edit: (size) => <IconEditOutline16 size={size} />,
+  code: (size) => <IconCodeOutline16 size={size} />,
+  web: (size) => <IconGlobeOutline14 size={size} />,
+  ask: (size) => <IconQuestionOutline14 size={size} />,
+  plan: (size) => <IconChecklistOutline14 size={size} />,
+  memory: (size) => <IconDataOutline16 size={size} />,
+  think: (size) => <IconThinkOutline14 size={size} />,
+  other: (size) => <IconSparkle16 size={size} />,
+}
+
 /** Bilingual category name for a colour row (resolved from the document lang). */
 function categoryLabel(category: ToolCategory): string {
   const lang = (document.documentElement.lang || '').toLowerCase()
   return lang.startsWith('zh') ? CATEGORY_LABELS[category].zh : CATEGORY_LABELS[category].en
+}
+
+/** Representative web tool name per category — the token the harness's
+ *  command card shows (`data-tool` / `node.name`) for the most representative
+ *  tool in each class, so the panel reads like the web chat. The row colours
+ *  the WHOLE category; the name is just the exemplar. Kept independent of the
+ *  document language so it always matches the web UI. */
+const CATEGORY_TOOL_NAME: Readonly<Record<ToolCategory, string>> = {
+  shell: 'bash',
+  read: 'read_file',
+  search: 'web_search',
+  write: 'write_file',
+  edit: 'apply_patch',
+  code: 'run_code',
+  web: 'web_fetch',
+  ask: 'ask_user_question',
+  plan: 'plan',
+  memory: 'remember',
+  think: 'think',
+  other: 'command',
+}
+
+/** Web-native command label: the representative tool name (matches the web
+ *  command card's `node.name`), independent of the document language. */
+function commandName(category: ToolCategory): string {
+  return CATEGORY_TOOL_NAME[category]
 }
 
 /** One settings row: label + optional hint + control. */
@@ -102,18 +163,9 @@ export function RainbowFlowSettings({ t }: RainbowFlowSettingsInjected): React.J
             type="checkbox"
             checked={settings.mood}
             onChange={(e) => update({ mood: e.target.checked })}
+            aria-label={t('moodLabel')}
           />
           <span>{settings.mood ? t('on') : t('off')}</span>
-        </label>
-      </Row>
-      <Row label={t('commandColorLabel')} hint={t('commandColorHint')}>
-        <label className={styles.switch}>
-          <input
-            type="checkbox"
-            checked={settings.commandColor}
-            onChange={(e) => update({ commandColor: e.target.checked })}
-          />
-          <span>{settings.commandColor ? t('on') : t('off')}</span>
         </label>
       </Row>
       <Row label={t('commandSweepLabel')} hint={t('commandSweepHint')}>
@@ -122,24 +174,43 @@ export function RainbowFlowSettings({ t }: RainbowFlowSettingsInjected): React.J
             type="checkbox"
             checked={settings.commandSweep}
             onChange={(e) => update({ commandSweep: e.target.checked })}
+            aria-label={t('commandSweepLabel')}
           />
           <span>{settings.commandSweep ? t('on') : t('off')}</span>
         </label>
       </Row>
       <div className={styles.colorSection}>
         <div className={styles.colorHeader}>
-          <span className={styles.label}>{t('toolColorsLabel')}</span>
+          <div className={styles.colorHeaderRow}>
+            <span className={styles.label}>{t('toolColorsLabel')}</span>
+            <label className={styles.switch}>
+              <input
+                type="checkbox"
+                checked={settings.commandColor}
+                onChange={(e) => update({ commandColor: e.target.checked })}
+                title={t('commandColorLabel')}
+                aria-label={t('commandColorLabel')}
+              />
+              <span>{settings.commandColor ? t('on') : t('off')}</span>
+            </label>
+          </div>
           <span className={styles.hint}>{t('toolColorsHint')}</span>
         </div>
-        <div className={styles.colorGrid}>
+        <div className={`${styles.colorGrid}${settings.commandColor ? '' : ` ${styles.colorGridOff}`}`}>
           {TOOL_CATEGORIES.map((cat) => (
             <div key={cat} className={styles.colorItem}>
-              <span className={styles.colorItemLabel}>{categoryLabel(cat)}</span>
+              <span className={styles.colorItemText} style={{ color: settings.toolColors[cat] }}>
+                <span className={styles.colorItemIcon} aria-hidden="true">
+                  {TOOL_ICON[cat](16)}
+                </span>
+                <span className={styles.colorItemLabel} title={commandName(cat)}>{commandName(cat)}</span>
+              </span>
               <input
                 type="color"
                 className={styles.colorInput}
                 value={settings.toolColors[cat]}
                 onChange={(e) => update({ toolColors: { ...settings.toolColors, [cat]: e.target.value } })}
+                disabled={!settings.commandColor}
                 title={categoryLabel(cat)}
                 aria-label={categoryLabel(cat)}
               />
@@ -147,6 +218,7 @@ export function RainbowFlowSettings({ t }: RainbowFlowSettingsInjected): React.J
                 type="button"
                 className={styles.colorResetBtn}
                 onClick={() => update({ toolColors: { ...settings.toolColors, [cat]: DEFAULT_TOOL_COLORS[cat] } })}
+                disabled={!settings.commandColor}
                 title={t('colorReset')}
                 aria-label={`${t('colorReset')} — ${categoryLabel(cat)}`}
               >

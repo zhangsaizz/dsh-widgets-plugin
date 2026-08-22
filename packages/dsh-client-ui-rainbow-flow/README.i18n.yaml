@@ -3,5 +3,5 @@
 # editing either side, bring the other along and re-record with:
 #   git hash-object packages/dsh-client-ui-rainbow-flow/README.md
 #   git hash-object packages/dsh-client-ui-rainbow-flow/README.zh.md
-README.md: e500fdf98b708dcbdb479ef0159f69c397fab842
-README.zh.md: 3657213cc2e2e2d60393f359780ed54eb28bdd10
+README.md: b9dda1dee40fba9902d29d457addad4d0027f3d8
+README.zh.md: 02d8ae3304be7652665e134978d4449b1d6005d4
