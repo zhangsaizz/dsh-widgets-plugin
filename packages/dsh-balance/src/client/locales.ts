@@ -23,6 +23,9 @@ export type BalanceKey =
   | 'updatedAt'
   | 'error'
   | 'flat'
+  | 'statusOk'
+  | 'statusError'
+  | 'statusIdle'
   | 'showAll'
   | 'showCurrent'
   | 'noAccounts'
@@ -78,6 +81,9 @@ export const zh: Record<BalanceKey, string> = {
   updatedAt: '更新于',
   error: '查询失败',
   flat: '持平',
+  statusOk: '余额正常',
+  statusError: '查询失败',
+  statusIdle: '状态未知',
   showAll: '显示全部账户',
   showCurrent: '只显示当前账户',
   noAccounts: '无可用账户',
@@ -134,6 +140,9 @@ export const en: Record<BalanceKey, string> = {
   updatedAt: 'Updated',
   error: 'Query failed',
   flat: 'Flat',
+  statusOk: 'Balance OK',
+  statusError: 'Query failed',
+  statusIdle: 'Status unknown',
   showAll: 'Show all accounts',
   showCurrent: 'Show current account only',
   noAccounts: 'No accounts available',

@@ -16,6 +16,9 @@ import type { BalanceController, BalanceViewState } from './controller.ts'
 import { MAX_SCALE, MIN_SCALE } from './store.ts'
 import type { createBalanceViewStore } from './store.ts'
 import type { DockCorner } from './store.ts'
+import {
+  CollapseIcon, DockIcon, DockToCardIcon, GridModeIcon, MinusIcon, PlusIcon, RefreshIcon, trendIcon,
+} from './icons.tsx'
 import css from './BalanceWidget.module.css'
 
 /** Injected business face: the live balance source and the manual refresh verb. */
@@ -38,17 +41,24 @@ const DOCK_INSET = 16
 /** How long the collapsed pill keeps showing a changed other provider. */
 const HIGHLIGHT_MS = 3000
 
-/** Format one amount with up to four decimals, trailing zeros stripped. */
+/** Format one amount with up to four decimals, trailing zeros stripped, and
+ *  thousands separators so large balances stay readable at a glance. */
 function formatAmount(value: number): string {
-  return value.toFixed(4).replace(/\.?0+$/, '')
+  if (!Number.isFinite(value)) return '0'
+  const abs = Math.abs(value)
+  // Group the integer part, keep at most 4 decimals, then drop trailing zeros.
+  const [integer, fraction] = abs.toFixed(4).split('.')
+  const grouped = integer.replace(/\B(?=(\d{3})+(?!\d))/g, ',')
+  const trimmedFraction = fraction.replace(/0+$/, '')
+  const sign = value < 0 ? '-' : ''
+  return trimmedFraction === '' ? `${sign}${grouped}` : `${sign}${grouped}.${trimmedFraction}`
 }
 
-/** Trend glyph: up/down arrows, a muted dash for flat, nothing for unknown. */
-function trendGlyph(trend: BalanceTrend): string | null {
-  if (trend === 'up') return '▲'
-  if (trend === 'down') return '▼'
-  if (trend === 'flat') return '–'
-  return null
+/** Whether the OS requests reduced motion (reading the media query once). */
+function prefersReducedMotion(): boolean {
+  return typeof window !== 'undefined'
+    && typeof window.matchMedia === 'function'
+    && window.matchMedia('(prefers-reduced-motion: reduce)').matches
 }
 
 /** Request docking this widget into the card container: dispatches the
@@ -88,12 +98,13 @@ function transformOrigin(dock: DockCorner): string {
   }
 }
 
-/** Tween toward a new target on change; the dynamic rolling of the balance amount. */
+/** Tween toward a new target on change; the dynamic rolling of the balance amount.
+ *  With prefers-reduced-motion the value snaps instead of rolling. */
 function useAnimatedNumber(target: number, enabled: boolean): number {
   const [display, setDisplay] = useState(target)
   const fromRef = useRef(target)
   useEffect(() => {
-    if (!enabled) {
+    if (!enabled || prefersReducedMotion()) {
       fromRef.current = target
       setDisplay(target)
       return
@@ -121,9 +132,18 @@ function useAnimatedNumber(target: number, enabled: boolean): number {
 
 /** Direction indicator for the Host-computed trend. */
 function TrendArrow(props: { trend: BalanceTrend }) {
-  const glyph = trendGlyph(props.trend)
-  if (glyph === null) return null
-  return <span className={css.trend} data-trend={props.trend} aria-label={props.trend}>{glyph}</span>
+  const icon = trendIcon(props.trend, { size: 12 })
+  if (icon === null) return null
+  return (
+    <span
+      className={css.trend}
+      data-trend={props.trend}
+      role="img"
+      aria-label={props.trend === 'up' ? 'up' : props.trend === 'down' ? 'down' : 'flat'}
+    >
+      {icon}
+    </span>
+  )
 }
 
 /** The balance panel body for one view, rendering the state or the rolling amount. */
@@ -512,12 +532,15 @@ export function BalanceWidget(props: BalanceWidgetProps) {
               <span className={css.provider} title={view.provider ?? undefined}>
                 <span className={css.statusDot} data-status={providerStatus} aria-hidden="true" />
                 <span className={css.providerName}>{headerLabel}</span>
+                <span className={css.srOnly}>
+                  {providerStatus === 'ok' ? t('statusOk') : providerStatus === 'error' ? t('statusError') : t('statusIdle')}
+                </span>
               </span>
             )}
             <span className={css.controls} onPointerDown={(event) => { event.stopPropagation() }}>
-              <button type="button" className={css.iconButton} onClick={() => { actions.zoomOut() }} disabled={settings.scale <= MIN_SCALE} aria-label={t('zoomOut')} title={t('zoomOut')}>−</button>
+              <button type="button" className={css.iconButton} onClick={() => { actions.zoomOut() }} disabled={settings.scale <= MIN_SCALE} aria-label={t('zoomOut')} title={t('zoomOut')}><MinusIcon /></button>
               <button type="button" className={css.zoomLevel} onClick={() => { actions.resetZoom() }} aria-label={t('resetZoom')} title={t('resetZoom')}>{Math.round(settings.scale * 100)}%</button>
-              <button type="button" className={css.iconButton} onClick={() => { actions.zoomIn() }} disabled={settings.scale >= MAX_SCALE} aria-label={t('zoomIn')} title={t('zoomIn')}>+</button>
+              <button type="button" className={css.iconButton} onClick={() => { actions.zoomIn() }} disabled={settings.scale >= MAX_SCALE} aria-label={t('zoomIn')} title={t('zoomIn')}><PlusIcon /></button>
               <span className={css.divider} />
               <button type="button" className={css.iconButton} onClick={(event) => {
                 if (settings.dock === 'free') {
@@ -529,11 +552,11 @@ export function BalanceWidget(props: BalanceWidgetProps) {
                 const rect = (event.currentTarget as HTMLElement).closest('[data-balance-widget]')?.getBoundingClientRect()
                 if (rect !== undefined) actions.setPosition(rect.left, rect.top)
                 actions.dockTo('free')
-              }} aria-label={t('dock')} title={t('dock')} data-active={settings.dock !== 'free' || undefined}>⛶</button>
-              <button type="button" className={css.iconButton} onClick={() => { requestDockToContainer('balance') }} aria-label={t('dockToContainer')} title={t('dockToContainer')}>⤢</button>
-              <button type="button" className={css.iconButton} onClick={() => { actions.setMode(settings.mode === 'current' ? 'all' : 'current') }} aria-label={settings.mode === 'current' ? t('showAll') : t('showCurrent')} title={settings.mode === 'current' ? t('showAll') : t('showCurrent')} data-active={settings.mode === 'all' || undefined}>▦</button>
-              <button type="button" className={css.iconButton} onClick={() => { refresh() }} aria-label={t('refresh')} title={t('refresh')}>⟳</button>
-              <button type="button" className={css.iconButton} onClick={() => { actions.toggleCollapsed() }} aria-label={t('collapse')} title={t('collapse')}>—</button>
+              }} aria-label={t('dock')} title={t('dock')} data-active={settings.dock !== 'free' || undefined}><DockIcon size={13} /></button>
+              <button type="button" className={css.iconButton} onClick={() => { requestDockToContainer('balance') }} aria-label={t('dockToContainer')} title={t('dockToContainer')}><DockToCardIcon size={13} /></button>
+              <button type="button" className={css.iconButton} onClick={() => { actions.setMode(settings.mode === 'current' ? 'all' : 'current') }} aria-label={settings.mode === 'current' ? t('showAll') : t('showCurrent')} title={settings.mode === 'current' ? t('showAll') : t('showCurrent')} data-active={settings.mode === 'all' || undefined}><GridModeIcon size={13} /></button>
+              <button type="button" className={css.iconButton} onClick={() => { refresh() }} aria-label={t('refresh')} title={t('refresh')}><RefreshIcon size={13} /></button>
+              <button type="button" className={css.iconButton} onClick={() => { actions.toggleCollapsed() }} aria-label={t('collapse')} title={t('collapse')}><CollapseIcon /></button>
             </span>
           </div>
           <div className={css.body}>

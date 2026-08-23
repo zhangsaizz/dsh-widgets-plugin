@@ -169,7 +169,41 @@ pnpm 版本由 root `package.json` 的 `packageManager` 固定（当前 `pnpm@11
 
 ## 本次会话的近期改动（了解现状用）
 
-- **跟进官方 API 至 v0.1.1-rc.2**：全部 `@deepseek-ai/*` 依赖范围升级到
+- **余额插件 UI 优化（可访问性 + 图标一致性 + 大额可读性）**（纯客户端改动，build 后刷新页面即生效）：
+  - **头部控件/趋势箭头换成内联 SVG**（`src/client/icons.tsx`，14×14 viewBox / 1.5px 圆头描边，
+    自包含、随 `currentColor` 主题化）：原先是 Unicode 文本字形（`− + ⛶ ⤢ ▦ ⟳ —` 与 `▲▼–`），
+    跨平台字体渲染不一致、geometry 固定不可主题化。`trendIcon()` 三元函数统一喂给挂件 / 卡片 /
+    收起胶囊三处的趋势徽标，控件按钮（缩小/放大/吸附/入卡容器/账户模式/刷新/收起）逐个换成
+    `MinusIcon`/`PlusIcon`/`DockIcon`/`DockToCardIcon`/`GridModeIcon`/`RefreshIcon`/`CollapseIcon`。
+  - **金额千分位分隔**（`formatAmount`，挂件 + 卡片各一份）：`toFixed(4)` 后整数部分加
+    `,` 千分位（`\B(?=(\d{3})+(?!\d))`），仍保留至多 4 位小数并去尾零，`1,234,567.8912` 这类大额
+    一眼可读；非有限值回退 `0`，负号带符号。
+  - **prefers-reduced-motion**（挂件 CSS `@media (prefers-reduced-motion: reduce)` +
+    `useAnimatedNumber` 改从 `prefersReducedMotion()` 判定）：关闭 spinner 旋转、面板/胶囊
+    折叠淡入淡出、缩放与 hover 色过渡（`transition: none` + `transform: none`），金额跳动直接
+    snap 不再滚动——对前庭敏感/省电用户是实打实的收益。
+  - **状态点 color-not-only**：`.statusDot` 仅用颜色表达 ok/error/idle，新增 `.srOnly` 裁剪剪切
+    的屏读文本（`statusOk`/`statusError`/`statusIdle` 三个新 locale key，zh/en 同步），
+    辅助技术能读到「余额正常/查询失败/状态未知」。
+  - **设置面板补键盘焦点环**（`BalanceSettings.module.css`）：新增 `:focus-visible` 焦点环
+    （`outline: 2px solid var(--dsw-alias-state-business-primary)`）覆盖输入框/下拉、以及
+    `.action/.remove/.confirmDelete/.segBtn/.segActive/.clearCred/.submit/.cancel/.popupItem` 等
+    自绘控件——主题全局焦点环到不了这些控件，此前只有输入框 border-color 变化过于微弱。
+  - **`.title` 加 `white-space: nowrap`**：修复标题「余额」在紧凑面板里被挤成两行换行。
+  - **看板配置面板（BalanceSettings）同步优化**（仍是纯客户端，build 后刷新生效）：
+    - **行内动作按钮图标化 + 加大命中区**：绑定行的「编辑/删除」从光秃秃的文本按钮改为
+      （SVG 图标 + 文本）inline-flex 按钮（`EditIcon`/`TrashIcon`/`CloseIcon`，icons.tsx 新增），
+      padding 3px→6px、gap 5px、圆角 7px，hover/active 有背景变化。
+    - **字段标签语义关联**：provider（combobox）/vendor/credential/BaseURL 全部字段的标签由
+      `<span>` 改为真正 `<label htmlFor>`+`id`（provider 用 `balance-provider`，ProviderCombobox
+      新增 `id` prop 透传给 input），屏幕阅读器能报出字段名、标签可点击聚焦。`.fieldLabel` 补
+      `font-weight:500` 区分。
+    - **凭据切换改 radiogroup 语义**：`.seg` 由 `role="group"` + class 态改为
+      `role="radiogroup"` + `role="radio"` + `aria-checked`，并加 `onSegKeyDown` 方向键导航
+      （←/↑→ 环境变量引用，→/↓→ 粘贴 Key），键盘用户可横移。
+    - **区段标题层次化**：`.sectionTitle` 加前置主色竖条指示（`::before` 3px 圆角条），
+      两个 section 标题从浮空文字变成清晰的层级。
+  - **跟进官方 API 至 v0.1.1-rc.2**：全部 `@deepseek-ai/*` 依赖范围升级到
   `^0.1.1-rc.2`（root devDeps `dsh-host-webserver` 精确到 `0.1.1-rc.2`），
   `pnpm-lock.yaml` 重解析到 rc.2；`pnpm typecheck` / `pnpm build` / `pnpm -r pack`
   全绿。核对过官方 rc.7→rc.2 发布包：本仓库依赖面（`dsh-client-ui-slots` /

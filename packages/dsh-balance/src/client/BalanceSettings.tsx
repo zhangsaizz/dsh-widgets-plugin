@@ -15,9 +15,10 @@
  */
 
 import { useCallback, useEffect, useRef, useState } from 'react'
-import type { KeyboardEvent } from 'react'
+import type { KeyboardEvent, RefObject } from 'react'
 import type { BalanceBindingConfig } from '../types.ts'
 import type { TranslateNS } from '@deepseek-ai/dsh-client-ui-slots'
+import { CloseIcon, EditIcon, TrashIcon } from './icons.tsx'
 import css from './BalanceSettings.module.css'
 
 /** Injected business face of the balance settings page. */
@@ -80,6 +81,11 @@ export function BalanceSettings(props: BalanceSettingsInjected) {
   const [saving, setSaving] = useState(false)
   const [savedAt, setSavedAt] = useState<number | null>(null)
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null)
+
+  // Refs to the two credential-mode radio buttons, so arrow keys can move
+  // focus to the newly-checked one (roving-tabindex radio-group pattern).
+  const segRefRef = useRef<HTMLButtonElement | null>(null)
+  const segRefKey = useRef<HTMLButtonElement | null>(null)
 
   const load = useCallback(async () => {
     try {
@@ -212,16 +218,25 @@ export function BalanceSettings(props: BalanceSettingsInjected) {
                     <span className={css.provider}>{binding.provider}</span>
                     <span className={css.vendorPill}>{binding.vendor}</span>
                     <span className={css.rowActions}>
-                      <button type="button" className={css.action} onClick={() => { startEdit(binding) }}>{t('edit')}</button>
+                      <button type="button" className={css.action} onClick={() => { startEdit(binding) }}>
+                        <EditIcon size={12} />
+                        <span>{t('edit')}</span>
+                      </button>
                       {confirmDelete === binding.provider
                         ? (
                           <>
                             <button type="button" className={css.confirmDelete} onClick={() => { remove(binding.provider) }}>{t('confirmDelete')}</button>
-                            <button type="button" className={css.action} onClick={() => { setConfirmDelete(null) }}>{t('cancel')}</button>
+                            <button type="button" className={css.action} onClick={() => { setConfirmDelete(null) }}>
+                              <CloseIcon size={12} />
+                              <span>{t('cancel')}</span>
+                            </button>
                           </>
                         )
                         : (
-                          <button type="button" className={css.remove} onClick={() => { setConfirmDelete(binding.provider) }}>{t('removeBinding')}</button>
+                          <button type="button" className={css.remove} onClick={() => { setConfirmDelete(binding.provider) }}>
+                            <TrashIcon size={12} />
+                            <span>{t('removeBinding')}</span>
+                          </button>
                         )}
                     </span>
                   </div>
@@ -243,13 +258,32 @@ export function BalanceSettings(props: BalanceSettingsInjected) {
         <h3 className={css.sectionTitle}>
           {editing === null ? t('addBinding') : `${t('sectionEdit')}: ${editing}`}
         </h3>
-        <div className={css.seg} role="group" aria-label={t('credentialField')}>
-          <button type="button" className={credMode === 'ref' ? css.segActive : css.segBtn} onClick={() => { setCredMode('ref') }}>{t('credRefMode')}</button>
-          <button type="button" className={credMode === 'key' ? css.segActive : css.segBtn} onClick={() => { setCredMode('key') }}>{t('credKeyMode')}</button>
+        <div className={css.seg} role="radiogroup" aria-label={t('credentialField')}>
+          <button
+            ref={segRefRef}
+            type="button"
+            role="radio"
+            aria-checked={credMode === 'ref'}
+            tabIndex={credMode === 'ref' ? 0 : -1}
+            className={credMode === 'ref' ? css.segActive : css.segBtn}
+            onClick={() => { setCredMode('ref') }}
+            onKeyDown={(event) => { onSegKeyDown(event, 'ref', setCredMode, segRefKey) }}
+          >{t('credRefMode')}</button>
+          <button
+            ref={segRefKey}
+            type="button"
+            role="radio"
+            aria-checked={credMode === 'key'}
+            tabIndex={credMode === 'key' ? 0 : -1}
+            className={credMode === 'key' ? css.segActive : css.segBtn}
+            onClick={() => { setCredMode('key') }}
+            onKeyDown={(event) => { onSegKeyDown(event, 'key', setCredMode, segRefRef) }}
+          >{t('credKeyMode')}</button>
         </div>
         <div className={css.field}>
-          <span>{t('providerField')}</span>
+          <label htmlFor="balance-provider" className={css.fieldLabel}>{t('providerField')}</label>
           <ProviderCombobox
+            id="balance-provider"
             value={form.provider}
             onChange={(provider) => { setForm({ ...form, provider }) }}
             suggestions={providerSuggestions}
@@ -261,17 +295,18 @@ export function BalanceSettings(props: BalanceSettingsInjected) {
             ? <p className={css.hint}>{t('providerReadonlyHint')}</p>
             : <p className={css.hint}>{t('providerHint')}</p>}
         </div>
-        <label className={css.field}>
-          <span>{t('vendorField')}</span>
-          <select value={form.vendor} onChange={(event) => { setForm({ ...form, vendor: event.target.value }) }}>
+        <label className={css.field} htmlFor="balance-vendor">
+          <span className={css.fieldLabel}>{t('vendorField')}</span>
+          <select id="balance-vendor" value={form.vendor} onChange={(event) => { setForm({ ...form, vendor: event.target.value }) }}>
             {VENDOR_TYPES.map(vendor => <option key={vendor} value={vendor}>{vendor}</option>)}
           </select>
         </label>
         {credMode === 'ref'
           ? (
-            <label className={css.field}>
-              <span>{t('credentialRefField')}</span>
+            <label className={css.field} htmlFor="balance-cred-ref">
+              <span className={css.fieldLabel}>{t('credentialRefField')}</span>
               <input
+                id="balance-cred-ref"
                 value={form.credentialRef}
                 onChange={(event) => { setForm({ ...form, credentialRef: event.target.value }) }}
                 placeholder="NEW_API_KEY"
@@ -282,12 +317,13 @@ export function BalanceSettings(props: BalanceSettingsInjected) {
             </label>
           )
           : (
-            <label className={css.field}>
-              <span>
+            <label className={css.field} htmlFor="balance-cred">
+              <span className={css.fieldLabel}>
                 {t('credentialField')}
                 {hadStoredCredential && <em className={css.storedChip}>{t('storedCredential')}</em>}
               </span>
               <input
+                id="balance-cred"
                 type="password"
                 value={form.credential}
                 onChange={(event) => { setForm({ ...form, credential: event.target.value }); setClearCredential(false) }}
@@ -307,9 +343,10 @@ export function BalanceSettings(props: BalanceSettingsInjected) {
               {willClearCredential && <p className={css.willClear}>{t('willClearCredential')}</p>}
             </label>
           )}
-        <label className={css.field}>
-          <span>{t('baseURLField')}</span>
+        <label className={css.field} htmlFor="balance-base-url">
+          <span className={css.fieldLabel}>{t('baseURLField')}</span>
           <input
+            id="balance-base-url"
             value={form.baseURL}
             onChange={(event) => { setForm({ ...form, baseURL: event.target.value }) }}
             placeholder="http://localhost:3000"
@@ -328,6 +365,30 @@ export function BalanceSettings(props: BalanceSettingsInjected) {
       </form>
     </div>
   )
+}
+
+/** Arrow-key navigation for the credential-mode radiogroup: Left/Up move to
+ *  the env-var reference, Right/Down to the pasted-api-key. It checks the
+ *  target radio and moves focus to it, mirroring the native radio-group
+ *  contract (one tab stop + arrow keys check and focus) so the checked radio
+ *  is always the focused one.
+ *  @param targetRef - ref to the OTHER button (the one being navigated to).
+ */
+function onSegKeyDown(
+  event: KeyboardEvent<HTMLButtonElement>,
+  own: CredMode,
+  setMode: (mode: CredMode) => void,
+  targetRef: RefObject<HTMLButtonElement | null>,
+): void {
+  const next = event.key === 'ArrowLeft' || event.key === 'ArrowUp' ? 'ref'
+    : event.key === 'ArrowRight' || event.key === 'ArrowDown' ? 'key'
+    : null
+  if (next === null || next === own) return
+  event.preventDefault()
+  setMode(next)
+  // Roving tabindex: focus lands on the newly-checked radio so the checked
+  // state always matches the focused element (single tab stop in the group).
+  targetRef.current?.focus()
 }
 
 /** Build the persisted binding object from the current form state. */
@@ -366,6 +427,7 @@ function buildBinding(args: {
  * Escape closes.
  */
 function ProviderCombobox(props: {
+  id?: string
   value: string
   onChange: (provider: string) => void
   suggestions: readonly ProviderSuggestion[]
@@ -373,7 +435,7 @@ function ProviderCombobox(props: {
   placeholder?: string
   emptyLabel?: string
 }) {
-  const { value, onChange, suggestions, disabled, placeholder, emptyLabel } = props
+  const { id, value, onChange, suggestions, disabled, placeholder, emptyLabel } = props
   const [open, setOpen] = useState(false)
   const [highlight, setHighlight] = useState(0)
   const rootRef = useRef<HTMLDivElement | null>(null)
@@ -432,6 +494,7 @@ function ProviderCombobox(props: {
   return (
     <div className={css.combobox} ref={rootRef}>
       <input
+        id={id}
         value={value}
         disabled={disabled}
         onChange={(event) => {

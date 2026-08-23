@@ -21,8 +21,9 @@
 import type { InjectFace, PropsLocale, PropsRuntime, TranslateNS } from '@deepseek-ai/dsh-client-ui-slots'
 // Type-only: pulls the `widgets.card` SlotMap merge the props below depend on.
 import type {} from '@dsh-plugins/client-ui-card-container/client'
-import type { BalanceAccount, BalanceTrend } from '../types.ts'
+import type { BalanceAccount } from '../types.ts'
 import type { BalanceController, BalanceViewState } from './controller.ts'
+import { trendIcon } from './icons.tsx'
 import css from './BalanceCard.module.css'
 
 /** Injected business face: the live balance source (bound as `useBalance`). */
@@ -36,17 +37,17 @@ export type BalanceCardProps =
   & PropsLocale<'balance'>
   & InjectFace<BalanceCardInject>
 
-/** Format one amount with up to four decimals, trailing zeros stripped. */
+/** Format one amount with up to four decimals, trailing zeros stripped, and
+ *  thousands separators so large balances stay readable at a glance. */
 function formatAmount(value: number): string {
-  return value.toFixed(4).replace(/\.?0+$/, '')
-}
-
-/** Trend glyph: up/down arrows, a muted dash for flat, nothing for unknown. */
-function trendGlyph(trend: BalanceTrend): string | null {
-  if (trend === 'up') return '▲'
-  if (trend === 'down') return '▼'
-  if (trend === 'flat') return '–'
-  return null
+  if (!Number.isFinite(value)) return '0'
+  const abs = Math.abs(value)
+  // Group the integer part, keep at most 4 decimals, then drop trailing zeros.
+  const [integer, fraction] = abs.toFixed(4).split('.')
+  const grouped = integer.replace(/\B(?=(\d{3})+(?!\d))/g, ',')
+  const trimmedFraction = fraction.replace(/0+$/, '')
+  const sign = value < 0 ? '-' : ''
+  return trimmedFraction === '' ? `${sign}${grouped}` : `${sign}${grouped}.${trimmedFraction}`
 }
 
 /** Resolve the current account: the ok account, or null while unavailable. */
@@ -93,13 +94,13 @@ export function BalanceCard({ useBalance, t }: BalanceCardProps) {
     )
   }
 
-  const glyph = trendGlyph(account.trend)
+  const glyph = trendIcon(account.trend, { size: 11 })
   return (
     <div className={css.statCard}>
       <span className={css.amountRow}>
         <span className={css.statValue} data-trend={account.trend}>{formatAmount(account.total)}</span>
         <span className={css.statCurrency}>{account.currency}</span>
-        {glyph !== null ? <span className={css.statTrend} data-trend={account.trend} aria-label={account.trend}>{glyph}</span> : null}
+        {glyph !== null ? <span className={css.statTrend} data-trend={account.trend} role="img" aria-label={account.trend}>{glyph}</span> : null}
       </span>
       <span className={css.statName} title={account.displayName}>
         {account.displayName}

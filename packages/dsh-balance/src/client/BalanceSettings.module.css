@@ -31,12 +31,25 @@
 
 .sectionTitle {
   display: flex;
-  align-items: baseline;
-  gap: 6px;
+  align-items: center;
+  gap: 8px;
   margin: 0;
   font-size: 13px;
   font-weight: 600;
+  letter-spacing: 0.01em;
   color: var(--dsw-alias-label-primary);
+}
+
+/* Small accent bar + the section label, so the two sections read as a clear
+   hierarchy instead of floating heading text. */
+.sectionTitle::before {
+  content: '';
+  flex: none;
+  width: 3px;
+  height: 13px;
+  border-radius: 2px;
+  background: var(--dsw-alias-state-business-primary);
+  opacity: 0.85;
 }
 
 .count {
@@ -103,15 +116,23 @@
   flex-shrink: 0;
 }
 
+/* Row action buttons (edit / remove / confirm / cancel): an icon + label with
+   a comfortable hit area and a visible hover/active affordance. */
 .action,
 .remove,
 .confirmDelete {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
   border: none;
   background: transparent;
   cursor: pointer;
   font-size: 12px;
-  padding: 3px 8px;
-  border-radius: 6px;
+  line-height: 1;
+  padding: 6px 9px;
+  border-radius: 7px;
+  color: var(--dsw-alias-label-secondary);
+  transition: background 120ms ease, color 120ms ease;
 }
 
 .action {
@@ -120,6 +141,7 @@
 
 .action:hover {
   background: var(--dsw-alias-interactive-bg-hover);
+  color: var(--dsw-alias-label-primary);
 }
 
 .remove {
@@ -202,6 +224,7 @@
   border-radius: 6px;
   color: var(--dsw-alias-label-secondary);
   background: transparent;
+  transition: background 120ms ease, color 120ms ease;
 }
 
 .segActive {
@@ -285,6 +308,13 @@
   color: var(--dsw-alias-label-secondary);
 }
 
+/* Field label text — a real <label> (associated via htmlFor/id) so the screen
+   reader announces the field name and the label is click-to-focus. */
+.fieldLabel {
+  font-weight: 500;
+  color: var(--dsw-alias-label-secondary);
+}
+
 .field input,
 .field select {
   width: 100%;
@@ -306,6 +336,34 @@
 .field select:focus {
   outline: none;
   border-color: var(--dsw-alias-interactive-bg-hover-solid);
+}
+
+/* Keyboard focus ring for inputs/selects/buttons: the theme's global focus
+   outline may not reach these self-drawn controls, and the border-color change
+   above is too subtle to serve as a focus indicator on its own. */
+.field input:focus-visible,
+.field select:focus-visible {
+  outline: 2px solid var(--dsw-alias-state-business-primary);
+  outline-offset: 1px;
+}
+
+.action:focus-visible,
+.remove:focus-visible,
+.confirmDelete:focus-visible,
+.segBtn:focus-visible,
+.segActive:focus-visible,
+.clearCred:focus-visible,
+.clearCredArmed:focus-visible,
+.submit:focus-visible,
+.cancel:focus-visible {
+  outline: 2px solid var(--dsw-alias-state-business-primary);
+  outline-offset: 1px;
+}
+
+.popupItem:focus-visible,
+.popupItemActive:focus-visible {
+  outline: 2px solid var(--dsw-alias-state-business-primary);
+  outline-offset: -2px;
 }
 
 .hint,

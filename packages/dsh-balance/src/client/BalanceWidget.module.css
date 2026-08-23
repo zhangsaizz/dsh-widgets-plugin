@@ -107,9 +107,12 @@
   font-weight: 600;
   letter-spacing: 0.02em;
   color: var(--dsw-alias-label-primary);
+  white-space: nowrap;
+  flex: none;
 }
 
 .provider {
+  position: relative; /* anchors the abs-positioned .srOnly status text */
   display: flex;
   align-items: center;
   gap: 6px;
@@ -143,6 +146,21 @@
 .statusDot[data-status='error'] {
   background: var(--dsw-alias-state-error-primary);
   box-shadow: 0 0 0 3px color-mix(in srgb, var(--dsw-alias-state-error-primary) 14%, transparent);
+}
+
+/* Screen-reader-only status text: the dot communicates ok/error by color, so
+   the readable word is needed for assistive tech (color-not-only). */
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  border: 0;
+  clip: rect(0 0 0 0);
+  clip-path: inset(50%);
+  overflow: hidden;
+  white-space: nowrap;
 }
 
 .controls {
@@ -798,4 +816,36 @@
 
 .accountRow[data-current] .accountName {
   color: var(--dsw-alias-label-primary);
+}
+
+/* --- Reduced motion ----------------------------------------------------- *
+ * Dropping the decorative motion (spinner spin, collapse/expand crossfade,
+ * zoom scale, hover/status color transitions) for users who request it: the
+ * spinner stops turning, surfaces appear/disappear discretely, and color
+ * state changes still swap instantly so no meaning is lost.
+ */
+@media (prefers-reduced-motion: reduce) {
+  .spinner {
+    animation: none;
+  }
+
+  .panel,
+  .pill,
+  .scaleBox,
+  .statusDot,
+  .iconButton,
+  .zoomLevel,
+  .accountRow,
+  .pillTipRow {
+    transition: none;
+  }
+
+  .widget[data-collapsed] .panel,
+  .widget:not([data-collapsed]) .pill {
+    transform: none;
+  }
+
+  .pillTip {
+    transform: none;
+  }
 }
