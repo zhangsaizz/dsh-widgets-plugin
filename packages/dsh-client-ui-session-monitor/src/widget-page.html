@@ -778,7 +778,7 @@
       <label class="check"><input type="checkbox" id="setRunningOnly" /> 只显示运行中</label>
       <label class="check"><input type="checkbox" id="setSubagents" /> 显示子代理会话</label>
       <label>时间范围（分钟，0=全部）
-        <input type="number" id="setWindow" min="0" step="5" />
+        <input type="number" id="setWindow" min="0" step="5" max="1440" />
       </label>
       <span class="sec">待处理通知</span>
       <label class="check"><input type="checkbox" id="setInboxP0" /> 需要处理（审批/回答/计划/出错等）</label>
@@ -1942,12 +1942,19 @@
         saveSharedSettings(patch)
       })
     }
-    function bindNumber(id, key) {
+    // Clamp a numeric shared setting to [lo, hi] before persisting, so the
+    // Host store never holds a value the web client would clamp differently
+    // (the server schema defaults don't clamp; the web halves both clamp on
+    // read — see src/client/settings.ts). Defaulting to [0, Infinity] keeps the
+    // old behavior for any caller that doesn't pass a range.
+    function bindNumber(id, key, lo, hi) {
+      if (lo === undefined) lo = 0
+      if (hi === undefined) hi = Number.POSITIVE_INFINITY
       document.getElementById(id).addEventListener('change', function (e) {
         var v = parseInt(e.target.value, 10)
         if (!Number.isFinite(v)) return
         var patch = {}
-        patch[key] = Math.max(0, v)
+        patch[key] = Math.min(hi, Math.max(lo, v))
         saveSharedSettings(patch)
       })
     }
@@ -1958,8 +1965,10 @@
     bindCheck('setSubagents', 'showSubagents')
     bindCheck('setAckOnJump', 'ackOnJump')
     bindCheck('setAutoAckOnOpen', 'autoAckOnOpen')
-    bindNumber('setAutoDismiss', 'autoDismissSec')
-    bindNumber('setWindow', 'timeWindowMin')
+    // Match the web client's read-time clamps (src/client/settings.ts):
+    // autoDismissSec 2–60, timeWindowMin 0–1440.
+    bindNumber('setAutoDismiss', 'autoDismissSec', 2, 60)
+    bindNumber('setWindow', 'timeWindowMin', 0, 1440)
     document.getElementById('setNotifyMode').addEventListener('change', function (e) {
       saveSharedSettings({ notifyMode: e.target.value === 'confirm' ? 'confirm' : 'auto' })
     })

@@ -236,6 +236,17 @@ interface ColdProbe {
 const coldProbes = new Map<string, ColdProbe>()
 let coldListAt = 0
 
+/** Fold-cache for ATTACHED sessions: the snapshot route re-folds every attached
+ *  session's whole event log on each poll, but a session log is append-only and
+ *  the SAME array object lives while the session is attached — so a reference
+ *  compare plus a length check is a zero-cost "unchanged" test, and an
+ *  unchanged log is re-emitted from cache instead of re-scanned. A replaced
+ *  array (or a same-id reused session) simply falls through to a fresh fold, so
+ *  the cache can never serve stale data. At the end of each build the entries
+ *  for sessions no longer attached are pruned so the cache cannot leak across a
+ *  long-lived process. (Cold sessions go through probeColdSession, not here.) */
+const foldCache = new Map<string, { events: readonly AnyEvent[]; len: number; folded: FoldedSession }>()
+
 /** Mirror the gateway's `coldBlankProbeMaxBytes` default: cold-session BLANK
  *  is only derived from the log when the physical artifact is this small.
  *  Larger (or location-less / unreadable) artifacts stay VISIBLE — the same
@@ -382,10 +393,20 @@ export async function buildDesktopSnapshot(ctx: Context): Promise<DesktopSnapsho
   const sessions = store.list()
 
   // One pass over each attached session's log — every derived flag at once
-  // (running / blank / pending / title / updatedAt / lastActive).
+  // (running / blank / pending / title / updatedAt / lastActive), re-using the
+  // cached fold while the log is unchanged (see foldCache): a 2s poll of many
+  // long logs would otherwise re-scan every log on every tick.
   const folded = new Map<string, FoldedSession>()
   for (const session of sessions) {
-    folded.set(session.id, foldSession(eventsOf(session), session.header.createdAt))
+    const events = eventsOf(session)
+    const cached = foldCache.get(session.id)
+    if (cached !== undefined && cached.events === events && cached.len === events.length) {
+      folded.set(session.id, cached.folded)
+      continue
+    }
+    const value = foldSession(events, session.header.createdAt)
+    foldCache.set(session.id, { events, len: events.length, folded: value })
+    folded.set(session.id, value)
   }
 
   // Pass 1: count live running subagent children per parent (子×N badge).
@@ -418,6 +439,12 @@ export async function buildDesktopSnapshot(ctx: Context): Promise<DesktopSnapsho
       ...(info?.goal === undefined ? {} : { goal: info.goal }),
       subagents: runningSubagents.get(session.id) ?? 0,
     })
+  }
+
+  // Prune fold-cache entries for sessions that dropped out of the attached set
+  // (disposed / closed) so the cache cannot retain them for the process life.
+  for (const id of foldCache.keys()) {
+    if (!attachedIds.has(id)) foldCache.delete(id)
   }
 
   // Pass 3: merge cold persisted sessions (same list the web widget sees).

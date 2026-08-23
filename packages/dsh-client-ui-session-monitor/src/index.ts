@@ -29,6 +29,7 @@ import type { NotifyKind } from './desktop-notifications.ts'
 // Inlined by the host bundle build (esbuild `text` loader) — the standalone
 // desktop widget page (see ./widget-page.html for the full doc comment).
 import pageHtml from './widget-page.html'
+import { readJsonBody, responseHtml, responseJson } from './http.ts'
 
 /** One remembered `turn/end` fact for a session. */
 export interface TurnEndRecord {
@@ -72,119 +73,6 @@ const MAX_RECORDS = 100
 const RECORD_TTL_MS = 5 * 60_000
 /** Pending jump requests older than this are dropped (the web half polls ~1s). */
 const JUMP_TTL_MS = 30_000
-/** Cap on the JSON body the settings/jump routes accept. */
-const MAX_BODY_BYTES = 64 * 1024
-
-/**
- * CORS is intentionally permissive on these routes — but only for trusted
- * consumers: the desktop shell loads the widget page same-origin, its startup
- * probe page runs on the Tauri `tauri://localhost` origin, and the web app is
- * served from wherever the user opened it. Every response is gated on the
- * request `Origin`: anything else gets a bare 403 with no CORS headers, so a
- * random website open in the user's browser can neither read the inbox
- * (session titles!) nor ack records nor overwrite settings. `allowOpaque`
- * additionally admits `Origin: null` — that is how the tauri://localhost →
- * widget page top-level NAVIGATION arrives — and is only used for the HTML
- * page; JSON data routes keep it closed so a sandboxed iframe cannot
- * exfiltrate them. The data is loopback-local monitor telemetry (session ids,
- * titles, activity times, UI preferences).
- */
-const CORS_HEADERS: Readonly<Record<string, string>> = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
-  'Access-Control-Allow-Headers': 'Content-Type',
-}
-
-function requestHeader(req: import('node:http').IncomingMessage, name: string): string | undefined {
-  const raw = req.headers[name]
-  return typeof raw === 'string' ? raw : undefined
-}
-
-/** Whether a request `Origin` may read/write these routes. The web app and the
- *  widget page are served from whatever host the user opened (127.0.0.1,
- *  localhost, or a LAN IP), so an origin is accepted when it matches this
- *  request's own `Host` header, plus any loopback hostname outright (the
- *  Tauri probe page and port-forwarded dev setups). Everything else — notably
- *  any random website open in the user's browser — is rejected. */
-function originAllowed(origin: string | undefined, host: string | undefined, allowOpaque: boolean): boolean {
-  if (origin === undefined) return true // same-origin / non-browser clients
-  if (origin === 'null') return allowOpaque
-  if (origin === 'tauri://localhost') return true
-  try {
-    const url = new URL(origin)
-    if (url.protocol !== 'http:' && url.protocol !== 'https:') return false
-    if (typeof host === 'string' && url.host === host) return true
-    const hostname = url.hostname
-    return hostname === '127.0.0.1' || hostname === 'localhost' || hostname === '::1' || hostname === '[::1]'
-  } catch {
-    return false
-  }
-}
-
-/** Reject an out-of-policy request with a bare 403 (no CORS headers, so the
- *  browser cannot read the response nor pass a preflight). */
-function rejectForbidden(res: import('node:http').ServerResponse): void {
-  res.writeHead(403, { 'Content-Type': 'text/plain; charset=utf-8' })
-  res.end('forbidden')
-}
-
-function responseJson(
-  req: import('node:http').IncomingMessage,
-  res: import('node:http').ServerResponse,
-  status: number,
-  body: unknown,
-): void {
-  if (!originAllowed(requestHeader(req, 'origin'), requestHeader(req, 'host'), false)) {
-    rejectForbidden(res)
-    return
-  }
-  const bytes = Buffer.from(JSON.stringify(body))
-  res.setHeader('Content-Type', 'application/json; charset=utf-8')
-  res.setHeader('Content-Length', String(bytes.length))
-  res.setHeader('Cache-Control', 'no-store')
-  for (const [name, value] of Object.entries(CORS_HEADERS)) res.setHeader(name, value)
-  res.writeHead(status)
-  res.end(bytes)
-}
-
-function responseHtml(
-  req: import('node:http').IncomingMessage,
-  res: import('node:http').ServerResponse,
-  html: string,
-): void {
-  // The widget page must survive the tauri://localhost → 127.0.0.1 top-level
-  // navigation, whose Origin is opaque ('null') — the page itself carries no
-  // data, only the script that then fetches the gated JSON routes.
-  if (!originAllowed(requestHeader(req, 'origin'), requestHeader(req, 'host'), true)) {
-    rejectForbidden(res)
-    return
-  }
-  const bytes = Buffer.from(html)
-  res.setHeader('Content-Type', 'text/html; charset=utf-8')
-  res.setHeader('Content-Length', String(bytes.length))
-  res.setHeader('Cache-Control', 'no-store')
-  for (const [name, value] of Object.entries(CORS_HEADERS)) res.setHeader(name, value)
-  res.writeHead(200)
-  res.end(bytes)
-}
-
-/** Read a JSON request body (bounded; malformed input resolves to null). */
-async function readJsonBody(req: import('node:http').IncomingMessage): Promise<unknown> {
-  const chunks: Buffer[] = []
-  let received = 0
-  for await (const chunk of req) {
-    const buffer = chunk as Buffer
-    received += buffer.length
-    if (received > MAX_BODY_BYTES) return null
-    chunks.push(buffer)
-  }
-  if (chunks.length === 0) return null
-  try {
-    return JSON.parse(Buffer.concat(chunks).toString('utf8'))
-  } catch {
-    return null
-  }
-}
 
 /** One pending desktop→web jump request (single slot; new posts replace). */
 interface PendingJump {
@@ -298,6 +186,25 @@ function questionKindFromArgs(raw: string | undefined): 'question' | 'plan-revie
   } catch {
     return 'question'
   }
+}
+
+/** Clamp a wire-settings object to the ranges the client applies on read
+ *  (src/client/settings.ts): autoDismissSec 2–60, timeWindowMin 0–1440. The
+ *  web half pushes its RAW localStorage blob, which can hold a stale/out-of-
+ *  range value even though the widget clamps on read; the Host section is the
+ *  single source of truth both sides read, so it must bound the values and
+ *  never let a `timeWindowMin: 99999` reach the desktop widget (which applies
+ *  the server value as-is). Mutates and returns `body`; unknown/missing fields
+ *  are left to the schema (which fills defaults) — only the two numeric ranges
+ *  are enforced here. */
+function clampSettingsWire(body: Record<string, unknown>): Record<string, unknown> {
+  if (typeof body.autoDismissSec === 'number' && Number.isFinite(body.autoDismissSec)) {
+    body.autoDismissSec = Math.min(60, Math.max(2, Math.round(body.autoDismissSec)))
+  }
+  if (typeof body.timeWindowMin === 'number' && Number.isFinite(body.timeWindowMin)) {
+    body.timeWindowMin = Math.min(1440, Math.max(0, Math.round(body.timeWindowMin)))
+  }
+  return body
 }
 
 /**
@@ -587,14 +494,14 @@ export function apply(ctx: Context): void {
           path: SETTINGS_ROUTE,
           handler: async (req, res) => {
             if (req.method === 'POST') {
-              const body = await readJsonBody(req) as Partial<MonitorSettingsWire> | null
+              const body = await readJsonBody(req) as Record<string, unknown> | null
               if (body === null || typeof body !== 'object') {
                 responseJson(req, res, 400, { ok: false, error: 'invalid settings body' })
                 return
               }
               try {
-                await settingsScope.replace(body)
-                responseJson(req, res, 200, { ok: true, value: settingsScope.get() })
+                await settingsScope.replace(clampSettingsWire(body) as Partial<MonitorSettingsWire>)
+                responseJson(req, res, 200, { ok: true, value: clampSettingsWire({ ...(settingsScope.get() as unknown as Record<string, unknown>) }) })
               } catch (error) {
                 const message = error instanceof Error ? error.message : String(error)
                 webCtx.logger.warn(`session-monitor: settings save failed: ${message}`)
@@ -602,7 +509,7 @@ export function apply(ctx: Context): void {
               }
               return
             }
-            responseJson(req, res, 200, { ok: true, value: settingsScope.get() })
+            responseJson(req, res, 200, { ok: true, value: clampSettingsWire({ ...(settingsScope.get() as unknown as Record<string, unknown>) }) })
           },
         }),
         // Jump queue: the desktop posts { sessionId } when the user clicks a

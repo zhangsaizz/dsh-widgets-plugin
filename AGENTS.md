@@ -379,3 +379,35 @@ pnpm 版本由 root `package.json` 的 `packageManager` 固定（当前 `pnpm@11
       `probeColdSession` 复刻网关阈值规则——缓存 blank:false 信任；否则**只有工件
       ≤1KiB（`locate()` + stat）才采信日志验证**，大工件/无路径/读取失败一律
       blank:false。mock 测试覆盖 5 种情形（大/小/缓存 false/无路径/有 turn）。
+- **会话监控优化（桌面快照折叠缓存 + 设置 clamp 对齐）**（纯实现层，无公开 API/行为变更）：
+  - **foldCache（desktop-snapshot.ts）**：`/sessions` 路由此前每次轮询（桌面默认 2s）都对每个
+    已附着会话重扫整份事件日志（foldSession）——长日志在 2s 轮询下是真实浪费。利用 dsh-session
+    的 `session.events` 是「append-only 的不可变快照、在下次 append 前复用同一数组引用」的特性
+    （见 Session#events getter 注释），按「事件数组引用 + 长度」做零成本 unchanged 判定：未变化
+    则复用缓存折叠结果，append 后引用/长度变化即重新折叠。缓存按 sessionId 键控，构建结束对不再
+    附着的会话逐出条目（不跨进程泄漏）；数组被替换或 session id 复用时回退重折，故缓存绝不产出
+    过期数据（冷会话仍走 probeColdSession，不经此缓存）。
+  - **设置 clamp 对齐（桌面写 + Host 边界）**：共享设置的数值过去只在「读」时被客户端 clamp，而
+    「写」侧没有统一边界——桌面 widget-page.html 的 bindNumber 原先只 Math.max(0, v) 无上限，网页端
+    settings 镜像又把**未 clamp 的原始 localStorage blob** 直接 POST 上服（loadSettings 是读时 clamp），
+    所以一个陈旧/越界值（如 timeWindowMin: 99999）能写进 Host 存储、并以原值被桌面读取 → 两端不一致。
+    修复（两层，均为 clamp 而非 reject）：① widget-page.html 的 bindNumber(id, key, lo, hi) 持久化前
+    clamp 到 [lo, hi]（默认 [0, Infinity] 保持旧行为），setAutoDismiss（2–60）、setWindow（0–1440）
+    与网页端 src/client/settings.ts 读时 clamp 完全一致，setWindow 输入补 max="1440"；② index.ts 的
+    SETTINGS_ROUTE POST 经新的 clampSettingsWire 在 settingsScope.replace 前对 autoDismissSec /
+    timeWindowMin 两个数值字段做同样的 clamp——Host 分区是两端共同读取的唯一权威，边界 clamp 让越界值
+    无法进入存储，即便未来某个写者送来脏值。GET（读）响应同样经过 clampSettingsWire（先克隆再 clamp），
+    以便修复历史遗留的越界值：一个在该修复上线前写入 store 的坏值（旧版桌面 bindNumber 或网页端 raw
+    blob 推送所致），会在下一次读取时被夹回合法区间，随后任一侧再次保存即覆盖 store。
+- **会话监控 HTTP 层抽取（index.ts → http.ts）**（纯重构，无行为变更）：把与 apply() 无状态耦合的
+  CORS 门控（CORS_HEADERS / requestHeader / originAllowed / rejectForbidden）、JSON/HTML 响应
+  （responseJson / responseHtml）与有界 JSON body 读取（readJsonBody / MAX_BODY_BYTES）从 793 行的
+  入口文件抽到 src/http.ts 独立模块（纯函数、导出 responseJson / responseHtml / readJsonBody，外部化
+  便于单测），入口改用 import 引入并删除本地重复定义。index.ts 由 ~793 行降到 ~700 行。typecheck/build 全绿。
+- **卡片 busy 计数与浮窗对齐（client/cards.tsx）**：卡片容器的 SessionMonitorCard（紧凑「忙碌」统计）
+  此前的 busy 计算只数「running || pendingInteraction」，不看 showSubagents、也不计「父会话有运行中的
+  子代理/后台任务」这类 busy——与浮窗挂件的 busyCount 语义不一致（子代理行被计入、busy 父会话被漏掉），
+  两个界面并排时数字会打架。改为与浮窗精确对齐：读 showSubagents（loadSettings + SETTINGS_CHANGED_EVENT
+  + storage 双事件，与浮窗一致）、按同谓词聚合 runningSubagentsByParent（祖先链 +1）与
+  runningJobsBySession（仅 running/stopping），再以浮窗相同的谓词统计（子代理行在 showSubagents 关时
+  不计、但父会话因子代理/任务运行仍计 busy）。纯客户端改动，build 后刷新页面即生效。
