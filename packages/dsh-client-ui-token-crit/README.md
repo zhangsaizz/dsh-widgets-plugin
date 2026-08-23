@@ -33,14 +33,17 @@ real time and triggers game-style crit animations as usage grows.
   (falling back to the OS color-scheme) and switches to a deeper neon palette
   with normal compositing so it stays readable on pale surfaces; override via
   the settings panel (auto / light / dark).
-- **Configurable**: the ⚙ settings panel adjusts language (zh/en), number
-  format / font size, label, combo, particles, crit threshold / ratio, sound,
-  edge glow, neon flicker and glitch intensity (off/low/med/high) in real
-  time; every panel option plus position/zoom persist to
-  `localStorage`. A ⚡
-  **Test FX** button in the panel replays the full crit sequence (damage
-  numbers, particles, combo, edge glow, sound) without changing the real
-  counter.
+- **Configurable**: the ⚙ settings panel — itself localized zh/en, following
+  the widget's language switch — adjusts language, number format / font size,
+  label, combo, particles, crit threshold / ratio, sound, edge glow, neon
+  flicker and glitch intensity (off/low/med/high) in real time; every panel
+  option plus position/zoom persist to `localStorage`. A ⚡ **Test FX**
+  button in the panel replays the full crit sequence (damage numbers,
+  particles, combo, edge glow, sound) without changing the real counter.
+- **Reduced-motion aware**: when the OS `prefers-reduced-motion` is set, the
+  decorative motion — number pop, crit shake/flash, edge glow, neon flicker,
+  glitch and ambient ember drift — is gated off, while the core crit feedback
+  (floating damage numbers + particle burst) still plays.
 
 ## Structure
 

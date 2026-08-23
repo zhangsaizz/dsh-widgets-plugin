@@ -3,5 +3,5 @@
 # editing either side, bring the other along and re-record with:
 #   git hash-object packages/dsh-client-ui-token-crit/README.md
 #   git hash-object packages/dsh-client-ui-token-crit/README.zh.md
-README.md: c95cc22a32480dc041e407ae9481be1ff3f9d871
-README.zh.md: 6c62abf866ae452ee070b9c7ae9c2a1de8c8f312
+README.md: 0b15f5bf9ce2bd47f9d6254c3efd06924dfef3a5
+README.zh.md: 7a5fbf1f2e17908c150272ac71b369a2eedb079c

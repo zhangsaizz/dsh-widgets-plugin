@@ -205,6 +205,10 @@ export class TokenCritFx {
   /** Light-background mode: deeper, saturated colors with normal compositing
    *  (the pale neon palette and 'lighter' blending vanish on white). */
   private light = false
+  /** OS reduced-motion: gate the continuous decorative animations (neon hum,
+   *  flicker episodes, glitch bursts, ambient ember drift). The core crit
+   *  feedback (floats + burst) is kept — it encodes the actual token deltas. */
+  private reducedMotion = false
   /** Badge number + label elements driven by the neon flicker. */
   private numEl: HTMLElement | null = null
   private labelEl: HTMLElement | null = null
@@ -330,6 +334,11 @@ export class TokenCritFx {
     this.light = on
   }
 
+  /** Switch decorative continuous motion on/off (OS reduced-motion). */
+  setReducedMotion(on: boolean): void {
+    this.reducedMotion = on
+  }
+
   /** Apply the neon-flicker / glitch tuning from the settings panel. */
   setNeonFx(cfg: NeonFxConfig): void {
     this.neonFx = { ...cfg }
@@ -338,7 +347,7 @@ export class TokenCritFx {
   /** (Re)generate the ambient embers for the given count/color. */
   setAmbient(count: number, color: string): void {
     this.embers = []
-    if (count <= 0) return
+    if (this.reducedMotion || count <= 0) return
     const r = hueRange(color)
     for (let i = 0; i < count; i++) {
       this.embers.push({
@@ -519,6 +528,21 @@ export class TokenCritFx {
   private updateNeonFlicker(dt: number): void {
     const el = this.numEl
     if (!el && !this.labelEl) return
+    if (this.reducedMotion) {
+      // Reduced motion: the digits stay perfectly steady — no neon hum, no
+      // flicker episode, no glitch burst. Restore any in-flight glitch first.
+      if (this.glitchActive && el) {
+        el.textContent = this.glitchRealText
+        this.glitchActive = false
+      }
+      const filter = 'brightness(1)'
+      if (this.lastBrightness !== 1) {
+        this.lastBrightness = 1
+        if (el) el.style.filter = filter
+        if (this.labelEl) this.labelEl.style.filter = filter
+      }
+      return
+    }
     this.ambT = (this.ambT + dt * 1000) % AMBIENT_PERIOD
     const now = performance.now()
     // Continuous subtle hum — but only while the flicker effect is enabled;
@@ -610,7 +634,7 @@ export class TokenCritFx {
 
   private drawEmbers(now: number): void {
     const ctx = this.ctx
-    if (!ctx || this.embers.length === 0) return
+    if (!ctx || this.reducedMotion || this.embers.length === 0) return
     ctx.save()
     // 'lighter' blending adds light — invisible on pale backgrounds, so light
     // mode uses normal compositing with deeper colors.

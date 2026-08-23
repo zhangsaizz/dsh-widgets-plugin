@@ -164,6 +164,13 @@
   color: var(--dsw-alias-label-primary, #ececec);
 }
 
+/* Keyboard focus ring for the hover-revealed gear / dock buttons. */
+.gear:focus-visible,
+.dockBtn:focus-visible {
+  outline: 2px solid #4dd7ff;
+  outline-offset: 1px;
+}
+
 .resize {
   position: absolute;
   right: -5px;
@@ -318,16 +325,25 @@
 }
 
 .srow {
-  display: flex;
+  display: grid;
+  grid-template-columns: 76px 1fr;
   align-items: center;
   gap: 8px;
   margin: 8px 0;
 }
 
+/* Control column: hosts the range slider (+ its value) or a checkbox, aligned
+   with the select boxes so every row's control starts on the same edge. */
+.sctl {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
 .slabel {
   color: var(--dsw-alias-label-secondary, #9a9aa0);
   white-space: nowrap;
-  min-width: 76px;
 }
 
 .sval {
@@ -335,6 +351,33 @@
   text-align: right;
   font-family: ui-monospace, Menlo, Consolas, monospace;
   color: var(--dsw-alias-label-primary, #ececec);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Settings-panel section grouping: a header + a thin divider splits the
+   panel's long option list into scannable groups. */
+.sgroup + .sgroup {
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid rgba(140, 140, 160, 0.18);
+}
+
+.stitle {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--dsw-alias-label-tertiary, rgba(232, 234, 240, 0.5));
+  margin: 2px 0 4px;
+}
+
+/* Action button rows (test-fx + reset/fold): wrap freely instead of a
+   cramped single flex row. */
+.sbuttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 8px 0 4px;
 }
 
 .hint {
@@ -351,12 +394,28 @@
 }
 
 .panel select {
+  /* Fill the grid's control column so selects and sliders align. */
+  width: 100%;
+  box-sizing: border-box;
   background: var(--dsw-alias-bg-layer-2, #2a2a30);
   color: var(--dsw-alias-label-primary, #ececec);
   border: 1px solid var(--dsw-alias-border-l1, #3a3a40);
   border-radius: 6px;
-  padding: 2px 4px;
+  padding: 2px 6px;
   font-size: 12px;
+}
+
+.panel input[type='checkbox'] {
+  width: 14px;
+  height: 14px;
+  flex: none;
+  cursor: pointer;
+  accent-color: #4dd7ff;
+}
+
+.panel :focus-visible {
+  outline: 2px solid #4dd7ff;
+  outline-offset: 1px;
 }
 
 .pbtn {
@@ -417,4 +476,22 @@
     0 0 8px rgba(14, 151, 204, 0.5),
     -1px 0 0 rgba(214, 32, 143, 0.35),
     1px 0 0 rgba(14, 151, 204, 0.35);
+}
+
+/* Reduce decorative motion for users who opt out (vestibular / battery-saver):
+   the number-pop, crit shake+flash and the full-screen edge flash are the
+   discrete CSS animations — they collapse to a static state. The JS engine's
+   neon flicker / glitch / ambient embers are gated separately via
+   TokenCritFx.setReducedMotion(), so the core crit feedback (floats + burst)
+   still plays. */
+@media (prefers-reduced-motion: reduce) {
+  .num {
+    animation: none;
+  }
+  .burst {
+    animation: none;
+  }
+  .edge {
+    animation: none;
+  }
 }

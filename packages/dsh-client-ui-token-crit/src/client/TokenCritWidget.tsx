@@ -233,6 +233,101 @@ function glitchLevelConfig(level: string) {
   }
 }
 
+/** Settings-panel labels, keyed by the lang setting (zh/en). The panel is
+ *  now fully localized — it follows the same language switch as the badge. */
+const panelI18n = {
+  zh: {
+    title: 'Token 挂件设置',
+    close: '关闭设置',
+    groupAppearance: '外观',
+    groupEffects: '特效',
+    groupCrit: '暴击判定',
+    groupActions: '操作',
+    lang: '语言',
+    langZh: '中文',
+    langEn: 'English',
+    themeMode: '背景适配',
+    auto: '自动',
+    dark: '深色',
+    light: '浅色',
+    numFormat: '数字格式',
+    full: '完整',
+    compact: '精简',
+    numSize: '文字字号',
+    hintNumSize: '字号只改变文字大小；拖挂件右下角可整体缩放（含特效）。',
+    flicker: '霓虹闪烁',
+    glitch: '乱码故障',
+    off: '关',
+    low: '低',
+    med: '中',
+    high: '高',
+    showTags: '显示标签',
+    combo: '连击',
+    edgeOn: '边缘泛光',
+    ambientOn: '常驻粒子',
+    ambientCount: '粒子数量',
+    particleColor: '粒子颜色',
+    gold: '金色',
+    cyan: '青蓝',
+    purple: '紫',
+    multi: '多彩',
+    critAbs: '暴击阈值',
+    critRatio: '暴击比例',
+    critSound: '暴击音效',
+    hintCrit: '暴击判定只针对输出（output）token 增长。',
+    testFx: '测试特效',
+    testFxTitle: '不改变计数，仅预览动效',
+    resetPlacement: '重置位置/缩放',
+    resetSettings: '重置设置',
+    collapse: '折叠',
+  },
+  en: {
+    title: 'Token Widget Settings',
+    close: 'Close settings',
+    groupAppearance: 'Appearance',
+    groupEffects: 'Effects',
+    groupCrit: 'Crit',
+    groupActions: 'Actions',
+    lang: 'Language',
+    langZh: '中文',
+    langEn: 'English',
+    themeMode: 'Background',
+    auto: 'Auto',
+    dark: 'Dark',
+    light: 'Light',
+    numFormat: 'Number format',
+    full: 'Full',
+    compact: 'Compact',
+    numSize: 'Font size',
+    hintNumSize: 'Font size affects text only; drag the corner to zoom the whole widget (effects included).',
+    flicker: 'Neon flicker',
+    glitch: 'Glitch',
+    off: 'Off',
+    low: 'Low',
+    med: 'Med',
+    high: 'High',
+    showTags: 'Show labels',
+    combo: 'Combo',
+    edgeOn: 'Edge glow',
+    ambientOn: 'Ambient',
+    ambientCount: 'Particle count',
+    particleColor: 'Particle color',
+    gold: 'Gold',
+    cyan: 'Cyan',
+    purple: 'Purple',
+    multi: 'Multi',
+    critAbs: 'Crit threshold',
+    critRatio: 'Crit ratio',
+    critSound: 'Crit sound',
+    hintCrit: 'Crit applies to output-token growth only.',
+    testFx: 'Test FX',
+    testFxTitle: 'Plays the crit effects only - counter untouched',
+    resetPlacement: 'Reset position/zoom',
+    resetSettings: 'Reset settings',
+    collapse: 'Collapse',
+  },
+}
+
 export function TokenCritWidget(props: { useSessions: (sel: (s: any) => any) => any }) {
   const usage = props.useSessions(selectUsage)
 
@@ -288,6 +383,18 @@ export function TokenCritWidget(props: { useSessions: (sel: (s: any) => any) => 
     return () => window.removeEventListener('resize', onResize)
   }, [])
 
+  // Respect the OS reduced-motion setting: purely decorative motion (neon
+  // flicker, glitch, ambient ember drift, and the CSS number-pop / shake /
+  // edge flash) is gated off, while the core crit feedback (floats + burst,
+  // which encodes the actual token deltas) still plays.
+  const [reducedMotion, setReducedMotion] = useState(() => window.matchMedia('(prefers-reduced-motion: reduce)').matches)
+  useEffect(() => {
+    const mq = window.matchMedia('(prefers-reduced-motion: reduce)')
+    const on = (): void => setReducedMotion(mq.matches)
+    mq.addEventListener('change', on)
+    return () => mq.removeEventListener('change', on)
+  }, [])
+
   // Settings load from localStorage once per mount (validated by loadSettings).
   const initial = useMemo(loadSettings, [])
 
@@ -306,6 +413,9 @@ export function TokenCritWidget(props: { useSessions: (sel: (s: any) => any) => 
   const [themeMode, setThemeMode] = useState<'auto' | 'light' | 'dark'>(initial.themeMode)
   const [flickerLevel, setFlickerLevel] = useState<'off' | 'low' | 'med' | 'high'>(initial.flickerLevel)
   const [glitchLevel, setGlitchLevel] = useState<'off' | 'low' | 'med' | 'high'>(initial.glitchLevel)
+
+  // Panel label set, following the badge's language switch.
+  const PI = lang === 'en' ? panelI18n.en : panelI18n.zh
 
   // Effective light-background mode: manual override, else auto-detect by
   // climbing the anchor's ancestor chain for the host theme's surfaces.
@@ -379,6 +489,12 @@ export function TokenCritWidget(props: { useSessions: (sel: (s: any) => any) => 
     fxRef.current?.setLight(light)
   }, [light])
 
+  // Gate decorative canvas motion (neon flicker, glitch, ambient embers)
+  // under the OS reduced-motion setting.
+  useEffect(() => {
+    fxRef.current?.setReducedMotion(reducedMotion)
+  }, [reducedMotion])
+
   // Push the neon flicker / glitch tuning to the engine.
   useEffect(() => {
     fxRef.current?.setNeonFx({ ...flickerLevelConfig(flickerLevel), ...glitchLevelConfig(glitchLevel) })
@@ -413,12 +529,14 @@ export function TokenCritWidget(props: { useSessions: (sel: (s: any) => any) => 
     }
   }, [numFormat])
 
-  // (Re)seed the ambient embers on the canvas.
+  // (Re)seed the ambient embers on the canvas. Gated off under reduced
+  // motion (the embers drift upward — a purely decorative, vestibular-triggering
+  // animation) via the shared reducedMotion flag.
   useEffect(() => {
     const fx = fxRef.current
     if (!fx) return
-    fx.setAmbient(ambientOn ? ambientCount : 0, particleColor)
-  }, [ambientOn, ambientCount, particleColor])
+    fx.setAmbient(!reducedMotion && ambientOn ? ambientCount : 0, particleColor)
+  }, [ambientOn, ambientCount, particleColor, reducedMotion])
 
   // Combo pop goes to the canvas too.
   useEffect(() => {
@@ -748,7 +866,7 @@ export function TokenCritWidget(props: { useSessions: (sel: (s: any) => any) => 
       <div
         key="dot"
         className={css.dot}
-        title="点击展开 · 拖动移动"
+        title={lang === 'zh' ? '点击展开 · 拖动移动' : 'Click to expand · drag to move'}
         onPointerDown={(e) => startDrag(e, 'move')}
       >
         {dotText}
@@ -764,7 +882,7 @@ export function TokenCritWidget(props: { useSessions: (sel: (s: any) => any) => 
       <div
         key={'b' + critKey}
         className={badgeClass}
-        title="拖动移动 · 双击折叠 · 拖右下角缩放"
+        title={lang === 'zh' ? '拖动移动 · 双击折叠 · 拖右下角缩放' : 'Drag to move · double-click to collapse · drag corner to zoom'}
         onPointerDown={(e) => startDrag(e, 'move')}
         onDoubleClick={doCollapse}
       >
@@ -778,10 +896,10 @@ export function TokenCritWidget(props: { useSessions: (sel: (s: any) => any) => 
         <span ref={labelRef} className={css.label} style={{ fontSize: Math.round(numSize * 0.62) + 'px' }}>{lang === 'zh' ? '词元' : 'TOKENS'}</span>
         <div
           className={css.gear}
-          title="设置"
+          title={lang === 'zh' ? '设置' : 'Settings'}
           role="button"
           tabIndex={0}
-          aria-label="设置"
+          aria-label={lang === 'zh' ? '设置' : 'Settings'}
           onPointerDown={(e) => e.stopPropagation()}
           onClick={toggleSettings}
           onKeyDown={(e) => {
@@ -843,119 +961,137 @@ export function TokenCritWidget(props: { useSessions: (sel: (s: any) => any) => 
         ? (
           <div ref={panelRef} className={css.panel} style={{ left: panelPos.x, top: panelPos.y }}>
             <div className={css.phead}>
-              <span className={css.ptitle}>Token 挂件设置</span>
-              <button className={css.pclose} onClick={() => { setSettingsOpen(false); setPanelPos(null) }}>✕</button>
+              <span className={css.ptitle} role="heading" aria-level={2}>{PI.title}</span>
+              <button className={css.pclose} onClick={() => { setSettingsOpen(false); setPanelPos(null) }} aria-label={PI.close}>✕</button>
             </div>
-            <div className={css.srow}>
-              <span className={css.slabel}>语言</span>
-              <select value={lang} onChange={(e) => setLang(e.target.value)}>
-                <option value="zh">中文</option>
-                <option value="en">English</option>
-              </select>
+
+            <div className={css.sgroup}>
+              <div className={css.stitle} role="heading" aria-level={3}>{PI.groupAppearance}</div>
+              <label className={css.srow}>
+                <span className={css.slabel}>{PI.lang}</span>
+                <select value={lang} onChange={(e) => setLang(e.target.value)}>
+                  <option value="zh">{PI.langZh}</option>
+                  <option value="en">{PI.langEn}</option>
+                </select>
+              </label>
+              <label className={css.srow}>
+                <span className={css.slabel}>{PI.themeMode}</span>
+                <select value={themeMode} onChange={(e) => setThemeMode(e.target.value as any)}>
+                  <option value="auto">{PI.auto}</option>
+                  <option value="dark">{PI.dark}</option>
+                  <option value="light">{PI.light}</option>
+                </select>
+              </label>
+              <label className={css.srow}>
+                <span className={css.slabel}>{PI.numFormat}</span>
+                <select value={numFormat} onChange={(e) => setNumFormat(e.target.value)}>
+                  <option value="full">{PI.full}</option>
+                  <option value="compact">{PI.compact}</option>
+                </select>
+              </label>
+              <label className={css.srow}>
+                <span className={css.slabel}>{PI.numSize}</span>
+                <div className={css.sctl}>
+                  <input type="range" min={10} max={22} step={1} value={numSize} onChange={(e) => setNumSize(Number(e.target.value) || 14)} />
+                  <span className={css.sval}>{numSize}px</span>
+                </div>
+              </label>
+              <div className={css.hint}>{PI.hintNumSize}</div>
             </div>
-            <div className={css.srow}>
-              <span className={css.slabel}>背景适配</span>
-              <select value={themeMode} onChange={(e) => setThemeMode(e.target.value as any)}>
-                <option value="auto">自动</option>
-                <option value="dark">深色</option>
-                <option value="light">浅色</option>
-              </select>
+
+            <div className={css.sgroup}>
+              <div className={css.stitle} role="heading" aria-level={3}>{PI.groupEffects}</div>
+              <label className={css.srow}>
+                <span className={css.slabel}>{PI.flicker}</span>
+                <select value={flickerLevel} onChange={(e) => setFlickerLevel(e.target.value as any)}>
+                  <option value="off">{PI.off}</option>
+                  <option value="low">{PI.low}</option>
+                  <option value="med">{PI.med}</option>
+                  <option value="high">{PI.high}</option>
+                </select>
+              </label>
+              <label className={css.srow}>
+                <span className={css.slabel}>{PI.glitch}</span>
+                <select value={glitchLevel} onChange={(e) => setGlitchLevel(e.target.value as any)}>
+                  <option value="off">{PI.off}</option>
+                  <option value="low">{PI.low}</option>
+                  <option value="med">{PI.med}</option>
+                  <option value="high">{PI.high}</option>
+                </select>
+              </label>
+              <label className={css.srow}>
+                <span className={css.slabel}>{PI.showTags}</span>
+                <div className={css.sctl}><input type="checkbox" checked={showTags} onChange={(e) => setShowTags(e.target.checked)} /></div>
+              </label>
+              <label className={css.srow}>
+                <span className={css.slabel}>{PI.combo}</span>
+                <div className={css.sctl}><input type="checkbox" checked={comboOn} onChange={(e) => setComboOn(e.target.checked)} /></div>
+              </label>
+              <label className={css.srow}>
+                <span className={css.slabel}>{PI.edgeOn}</span>
+                <div className={css.sctl}><input type="checkbox" checked={edgeOn} onChange={(e) => setEdgeOn(e.target.checked)} /></div>
+              </label>
+              <label className={css.srow}>
+                <span className={css.slabel}>{PI.ambientOn}</span>
+                <div className={css.sctl}><input type="checkbox" checked={ambientOn} onChange={(e) => setAmbientOn(e.target.checked)} /></div>
+              </label>
+              <label className={css.srow}>
+                <span className={css.slabel}>{PI.ambientCount}</span>
+                <div className={css.sctl}>
+                  <input type="range" min={3} max={16} step={1} value={ambientCount} onChange={(e) => setAmbientCount(Number(e.target.value) || 7)} />
+                  <span className={css.sval}>{ambientCount}</span>
+                </div>
+              </label>
+              <label className={css.srow}>
+                <span className={css.slabel}>{PI.particleColor}</span>
+                <select value={particleColor} onChange={(e) => setParticleColor(e.target.value)}>
+                  <option value="gold">{PI.gold}</option>
+                  <option value="cyan">{PI.cyan}</option>
+                  <option value="purple">{PI.purple}</option>
+                  <option value="multi">{PI.multi}</option>
+                </select>
+              </label>
             </div>
-            <div className={css.srow}>
-              <span className={css.slabel}>霓虹闪烁</span>
-              <select value={flickerLevel} onChange={(e) => setFlickerLevel(e.target.value as any)}>
-                <option value="off">关</option>
-                <option value="low">低</option>
-                <option value="med">中</option>
-                <option value="high">高</option>
-              </select>
+
+            <div className={css.sgroup}>
+              <div className={css.stitle} role="heading" aria-level={3}>{PI.groupCrit}</div>
+              <label className={css.srow}>
+                <span className={css.slabel}>{PI.critAbs}</span>
+                <div className={css.sctl}>
+                  <input type="range" min={500} max={20000} step={500} value={critAbs} onChange={(e) => setCritAbs(Number(e.target.value) || 500)} />
+                  <span className={css.sval}>{fmt(critAbs)}</span>
+                </div>
+              </label>
+              <label className={css.srow}>
+                <span className={css.slabel}>{PI.critRatio}</span>
+                <div className={css.sctl}>
+                  <input type="range" min={2} max={30} step={1} value={Math.round(critRatio * 100)} onChange={(e) => setCritRatio((Number(e.target.value) || 2) / 100)} />
+                  <span className={css.sval}>{Math.round(critRatio * 100)}%</span>
+                </div>
+              </label>
+              <label className={css.srow}>
+                <span className={css.slabel}>{PI.critSound}</span>
+                <div className={css.sctl}><input type="checkbox" checked={soundOn} onChange={(e) => setSoundOn(e.target.checked)} /></div>
+              </label>
+              <div className={css.hint}>{PI.hintCrit}</div>
             </div>
-            <div className={css.srow}>
-              <span className={css.slabel}>乱码故障</span>
-              <select value={glitchLevel} onChange={(e) => setGlitchLevel(e.target.value as any)}>
-                <option value="off">关</option>
-                <option value="low">低</option>
-                <option value="med">中</option>
-                <option value="high">高</option>
-              </select>
-            </div>
-            <div className={css.srow}>
-              <span className={css.slabel}>数字格式</span>
-              <select value={numFormat} onChange={(e) => setNumFormat(e.target.value)}>
-                <option value="full">完整</option>
-                <option value="compact">精简</option>
-              </select>
-            </div>
-            <div className={css.srow}>
-              <span className={css.slabel}>文字字号</span>
-              <input type="range" min={10} max={22} step={1} value={numSize} onChange={(e) => setNumSize(Number(e.target.value) || 14)} />
-              <span className={css.sval}>{numSize}px</span>
-            </div>
-            <div className={css.hint}>
-              {lang === 'zh'
-                ? '字号只改变文字大小；拖挂件右下角可整体缩放（含特效）。'
-                : 'Font size affects text only; drag the corner to zoom the whole widget (effects included).'}
-            </div>
-            <div className={css.srow}>
-              <span className={css.slabel}>显示标签</span>
-              <input type="checkbox" checked={showTags} onChange={(e) => setShowTags(e.target.checked)} />
-            </div>
-            <div className={css.srow}>
-              <span className={css.slabel}>连击</span>
-              <input type="checkbox" checked={comboOn} onChange={(e) => setComboOn(e.target.checked)} />
-            </div>
-            <div className={css.srow}>
-              <span className={css.slabel}>常驻粒子</span>
-              <input type="checkbox" checked={ambientOn} onChange={(e) => setAmbientOn(e.target.checked)} />
-            </div>
-            <div className={css.srow}>
-              <span className={css.slabel}>粒子数量</span>
-              <input type="range" min={3} max={16} step={1} value={ambientCount} onChange={(e) => setAmbientCount(Number(e.target.value) || 7)} />
-              <span className={css.sval}>{ambientCount}</span>
-            </div>
-            <div className={css.srow}>
-              <span className={css.slabel}>粒子颜色</span>
-              <select value={particleColor} onChange={(e) => setParticleColor(e.target.value)}>
-                <option value="gold">金色</option>
-                <option value="cyan">青蓝</option>
-                <option value="purple">紫</option>
-                <option value="multi">多彩</option>
-              </select>
-            </div>
-            <div className={css.srow}>
-              <span className={css.slabel}>暴击阈值</span>
-              <input type="range" min={500} max={20000} step={500} value={critAbs} onChange={(e) => setCritAbs(Number(e.target.value) || 500)} />
-              <span className={css.sval}>{fmt(critAbs)}</span>
-            </div>
-            <div className={css.srow}>
-              <span className={css.slabel}>暴击比例</span>
-              <input type="range" min={2} max={30} step={1} value={Math.round(critRatio * 100)} onChange={(e) => setCritRatio((Number(e.target.value) || 2) / 100)} />
-              <span className={css.sval}>{Math.round(critRatio * 100)}%</span>
-            </div>
-            <div className={css.hint}>
-              {lang === 'zh' ? '暴击判定只针对输出（output）token 增长。' : 'Crit applies to output-token growth only.'}
-            </div>
-            <div className={css.srow}>
-              <span className={css.slabel}>暴击音效</span>
-              <input type="checkbox" checked={soundOn} onChange={(e) => setSoundOn(e.target.checked)} />
-            </div>
-            <div className={css.srow}>
-              <span className={css.slabel}>边缘泛光</span>
-              <input type="checkbox" checked={edgeOn} onChange={(e) => setEdgeOn(e.target.checked)} />
-            </div>
-            <div className={css.srow} style={{ justifyContent: 'flex-start' }}>
-              <button
-                className={css.pbtn + ' ' + css.testbtn}
-                title={lang === 'zh' ? '不改变计数，仅预览动效' : 'Plays the crit effects only — counter untouched'}
-                onClick={runTest}
-              >
-                ⚡ {lang === 'zh' ? '测试特效' : 'Test FX'}
-              </button>
-            </div>
-            <div className={css.srow} style={{ justifyContent: 'flex-start', gap: 10 }}>
-              <button className={css.pbtn} onClick={resetPlacement}>重置位置/缩放</button>
-              <button className={css.pbtn} onClick={resetSettings}>重置设置</button>
-              <button className={css.pbtn} onClick={doCollapse}>折叠</button>
+
+            <div className={css.sgroup}>
+              <div className={css.stitle} role="heading" aria-level={3}>{PI.groupActions}</div>
+              <div className={css.sbuttons}>
+                <button
+                  className={css.pbtn + ' ' + css.testbtn}
+                  title={PI.testFxTitle}
+                  onClick={runTest}
+                >
+                  ⚡ {PI.testFx}
+                </button>
+              </div>
+              <div className={css.sbuttons}>
+                <button className={css.pbtn} onClick={resetPlacement}>{PI.resetPlacement}</button>
+                <button className={css.pbtn} onClick={resetSettings}>{PI.resetSettings}</button>
+                <button className={css.pbtn} onClick={doCollapse}>{PI.collapse}</button>
+              </div>
             </div>
           </div>
           )
