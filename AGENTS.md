@@ -411,3 +411,20 @@ pnpm 版本由 root `package.json` 的 `packageManager` 固定（当前 `pnpm@11
   + storage 双事件，与浮窗一致）、按同谓词聚合 runningSubagentsByParent（祖先链 +1）与
   runningJobsBySession（仅 running/stopping），再以浮窗相同的谓词统计（子代理行在 showSubagents 关时
   不计、但父会话因子代理/任务运行仍计 busy）。纯客户端改动，build 后刷新页面即生效。
+- **会话监控 UI 层面优化（可访问性 + 动效克制）**（纯客户端改动，build 后刷新页面即生效；桌面页随 Host bundle 内联，重启 web 生效）：
+  - **reduced-motion 支持**：`SessionMonitorWidget.module.css` 与 `widget-page.html` 各加
+    `@media (prefers-reduced-motion: reduce)`——停止 `.dotRunning` 的 pulse、进度条 sweep、toast
+    滑入、刷新图标旋转等装饰性动画（running 点保持实心绿、进度条保留轨道+完成态填充、toast 立即出现），
+    并关闭各 hover/focus 颜色过渡；对前庭敏感/省电用户是实打实的可访问性收益。
+  - **:focus-visible 焦点环**：主挂件 CSS、配置面板 CSS、桌面页 CSS 都为键盘焦点补显式 ring
+    （`outline: 2px solid 主题主色`, 键盘焦点才显示），浮层/对话框主题的全局焦点环到不了这些自绘控件。
+  - **aria-label 补齐**：主挂件 dock「⤢」/collapse「—」图标按钮补 aria-label（原来只有 title）。
+  - **桌面行键盘可达**：widget-page.html 的可点击会话行（rowEl）与 inbox 行（noteRow）由纯 div
+    改为 `role="button"` + `tabIndex=0` + Enter/空格激活（镜像点击行为）；inbox 的「处理/忽略」按钮
+    仍独立聚焦、stopPropagation 不冲突。
+  - **截图调优（vision_html_screenshot 渲染预览 + 视觉复核）**：构建忠实复刻挂件视觉的独立 HTML 预览
+    （真实 CSS 取值 + 代表性 mock：运行中/子代理/后台任务/待审批/完成/目标进度行、三种 toast、收起胶囊），
+    截图后定位并修复两处真实问题：① 收起胶囊里「3」（蓝色忙碌数）与「7」（红色未读）的 `.pillCount`/
+    `.pillBadge` 高度、字号、内边距不一致 → 统一为 16px 高、inline-flex 居中、10.5px、padding 0 6px；
+    ② 最暗辅助文字对比度偏低 → `.time`/`.toastTime`/`.nrow .time` 0.4→0.5、`.status` 0.72→0.76、
+    `.footerHint`(web) 0.5→0.58、`.count`(web) 0.62→0.68（均为 rgba(232,234,240,·) 回退值，桌面页直接生效）。

@@ -131,7 +131,7 @@
   min-width: 0;
   text-align: right;
   font-size: 11px;
-  color: var(--dsw-alias-label-secondary, rgba(232, 234, 240, 0.62));
+  color: var(--dsw-alias-label-secondary, rgba(232, 234, 240, 0.68));
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -309,7 +309,7 @@
 
 .status {
   font-size: 11px;
-  color: var(--dsw-alias-label-secondary, rgba(232, 234, 240, 0.72));
+  color: var(--dsw-alias-label-secondary, rgba(232, 234, 240, 0.76));
 }
 
 /* Busy-not-running status tints: the session itself is idle but its
@@ -331,7 +331,7 @@
 
 .time {
   font-size: 11px;
-  color: var(--dsw-alias-label-tertiary, rgba(232, 234, 240, 0.4));
+  color: var(--dsw-alias-label-tertiary, rgba(232, 234, 240, 0.5));
   margin-left: auto;
 }
 
@@ -428,7 +428,7 @@
 /* "N older sessions hidden" hint — sits beside the clear action in the footer. */
 .footerHint {
   font-size: 10.5px;
-  color: var(--dsw-alias-label-tertiary, rgba(232, 234, 240, 0.5));
+  color: var(--dsw-alias-label-tertiary, rgba(232, 234, 240, 0.58));
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -497,26 +497,34 @@
 
 .pillCount {
   min-width: 18px;
+  height: 16px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   text-align: center;
-  font-size: 11px;
+  font-size: 10.5px;
   font-weight: 700;
+  line-height: 1;
   color: var(--dsw-alias-label-on-color, #fff);
   background: var(--dsw-alias-state-business-primary, #4f8cff);
   border-radius: 999px;
-  padding: 1px 6px;
+  padding: 0 6px;
 }
 
 /* Unread inbox badge on the collapsed pill (red, next to the blue busy count). */
 .pillBadge {
-  min-width: 16px;
+  min-width: 18px;
   height: 16px;
-  padding: 0 5px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 6px;
   border-radius: 999px;
   background: #ff6b6b;
   color: #fff;
-  font-size: 10px;
+  font-size: 10.5px;
   font-weight: 700;
-  line-height: 16px;
+  line-height: 1;
   text-align: center;
   box-shadow: 0 0 8px rgba(255, 107, 107, 0.45);
 }
@@ -738,4 +746,47 @@
 
 .dismissBtn:hover {
   background: var(--dsw-alias-bg-hover, rgba(255, 255, 255, 0.16));
+}
+
+/* Keyboard focus: the host theme's global focus ring may not reach the
+   floating panel (it is in a portal-like overlay context), so give every
+   interactive element an explicit :focus-visible outline. Outline is shown
+   only for keyboard focus (not clicks/mouse), per the accessibility spec.
+   The row uses an inset outline so it hugs the rounded pill inside its own
+   bounds instead of clipping at the row edge. */
+.iconBtn:focus-visible,
+.ackAllBtn:focus-visible,
+.inboxBadge:focus-visible,
+.clearBtn:focus-visible,
+.jumpBtn:focus-visible,
+.dismissBtn:focus-visible,
+.pillBadge:focus-visible {
+  outline: 2px solid var(--dsw-alias-state-business-primary, #4f8cff);
+  outline-offset: 2px;
+}
+
+.row:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--dsw-alias-state-business-primary, #4f8cff) 70%, transparent);
+  outline-offset: -2px;
+  border-radius: 9px;
+}
+
+/* Respect the OS reduce-motion preference: the pulse, the progress-bar sweep,
+   and the toast slide-in are decor/status motion, not information. Under
+   reduced motion they collapse to a static state (the running dot stays a
+   solid green, the progress bar keeps its track + determinate fill, the toast
+   appears immediately) and the hover/focus color transitions go instant.
+   This is a vestibular/battery accessibility win for a surface that animates
+   on every poll. */
+@media (prefers-reduced-motion: reduce) {
+  .dotRunning { animation: none; }
+  .progressBar::after { animation: none; }
+  .progressFill { transition: none; }
+  .toast { animation: none; }
+  .iconBtn,
+  .ackAllBtn,
+  .inboxBadge,
+  .clearBtn,
+  .jumpBtn,
+  .dismissBtn { transition: none; }
 }

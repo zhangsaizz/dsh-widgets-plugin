@@ -113,3 +113,13 @@
   background: var(--dsw-alias-bg-hover, rgba(255, 255, 255, 0.08));
   color: var(--dsw-alias-label-primary, #e8eaf0);
 }
+
+/* Keyboard focus: the host dialog may not theme these suppressed controls, so
+   give the custom reset buttons and the styled number/select a visible ring
+   (keyboard only). */
+.resetBtn:focus-visible,
+.control select:focus-visible,
+.control input[type='number']:focus-visible {
+  outline: 2px solid var(--dsw-alias-state-business-primary, #4f8cff);
+  outline-offset: 1px;
+}

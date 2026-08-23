@@ -1387,6 +1387,7 @@ export function SessionMonitorWidget(props: SessionMonitorWidgetProps) {
           <button
             className={css.iconBtn}
             title={t('dockToContainer')}
+            aria-label={t('dockToContainer')}
             onPointerDown={(e) => e.stopPropagation()}
             onClick={() => {
               try {
@@ -1399,6 +1400,7 @@ export function SessionMonitorWidget(props: SessionMonitorWidgetProps) {
           <button
             className={css.iconBtn}
             title={t('collapse')}
+            aria-label={t('collapse')}
             onPointerDown={(e) => e.stopPropagation()}
             onClick={() => setCollapsed(true)}
           >

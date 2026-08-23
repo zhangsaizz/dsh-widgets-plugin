@@ -345,7 +345,7 @@
     text-overflow: ellipsis;
   }
   .nrow .meta { display: flex; align-items: center; gap: 8px; margin-top: 3px; }
-  .nrow .time { font-size: 10px; color: rgba(232, 234, 240, 0.4); }
+  .nrow .time { font-size: 10px; color: rgba(232, 234, 240, 0.5); }
   .nrow .actions { margin-left: auto; display: flex; gap: 5px; flex: none; }
   .act {
     border: none;
@@ -498,11 +498,11 @@
     color: #ff9f43;
     font-weight: 600;
   }
-  .status { font-size: 11px; color: rgba(232, 234, 240, 0.72); }
+  .status { font-size: 11px; color: rgba(232, 234, 240, 0.76); }
   .statusSub { color: #b388ff; }
   .time {
     font-size: 11px;
-    color: rgba(232, 234, 240, 0.4);
+    color: rgba(232, 234, 240, 0.5);
     margin-left: auto;
     white-space: nowrap;
   }
@@ -689,7 +689,7 @@
     min-width: 0;
   }
   .toastIcon { color: var(--toast-accent); font-style: normal; font-size: 14px; line-height: 1; }
-  .toastTime { font-size: 10.5px; color: rgba(232, 234, 240, 0.4); white-space: nowrap; }
+  .toastTime { font-size: 10.5px; color: rgba(232, 234, 240, 0.5); white-space: nowrap; }
   .toastBody {
     margin-top: 4px;
     font-size: 12.5px;
@@ -718,6 +718,35 @@
   }
   .dismissBtn { color: #e8eaf0; background: rgba(255, 255, 255, 0.1); }
   .dismissBtn:hover { background: rgba(255, 255, 255, 0.16); }
+
+  /* Keyboard focus ring: this is a top-level webview so the host theme's
+     global focus ring does not apply; give interactive elements an explicit
+     keyboard-only outline. The row outline is inset inside its rounded pill.
+     (The row element is given tabindex/role in JS for keyboard reach.) */
+  .iconBtn:focus-visible, .jumpBtn:focus-visible, .dismissBtn:focus-visible,
+  .textBtn:focus-visible, .reset:focus-visible, .tab:focus-visible,
+  .nrow:focus-visible {
+    outline: 2px solid #4f8cff;
+    outline-offset: 2px;
+  }
+  .row:focus-visible {
+    outline: 2px solid #4f8cff;
+    outline-offset: -2px;
+    border-radius: 9px;
+  }
+
+  /* Reduced motion: the pulse, the progress sweep, the toast slide-in and the
+     refresh-icon spin are status decor, not data — collapse them under the OS
+     reduce-motion preference (vestibular / battery accessibility). */
+  @media (prefers-reduced-motion: reduce) {
+    .dotRunning { animation: none; }
+    .progressBar::after { animation: none; }
+    .progressFill { transition: none; }
+    .toast { animation: none; }
+    .iconBtn { animation: none; }
+    .iconBtn, .jumpBtn, .dismissBtn, .textBtn, .reset, .tab, .row, .nrow,
+    .progressFill, .toast { transition: none; }
+  }
 </style>
 </head>
 <body>
@@ -1358,6 +1387,10 @@
     var el = document.createElement('div')
     el.className = 'nrow ' + (read ? 'read' : 'unread')
     el.style.setProperty('--accent', kind.color)
+    // Keyboard reach for the unread row (the nested 处理/忽略 buttons stay
+    // independently focusable; Enter/Space on the row mirrors the row click).
+    el.setAttribute('role', 'button')
+    el.tabIndex = 0
     var round = note.round ? '<span class="round">第 ' + note.round + ' 轮</span>' : ''
     var resolvedTag = note.resolved ? '<span class="tag resolved">已处理</span>' : ''
     var actions = read ? ''
@@ -1384,6 +1417,12 @@
     })
     el.addEventListener('click', function () {
       if (!read) handleNote(note)
+    })
+    el.addEventListener('keydown', function (ev) {
+      if (ev.key === 'Enter' || ev.key === ' ') {
+        ev.preventDefault()
+        if (!read) handleNote(note)
+      }
     })
     el.title = note.sessionId
     return el
@@ -1668,6 +1707,11 @@
   function rowEl(row, now) {
     var el = document.createElement('div')
     el.className = 'row'
+    // Keyboard reach: this is a clickable div, not a native button — give it a
+    // role, focus, and an Enter/Space activation so keyboard users can open the
+    // session too (the .row:focus-visible rule draws the ring).
+    el.setAttribute('role', 'button')
+    el.tabIndex = 0
     var dotClass = row.running ? 'dotRunning' : (row.pending ? 'dotPending' : 'dotDone')
     var statusText, statusClass = ''
     if (row.running) statusText = '运行中'
@@ -1751,6 +1795,12 @@
       '</div>' +
       '<span class="time">' + esc(relTime(Math.max(row.updatedAt, row.lastActive), now)) + '</span>'
     el.addEventListener('click', function () { openSession(row.sessionId) })
+    el.addEventListener('keydown', function (ev) {
+      if (ev.key === 'Enter' || ev.key === ' ') {
+        ev.preventDefault()
+        openSession(row.sessionId)
+      }
+    })
     el.title = row.sessionId
     return el
   }
