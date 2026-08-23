@@ -4,6 +4,11 @@
  * `session-monitor`). Self-contained: it reads/writes the same localStorage
  * keys as the widget (via ./settings.ts) and announces changes so a mounted
  * widget re-reads them live. Localized through the injected `t` seat.
+ *
+ * The 13 options are grouped into three labeled sections (Notify / List /
+ * Desktop) for scannability, and each row renders its label as a wrapping
+ * `<label>` so screen readers associate the label with its control AND the
+ * whole row is a click target (bigger hit area than the bare input).
  */
 
 import { useEffect, useState } from 'react'
@@ -20,15 +25,27 @@ export interface SessionSettingsInjected {
   t: TranslateNS<'session-monitor'>
 }
 
-/** One settings row: label + optional hint + control. */
+/** One settings row: label + optional hint + control. The row is a wrapping
+ *  `<label>` so the label is programmatically associated with its control
+ *  (a11y) and clicking anywhere on the row toggles/focuses it. */
 function Row(props: { label: string; hint?: string; children: ReactNode }) {
   return (
-    <div className={css.row}>
+    <label className={css.row}>
       <div className={css.rowText}>
         <span className={css.label}>{props.label}</span>
         {props.hint ? <span className={css.hint}>{props.hint}</span> : null}
       </div>
       <div className={css.control}>{props.children}</div>
+    </label>
+  )
+}
+
+/** A labeled group of related options (section title + rows). */
+function Section(props: { title: string; children: ReactNode }) {
+  return (
+    <div className={css.section}>
+      <div className={css.sectionTitle}>{props.title}</div>
+      {props.children}
     </div>
   )
 }
@@ -61,6 +78,9 @@ export function SessionSettings({ t }: SessionSettingsInjected) {
   const [perm, setPerm] = useState<'default' | 'granted' | 'denied' | 'unsupported'>(
     () => typeof Notification !== 'undefined' ? Notification.permission : 'unsupported',
   )
+  /** Which reset button just fired (transient feedback), so the action is
+   *  visibly acknowledged. */
+  const [resetFlash, setResetFlash] = useState<null | 'pos' | 'all'>(null)
 
   function update(patch: Partial<MonitorSettings>): void {
     const next = { ...settings, ...patch }
@@ -76,6 +96,12 @@ export function SessionSettings({ t }: SessionSettingsInjected) {
   function resetAll(): void {
     setSettings({ ...DEFAULT_SETTINGS })
     saveSettings({ ...DEFAULT_SETTINGS })
+  }
+
+  /** Flash the clicked reset button for 600ms so the action is acknowledged. */
+  function flashReset(kind: 'pos' | 'all'): void {
+    setResetFlash(kind)
+    window.setTimeout(() => { setResetFlash((prev) => (prev === kind ? null : prev)) }, 600)
   }
 
   // Keep the permission line honest when the user changes the permission in
@@ -99,155 +125,139 @@ export function SessionSettings({ t }: SessionSettingsInjected) {
 
   return (
     <div className={css.panel}>
-      <Row label={t('desktopMonitorLabel')} hint={t('desktopMonitorDesc')}>
-        <input
-          type="checkbox"
-          checked={settings.desktopMonitor}
-          onChange={(e) => {
-            update({ desktopMonitor: e.target.checked })
-            // Turning monitoring ON also launches / surfaces the desktop app
-            // (Tauri shell) via the dsh-smon:// protocol.
-            if (e.target.checked) launchDesktopApp()
-          }}
-        />
-      </Row>
-      <Row label={t('notifyLabel')} hint={t('notifyDesc')}>
-        <input
-          type="checkbox"
-          checked={settings.notify}
-          onChange={(e) => update({ notify: e.target.checked })}
-        />
-      </Row>
-      <Row label={t('notifyModeLabel')}>
-        <select
-          value={settings.notifyMode}
-          onChange={(e) => update({ notifyMode: e.target.value as MonitorSettings['notifyMode'] })}
+      <Section title={t('sectionNotify')}>
+        <Row label={t('notifyLabel')} hint={t('notifyDesc')}>
+          <input type="checkbox" checked={settings.notify} onChange={(e) => update({ notify: e.target.checked })} />
+        </Row>
+        <Row label={t('notifyModeLabel')}>
+          <select
+            value={settings.notifyMode}
+            onChange={(e) => update({ notifyMode: e.target.value as MonitorSettings['notifyMode'] })}
+          >
+            <option value="auto">{t('notifyModeAuto')}</option>
+            <option value="confirm">{t('notifyModeConfirm')}</option>
+          </select>
+        </Row>
+        {settings.notifyMode === 'auto'
+          ? (
+            <Row label={t('autoDismissSecLabel')}>
+              <input
+                type="number"
+                min={2}
+                max={60}
+                step={1}
+                value={settings.autoDismissSec}
+                onChange={(e) => update({ autoDismissSec: Number(e.target.value) || 8 })}
+              />
+              <span className={css.unit}>s</span>
+            </Row>
+            )
+          : null}
+        <Row label={t('soundLabel')}>
+          <input type="checkbox" checked={settings.sound} onChange={(e) => update({ sound: e.target.checked })} />
+        </Row>
+        <Row label={t('browserNotifyLabel')} hint={t('browserNotifyDesc')}>
+          <input
+            type="checkbox"
+            checked={settings.browserNotify}
+            onChange={async (e) => {
+              const want = e.target.checked
+              if (!want) { update({ browserNotify: false }); return }
+              if (typeof Notification === 'undefined') { update({ browserNotify: false }); return }
+              let permission = Notification.permission
+              if (permission === 'default') {
+                try { permission = await Notification.requestPermission() } catch { /* denied */ }
+              }
+              setPerm(permission)
+              if (permission === 'granted') update({ browserNotify: true })
+              else update({ browserNotify: false })
+            }}
+          />
+        </Row>
+        <div className={css.permLine}>
+          {perm === 'granted'
+            ? <span className={css.permOk}>{t('permGranted')}</span>
+            : perm === 'denied'
+              ? <span className={css.permBad}>{t('permDenied')}</span>
+              : <span className={css.permMuted}>{t('permAsk')}</span>}
+        </div>
+        <Row label={t('notifyCurrentLabel')} hint={t('notifyCurrentDesc')}>
+          <input type="checkbox" checked={settings.notifyCurrent} onChange={(e) => update({ notifyCurrent: e.target.checked })} />
+        </Row>
+      </Section>
+
+      <Section title={t('sectionList')}>
+        <Row label={t('runningOnlyLabel')} hint={t('runningOnlyDesc')}>
+          <input type="checkbox" checked={settings.runningOnly} onChange={(e) => update({ runningOnly: e.target.checked })} />
+        </Row>
+        <Row
+          label={t('timeWindowLabel')}
+          hint={settings.runningOnly ? t('timeWindowDisabledHint') : t('timeWindowDesc')}
         >
-          <option value="auto">{t('notifyModeAuto')}</option>
-          <option value="confirm">{t('notifyModeConfirm')}</option>
-        </select>
-      </Row>
-      {settings.notifyMode === 'auto'
-        ? (
-          <Row label={t('autoDismissSecLabel')}>
-            <input
-              type="number"
-              min={2}
-              max={60}
-              step={1}
-              value={settings.autoDismissSec}
-              onChange={(e) => update({ autoDismissSec: Number(e.target.value) || 8 })}
-            />
-            <span className={css.unit}>s</span>
-          </Row>
-          )
-        : null}
-      <Row label={t('soundLabel')}>
-        <input
-          type="checkbox"
-          checked={settings.sound}
-          onChange={(e) => update({ sound: e.target.checked })}
-        />
-      </Row>
-      <Row label={t('browserNotifyLabel')} hint={t('browserNotifyDesc')}>
-        <input
-          type="checkbox"
-          checked={settings.browserNotify}
-          onChange={async (e) => {
-            const want = e.target.checked
-            if (!want) { update({ browserNotify: false }); return }
-            if (typeof Notification === 'undefined') { update({ browserNotify: false }); return }
-            let permission = Notification.permission
-            if (permission === 'default') {
-              try { permission = await Notification.requestPermission() } catch { /* denied */ }
-            }
-            setPerm(permission)
-            if (permission === 'granted') update({ browserNotify: true })
-            else update({ browserNotify: false })
-          }}
-        />
-      </Row>
-      <div className={css.permLine}>
-        {perm === 'granted'
-          ? <span className={css.permOk}>{t('permGranted')}</span>
-          : perm === 'denied'
-            ? <span className={css.permBad}>{t('permDenied')}</span>
-            : <span className={css.permMuted}>{t('permAsk')}</span>}
-      </div>
-      <Row label={t('notifyCurrentLabel')} hint={t('notifyCurrentDesc')}>
-        <input
-          type="checkbox"
-          checked={settings.notifyCurrent}
-          onChange={(e) => update({ notifyCurrent: e.target.checked })}
-        />
-      </Row>
-      <Row label={t('showSubagentsLabel')} hint={t('showSubagentsDesc')}>
-        <input
-          type="checkbox"
-          checked={settings.showSubagents}
-          onChange={(e) => update({ showSubagents: e.target.checked })}
-        />
-      </Row>
-      <Row label={t('ackOnJumpLabel')} hint={t('ackOnJumpDesc')}>
-        <input
-          type="checkbox"
-          checked={settings.ackOnJump}
-          onChange={(e) => update({ ackOnJump: e.target.checked })}
-        />
-      </Row>
-      <Row label={t('autoAckOnOpenLabel')} hint={t('autoAckOnOpenDesc')}>
-        <input
-          type="checkbox"
-          checked={settings.autoAckOnOpen}
-          onChange={(e) => update({ autoAckOnOpen: e.target.checked })}
-        />
-      </Row>
-      <Row label={t('runningOnlyLabel')} hint={t('runningOnlyDesc')}>
-        <input
-          type="checkbox"
-          checked={settings.runningOnly}
-          onChange={(e) => update({ runningOnly: e.target.checked })}
-        />
-      </Row>
-      <Row
-        label={t('timeWindowLabel')}
-        hint={settings.runningOnly ? t('timeWindowDisabledHint') : t('timeWindowDesc')}
-      >
-        <select
-          className={settings.runningOnly ? css.inactive : undefined}
-          value={settings.timeWindowMin}
-          onChange={(e) => update({ timeWindowMin: Number(e.target.value) || 0 })}
-        >
-          <option value={0}>{t('timeWindowAll')}</option>
-          <option value={15}>{t('timeWindow15m')}</option>
-          <option value={30}>{t('timeWindow30m')}</option>
-          <option value={60}>{t('timeWindow1h')}</option>
-          <option value={180}>{t('timeWindow3h')}</option>
-          <option value={360}>{t('timeWindow6h')}</option>
-          <option value={1440}>{t('timeWindow24h')}</option>
-        </select>
-      </Row>
-      <Row label={t('showDoneLabel')}>
-        <input
-          type="checkbox"
-          checked={settings.showDone}
-          onChange={(e) => update({ showDone: e.target.checked })}
-        />
-      </Row>
+          <select
+            className={settings.runningOnly ? css.inactive : undefined}
+            disabled={settings.runningOnly}
+            value={settings.timeWindowMin}
+            onChange={(e) => update({ timeWindowMin: Number(e.target.value) || 0 })}
+          >
+            <option value={0}>{t('timeWindowAll')}</option>
+            <option value={15}>{t('timeWindow15m')}</option>
+            <option value={30}>{t('timeWindow30m')}</option>
+            <option value={60}>{t('timeWindow1h')}</option>
+            <option value={180}>{t('timeWindow3h')}</option>
+            <option value={360}>{t('timeWindow6h')}</option>
+            <option value={1440}>{t('timeWindow24h')}</option>
+          </select>
+        </Row>
+        <Row label={t('showSubagentsLabel')} hint={t('showSubagentsDesc')}>
+          <input type="checkbox" checked={settings.showSubagents} onChange={(e) => update({ showSubagents: e.target.checked })} />
+        </Row>
+        <Row label={t('showDoneLabel')}>
+          <input type="checkbox" checked={settings.showDone} onChange={(e) => update({ showDone: e.target.checked })} />
+        </Row>
+      </Section>
+
+      <Section title={t('sectionDesktop')}>
+        <Row label={t('desktopMonitorLabel')} hint={t('desktopMonitorDesc')}>
+          <input
+            type="checkbox"
+            checked={settings.desktopMonitor}
+            onChange={(e) => {
+              update({ desktopMonitor: e.target.checked })
+              // Turning monitoring ON also launches / surfaces the desktop app
+              // (Tauri shell) via the dsh-smon:// protocol.
+              if (e.target.checked) launchDesktopApp()
+            }}
+          />
+        </Row>
+        <Row label={t('ackOnJumpLabel')} hint={t('ackOnJumpDesc')}>
+          <input type="checkbox" checked={settings.ackOnJump} onChange={(e) => update({ ackOnJump: e.target.checked })} />
+        </Row>
+        <Row label={t('autoAckOnOpenLabel')} hint={t('autoAckOnOpenDesc')}>
+          <input type="checkbox" checked={settings.autoAckOnOpen} onChange={(e) => update({ autoAckOnOpen: e.target.checked })} />
+        </Row>
+      </Section>
+
       <div className={css.actions}>
         <button
-          className={css.resetBtn}
+          className={[css.resetBtn, resetFlash === 'pos' ? css.flash : ''].filter(Boolean).join(' ')}
           onClick={() => {
             try {
               window.localStorage.removeItem(POS_KEY)
               window.localStorage.removeItem(SCALE_KEY)
               window.dispatchEvent(new CustomEvent(SETTINGS_CHANGED_EVENT))
             } catch { /* storage */ }
+            flashReset('pos')
           }}
         >
           {t('resetPosScale')}
         </button>
-        <button className={css.resetBtn} onClick={resetAll}>{t('resetAll')}</button>
+        <button
+          className={[css.resetBtn, resetFlash === 'all' ? css.flash : ''].filter(Boolean).join(' ')}
+          onClick={() => { resetAll(); flashReset('all') }}
+        >
+          {t('resetAll')}
+        </button>
       </div>
     </div>
   )

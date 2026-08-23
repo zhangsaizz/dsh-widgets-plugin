@@ -90,6 +90,9 @@ export type SessionMonitorKey =
   | 'ackAll'
   | 'resetPosScale'
   | 'resetAll'
+  | 'sectionNotify'
+  | 'sectionList'
+  | 'sectionDesktop'
   | 'roundOf'
   | 'progressTool'
   | 'progressSub'
@@ -186,6 +189,9 @@ export const zh: Record<SessionMonitorKey, string> = {
   ackAll: '全部已读',
   resetPosScale: '重置位置与缩放',
   resetAll: '重置设置',
+  sectionNotify: '通知',
+  sectionList: '列表显示',
+  sectionDesktop: '桌面',
   roundOf: '第 {n} 轮',
   progressTool: '第 {round} 轮 · 正在执行 {tool}',
   progressSub: '{n} 个子代理执行中',
@@ -283,6 +289,9 @@ export const en: Record<SessionMonitorKey, string> = {
   ackAll: 'Mark all read',
   resetPosScale: 'Reset position & zoom',
   resetAll: 'Reset settings',
+  sectionNotify: 'Notify',
+  sectionList: 'List',
+  sectionDesktop: 'Desktop',
   roundOf: 'round {n}',
   progressTool: 'round {round} · running {tool}',
   progressSub: '{n} subagents working',

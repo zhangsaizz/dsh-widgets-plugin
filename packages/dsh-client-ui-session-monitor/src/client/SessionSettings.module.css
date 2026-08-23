@@ -17,6 +17,14 @@
   gap: 16px;
   padding: 8px 2px;
   border-bottom: 1px solid var(--dsw-alias-border-l1, rgba(255, 255, 255, 0.06));
+  /* The row is a wrapping label: the whole row is a click target. */
+  cursor: pointer;
+}
+
+/* A row whose control is currently inert (disabled) must not advertise a
+   pointer cursor — clicking it does nothing. */
+.row:has(.inactive) {
+  cursor: default;
 }
 
 .row:last-of-type {
@@ -32,11 +40,15 @@
 
 .label {
   font-weight: 500;
+  /* Long (translated) labels must wrap instead of being squeezed by the
+     right-aligned control. */
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
 
 .hint {
   font-size: 11.5px;
-  color: var(--dsw-alias-label-tertiary, rgba(232, 234, 240, 0.45));
+  color: var(--dsw-alias-label-tertiary, rgba(232, 234, 240, 0.52));
 }
 
 .control {
@@ -62,8 +74,9 @@
   width: 86px;
 }
 
-/* Visually de-emphasize a control whose setting is currently inert
-   ("Running only" makes the time window inactive), without locking it. */
+/* A control whose setting is currently inert ("Running only" disables the
+   time window). It is also given the native `disabled` attribute, so this
+   is only the visual dim — the control is genuinely locked. */
 .inactive {
   opacity: 0.55;
 }
@@ -122,4 +135,41 @@
 .control input[type='number']:focus-visible {
   outline: 2px solid var(--dsw-alias-state-business-primary, #4f8cff);
   outline-offset: 1px;
+}
+
+/* Labeled groups: a small-caps section title above each stack of rows, so the
+   13 options read as three scannable groups instead of one long list. */
+.section {
+  display: flex;
+  flex-direction: column;
+}
+
+.sectionTitle {
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--dsw-alias-label-tertiary, rgba(232, 234, 240, 0.52));
+  margin: 12px 2px 3px;
+}
+
+.panel > .section:first-child .sectionTitle {
+  margin-top: 0;
+}
+
+/* Transient acknowledgement for the reset actions: a 600ms primary-color
+   flash that fades back out, so the click is visibly registered. */
+.flash {
+  animation: resetFlash 600ms ease;
+}
+
+@keyframes resetFlash {
+  0% {
+    background: var(--dsw-alias-state-business-primary, #4f8cff);
+    color: var(--dsw-alias-label-on-color, #fff);
+  }
+  100% {
+    background: transparent;
+    color: var(--dsw-alias-label-secondary, rgba(232, 234, 240, 0.62));
+  }
 }

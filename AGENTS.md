@@ -428,3 +428,13 @@ pnpm 版本由 root `package.json` 的 `packageManager` 固定（当前 `pnpm@11
     `.pillBadge` 高度、字号、内边距不一致 → 统一为 16px 高、inline-flex 居中、10.5px、padding 0 6px；
     ② 最暗辅助文字对比度偏低 → `.time`/`.toastTime`/`.nrow .time` 0.4→0.5、`.status` 0.72→0.76、
     `.footerHint`(web) 0.5→0.58、`.count`(web) 0.62→0.68（均为 rgba(232,234,240,·) 回退值，桌面页直接生效）。
+- **配置面板（SessionSettings）信息架构/无障碍/一致性优化**（纯客户端改动 = SessionSettings.tsx/.module.css/locales.ts）：
+  - **三组分组 + 小节标题**：13 项平铺设置改为「通知 / 列表显示 / 桌面」三节（新增 `sectionNotify`/`sectionList`/`sectionDesktop`
+    i18n key，zh/en 同步），扫视效率与认知负担大幅改善；与桌面面板分组语义一致。
+  - **标签语义关联 + 整行可点**：`Row` 由 `<div>` 改为包裹式 `<label>`——屏幕阅读器能把标签与控件关联，且整行成为点击目标
+    （命中区比裸 input 大），与 ui-ux-pro-max 的 a11y/触控规则对齐。
+  - **时间范围真正 disabled**：`runningOnly` 开启时该 `<select>` 由「仅 opacity.55 淡显」改为原生 `disabled` + 淡显，
+    消除「看似禁用却能点」的视觉/行为不一致。
+  - **重置按钮瞬时反馈**：新增 `.flash` 动画（600ms 主题主色闪一下淡出），「重置位置与缩放」「重置设置」点击后可见地确认。
+  - **暗字/换行微调**：`.hint` 0.45→0.52、`.label` 允许 `overflow-wrap:anywhere`（长译文不被右对齐控件挤）、`.row` 加 `cursor:pointer`。
+  已 vision_html_screenshot 渲染配置面板预览复核：三节分组、禁用时间范围、标签关联均正常，typecheck/build 全绿。
