@@ -18,10 +18,10 @@
  *    the `useContainer` hook (live dock/available snapshot) and the `dock` /
  *    `undock` verbs — a card can react to container state and, e.g., restore
  *    its floating panel via `undock(id)`.
- *  - Priority: register at the DEFAULT 0 — the container's built-in fallback
- *    views sit at priority 10, so a widget's own card always wins the cell
- *    when it exists; without any registration the container shows a generic
- *    placeholder card. Registration is therefore strictly OPTIONAL.
+ *  - Priority: register at the DEFAULT 0 — the container registers no built-in
+ *    cards, so a widget's own card is the sole card for its id when it exists;
+ *    without any registration the container shows a generic placeholder card.
+ *    Registration is therefore strictly OPTIONAL.
  *
  * Example (in the widget package's client apply):
  * ```ts
@@ -29,7 +29,7 @@
  * ctx.slots.inject('widgets.card', () => ctx.slots.register({
  *   name: 'widgets.card',
  *   id: 'my-widget',          // = shell.overlay id
- *   order: 0, priority: 0,    // default priority 0 wins over the built-ins (10)
+ *   order: 0, priority: 0,    // default 0: the container registers no built-ins
  *   locale: 'my-widget',      // optional: declares the `t` seat
  * }, MyWidgetCard))
  * ```
@@ -88,9 +88,9 @@ export function cardSpecOf(ctx: ClientContext, id: string): CardSpec {
 
 
 /** Built-in display names for the known widget ids (falls back to the raw id).
- *  Used ONLY for the container's own built-in fallback cards (balance) and the
- *  tray chips — a widget that registers a `label` on its shell.overlay entry
- *  shows that label instead (see labelOf in index.ts). */
+ *  Used for the tray chips and as a name fallback — a widget that registers a
+ *  `label` on its shell.overlay entry shows that label instead (see labelOf in
+ *  index.ts). */
 const NAME_KEYS: Record<string, CardContainerKey> = {
   balance: 'widgetBalance',
   'token-crit': 'widgetTokenCrit',

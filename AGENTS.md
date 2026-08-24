@@ -296,9 +296,10 @@ pnpm 版本由 root `package.json` 的 `packageManager` 固定（当前 `pnpm@11
   恢复浮窗；卡片可拖拽排序；网格 gap 12px、列数自适应/2/3/4（设置持久化）；停靠
   顺序（`dsh-plugins.card-container.docked`）、位置（`.pos`）、设置（`.settings`）
   写 localStorage，配置变更经 window CustomEvent 通知；容器自身被隐藏时释放全部
-  停靠影子（浮窗恢复浮动），重新启用按持久化顺序恢复。**自带内置卡片视图**
-  （`widgets.card` priority 10，挂件自己的卡片 priority 0 优先）：token-crit /
-  session-monitor 紧凑统计卡（数据走标准 `useSessions`）、balance 通用卡。
+  停靠影子（浮窗恢复浮动），重新启用按持久化顺序恢复。**容器不注册任何内置卡片**
+  （早期「priority 10 内置兜底卡」设计已被下述适配器契约淘汰）：每个提供紧凑卡的
+  挂件以 priority 0 在自己的包里注册 `widgets.card`（token-crit / session-monitor
+  用标准 `useSessions` 读数据、balance 用余额控制器），未注册的挂件停靠时显示占位卡。
   **卡片接入已规范化为标准适配器契约**：导出 `WidgetCardProps`
   （= `PropsRuntime<'widgets.card'>`，全局座 useSessions/useWorkspaces，可叠加
   PropsLocale）+ **槽级注入面 `CardSlotInject`**（useContainer hook +
@@ -306,7 +307,7 @@ pnpm 版本由 root `package.json` 的 `packageManager` 固定（当前 `pnpm@11
   （`ctx.slots.inject('widgets.card', …)`、条目 id = shell.overlay id、priority
   默认 0、type-only peer 依赖、容器缺席自动跳过）——任何挂件可选接入，不接入
   显示占位卡；**卡片支持规格**（`WidgetCardComponent.spec` 静态属性：
-  small 1 列 / medium 2 列 / large 整行，容器读获胜条目组件规格排版，内置卡
+  small 1 列 / medium 2 列 / large 整行，容器读获胜条目组件规格排版；各包的卡
   token-crit=small、session-monitor=medium、balance=large）；**显示名 label 化**
   （托盘/卡片头优先读挂件在 shell.overlay 注册的 label thunk，balance /
   session-monitor / token-crit 均已补 label）；**浮窗快捷停靠**（浮窗头部

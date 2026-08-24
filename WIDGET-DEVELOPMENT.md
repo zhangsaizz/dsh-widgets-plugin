@@ -117,10 +117,10 @@ export function ClockWidget({ t }: ClockWidgetProps) {
   "files": ["lib"],
   "peerDependencies": {
     "@deepseek-ai/cordis": "^4.0.1",
-    "@deepseek-ai/dsh-client-runtime": "^0.1.0-rc.7",
-    "@deepseek-ai/dsh-client-ui-layout": "^0.1.0-rc.7",
-    "@deepseek-ai/dsh-client-ui-slots": "^0.1.0-rc.7",
-    "@deepseek-ai/dsh-client-locale": "^0.1.0-rc.7",
+    "@deepseek-ai/dsh-client-runtime": "^0.1.1-rc.2",
+    "@deepseek-ai/dsh-client-ui-layout": "^0.1.1-rc.2",
+    "@deepseek-ai/dsh-client-ui-slots": "^0.1.1-rc.2",
+    "@deepseek-ai/dsh-client-locale": "^0.1.1-rc.2",
     "react": "^18.2.0"
   }
 }
@@ -261,8 +261,8 @@ ctx.slots.inject('widgets.config', () => ctx.slots.register({
 - **显示名**：托盘 chip 与卡片头优先读挂件在 `shell.overlay` 注册的 `label`
   （thunk，跟随当前语言）——挂件自己命名自己；未声明才回退到内置名称表 /
   raw id。
-- **优先级**：注册用**默认 priority 0**——容器自带的内置兜底视图在 priority 10，
-  挂件自己的卡片一注册就赢下该单元；不注册就显示占位卡。
+- **优先级**：注册用**默认 priority 0**——容器本身不注册任何内置卡片，挂件注册的
+  卡片就是该 id 单元的胜者（也是唯一一张）；不注册就显示通用占位卡。
 - **卡片规格（可选）**：卡片可以声明自己在网格里占多大——给组件设置静态
   `spec` 属性（`'small'` = 1 列，默认；`'medium'` = 2 列；`'large'` = 整行），
   容器读获胜条目的组件规格自动排版。用容器包导出的 `WidgetCardComponent` 类型
@@ -288,7 +288,7 @@ ctx.slots.inject('widgets.card', () => ctx.slots.register({
   name: 'widgets.card',
   id: 'clock',                       // ★ = shell.overlay 的 id
   order: 0,
-  priority: 0,                       // 默认 0：优先于容器内置兜底（10）
+  priority: 0,                       // 默认 0：容器不注册内置卡，本卡即该 id 单元的卡片
   // locale: 'clock',                // 需要 t 时声明
 }, MyWidgetCard))
 ```

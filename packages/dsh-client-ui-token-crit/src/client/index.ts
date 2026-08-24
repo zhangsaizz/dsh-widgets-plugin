@@ -35,8 +35,9 @@ export function apply(ctx: ClientContext): void {
     label: () => document.documentElement.lang === 'zh' ? 'Token 暴击' : 'Token crit',
   }, TokenCritWidget))
 
-  // Own compact card in the card container's grid. Registered at priority 0 so
-  // it always wins over the container's built-in fallback views (priority 10).
+  // Own compact card in the card container's grid. Registered at priority 0:
+  // the container registers no built-in cards, so this is the sole card for
+  // the token-crit id (unregistered widgets fall back to a placeholder).
   // `locale: 'card-container'` reuses the card container's shared stat labels.
   ctx.slots.inject('widgets.card', () => ctx.slots.register({
     name: 'widgets.card',

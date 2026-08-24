@@ -51,7 +51,7 @@ export function MyWidgetCard({ useSessions, undock }: WidgetCardProps) { /* … 
 ctx.slots.inject('widgets.card', () => ctx.slots.register({
   name: 'widgets.card',
   id: 'my-widget',       // ★ 必须等于 shell.overlay 的 id
-  order: 0, priority: 0, // 默认 0：优先于容器内置兜底（10）
+  order: 0, priority: 0, // 默认 0：容器不注册内置卡片
   // locale: 'my-widget', // 需要 t 时声明
 }, MyWidgetCard))
 ```

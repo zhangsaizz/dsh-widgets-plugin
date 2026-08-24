@@ -9,8 +9,8 @@
  *
  * Registration (see ./index.ts): `ctx.slots.inject('widgets.card', …)` with
  * the entry id equal to this widget's `shell.overlay` id (`token-crit`), a
- * priority of 0 (the container's built-in fallbacks sit at 10, so this always
- * wins the cell), and `locale: 'card-container'` reusing the card container's
+ * priority of 0 (the container registers no built-in cards — this is the sole
+ * card for the id), and `locale: 'card-container'` reusing the card container's
  * shared stat vocabulary.
  *
  * @module @dsh-plugins/client-ui-token-crit/client/cards

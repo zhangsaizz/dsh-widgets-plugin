@@ -27,7 +27,7 @@
 | 10 | 字典 NS `balance` | 客户端 i18n | `@dsh-plugins/balance` | client locale | zh / en 双语文案 |
 | 11 | Token 暴击挂件 `TokenCritWidget` | Web 挂件 | `@dsh-plugins/client-ui-token-crit` | `shell.overlay`（order 50） | 透明可拖动/缩放的 token 用量计数器 + 暴击动效 + 设置面板 |
 | 12 | 会话监控看板 `SessionMonitorWidget` | Web 挂件 | `@dsh-plugins/client-ui-session-monitor` | `shell.overlay`（order 90） | 列出运行中/空闲/本轮完成的会话（子代理默认过滤、可配置时间范围默认 1h），完成一轮主动弹提醒（按状态配色：完成/待处理/出错/中止/阻塞/token 上限等，可自动消失或需确认），点击行一键跳转；**任务进度显示**（有任务在执行的会话带动画进度条 + 「第 N 轮 · 正在执行 <工具>」/子代理/后台任务标签，工具与轮次由 Host 半折叠；**目标模式会话升级为确定进度条**「目标 第 X/Y 轮」，读 `projectionValues.goal` 实时百分比）；**未读 inbox 徽标**（头部 + 收起胶囊，5s 轮询 `/notifications`，点击跳最新未读会话并标记已读）；可收起为胶囊、拖角缩放；面板/胶囊/提醒条为**液态玻璃**材质（与彩虹流光输入框同一配方） |
-| 13 | 会话监控 Host 半 + 状态路由 + 通知 inbox | Host 插件 + Web 路由 | `@dsh-plugins/client-ui-session-monitor` | `/_dsh/session-monitor/status` 等 8 条路由 | 监听 `turn/end` 记录结束原因（completed/aborted/blocked/error/max-tokens/interrupted）+ **`tool/call`→`tool/result` 折叠每会话执行中的工具**（`tools` 表）+ 累计轮次（`rounds` 表），浏览器半 3s 轮询取回；另把会话事件折叠为**持久化通知 inbox**（审批/回答/计划/出错/阻塞/token 上限/完成一轮/子代理完成等，已读状态存 Host，桌面与网页共享） |
+| 13 | 会话监控 Host 半 + 状态路由 + 通知 inbox | Host 插件 + Web 路由 | `@dsh-plugins/client-ui-session-monitor` | `/_dsh/session-monitor/status` 等 9 条路由 | 监听 `turn/end` 记录结束原因（completed/aborted/blocked/error/max-tokens/interrupted）+ **`tool/call`→`tool/result` 折叠每会话执行中的工具**（`tools` 表）+ 累计轮次（`rounds` 表），浏览器半 3s 轮询取回；另把会话事件折叠为**持久化通知 inbox**（审批/回答/计划/出错/阻塞/token 上限/完成一轮/子代理完成等，已读状态存 Host，桌面与网页共享） |
 | 14 | 会话监控配置面板 `SessionSettings` | Web 配置弹窗 | `@dsh-plugins/client-ui-session-monitor` | `widgets.config`（管理器「配置」弹窗） | 提醒开关/关闭方式/秒数/音效/提醒范围与列表显示选项 + **「桌面端会话监控」开关**（默认关，打开时经 `dsh-smon://` 拉起桌面应用并开始监控，关闭后桌面挂件暂停），localStorage 持久化 |
 | 15 | 卡片容器 `CardContainerWidget` | Web 挂件 | `@dsh-plugins/client-ui-card-container` | `shell.overlay`（order 20） | 浮动容器面板：**多分组**（顶部分组标签 + ⋯ 管理菜单），托盘列出可停靠挂件，拖入网格即停靠（影子条目隐藏浮窗）、渲染紧凑卡片视图；卡片**实时换位**（ghost 跟随 + 其余让位，拖出网格=移出）、键盘可达（Enter/空格移出、方向键排序）、触屏常显、列数可配、状态持久化；面板/卡片/胶囊/分组菜单为**液态玻璃**材质（与彩虹流光输入框同一配方） |
 | 16 | 卡片容器控制器 `CardContainerController` | 客户端数据层 | `@dsh-plugins/client-ui-card-container` | 注入 hook | 多分组停靠（groups/active 持久化，旧单列表自动迁移）+ 可用托盘投影，注册/释放 priority -2 停靠影子，针对 overlay 台账自我修复 |
@@ -258,7 +258,7 @@
   检测 question/plan-review**（`ask_user_question` / `exit_plan_mode` 的
   `tool/call` → `tool/result` 即等待生命周期，纯桌面可见）+ 网页 relay 幂等备份；
   经 `ctx.inject(['webServer', 'sessions', 'settings'])`
-  可选挂载八条路由（webServer 缺席时跳过；`sessions`/`settings` 不注入会抛
+  可选挂载九条路由（webServer 缺席时跳过；`sessions`/`settings` 不注入会抛
   "cannot get property without inject"——踩过）：
   - `/_dsh/session-monitor/status`（GET → `{ ok, value: { sessions: { id: {
     reason, at, round } }, tools: { id: { name, at } }, rounds: { id: count } } }`）：
@@ -288,8 +288,13 @@
     settings 文档）。桌面挂件直读直写；网页客户端半镜像同步（见下）。
   - `/_dsh/session-monitor/jump`（GET / POST）：**桌面→网页跳转队列**——单槽
     `{ sessionId, at, consumed }`、30s TTL；POST `{sessionId}` 入队、POST
-    `{consume:true}` 标记已消费，GET 返回当前状态。桌面端点行先入队，客户端半
-    轮询消费，桌面端轮询到 `consumed` 才不回退浏览器。
+    `{consume:true}` 标记已消费、POST `{ping:true}` Web 端存活心跳（返回
+    `webAlive`），GET 返回当前状态。桌面端点行先入队，客户端半消费，桌面端
+    轮询到 `consumed` 才不回退浏览器。
+  - `/_dsh/session-monitor/jump/poll`（GET，**长轮询**）：Web 客户端半把它挂起
+    直到有跳转（或 25s 超时）——后台标签页的定时器节流不会掐断基于
+    setInterval 的轮询；有未消费跳转则立即返回，否则 `releaseJumpWaiters` 在
+    下一个入队时唤醒。
   - `/_dsh/session-monitor/widget`（GET → 独立挂件页 HTML）：**自包含页面**
     `src/widget-page.html`，经 build.mjs 的 esbuild `text` loader 内联进 Host
     bundle，无框架无外部资源，配色复刻浏览器挂件。**双 Tab 主界面**：
@@ -425,7 +430,7 @@
   `dsh-client-runtime`、`dsh-client-ui-layout`、`dsh-client-ui-slots`、
   `dsh-client-locale`、`dsh-session`（Host 半 `session/event` 类型，peer）、`react`（peer）。
 - 构建：Host → `lib/index.js`（ESM，外部化）；Client → `lib/client.js`
-  （ModuleLoader CJS + 内联 CSS，`--loader:.css=local-css`）。
+  （ModuleLoader CJS + 内联 CSS，Vite library mode）。
 
 ### 3.7 彩虹流光（`client-ui-rainbow-flow`）
 
@@ -656,7 +661,10 @@ graph LR
   BUNDLE --> UI_RF
   BUNDLE --> UI_MANAGER
   BALANCE -. peer（type-only） .-> UI_MANAGER
+  BALANCE -. peer（type-only） .-> UI_CARD
+  UI_CRIT -. peer（type-only） .-> UI_CARD
   UI_SMON -. peer（type-only） .-> UI_MANAGER
+  UI_SMON -. peer（type-only） .-> UI_CARD
   UI_CARD -. peer（type-only） .-> UI_MANAGER
 ```
 
@@ -719,12 +727,14 @@ Host 半用 esbuild，浏览器半用 **Vite library mode**（与官方 deepseek
 | `widgets.config` | `balance` | 0 | balance | `BalanceSettings`（管理页「配置」弹窗内容） |
 | `widgets.config` | `session-monitor` | 0 | client-ui-session-monitor | `SessionSettings`（管理页「配置」弹窗内容） |
 | `widgets.config` | `card-container` | 0 | client-ui-card-container | `CardContainerSettings`（管理页「配置」弹窗内容） |
+| `widgets.config` | `rainbow-flow` | 0 | client-ui-rainbow-flow | `RainbowFlowSettings`（管理页「配置」弹窗内容） |
 | `widgets.card` | `token-crit` | 0 | client-ui-token-crit | `TokenCritCard`（本包自卡，标准 `useSessions` 读 token 用量） |
 | `widgets.card` | `session-monitor` | 0 | client-ui-session-monitor | `SessionMonitorCard`（本包自卡，标准 `useSessions` 读忙碌会话数） |
 | `widgets.card` | `balance` | 0 | balance | `BalanceCard`（本包自卡，余额控制器 `useBalance` 读实时余额；槽级注入面 `CardSlotInject`：useContainer + dock/undock；标准接入规范见 WIDGET-DEVELOPMENT.md §2.5；容器无内置卡片，未注册的挂件走占位卡） |
 | `shell.overlay` | `balance` / `token-crit` / `session-monitor` | label thunk | balance / client-ui-token-crit / client-ui-session-monitor | 各自注册 `label`（thunk）——卡片容器托盘/卡片头优先读它作为显示名 |
 | `conversation.input.left` | `rainbow-flow-glow` | 99 | client-ui-rainbow-flow | `RainbowFlowGlow`（彩虹流光：呼吸彩虹光晕，明暗脉动节奏随 token 速率） |
 | `conversation.input.left` | `rainbow-flow-toggle` | 100 | client-ui-rainbow-flow | `RainbowFlowToggle`（开/关开关 + 运行状态点） |
+| `conversation.input.right` | `rainbow-flow-send` | 150 | client-ui-rainbow-flow | `RainbowFlowSend`（发送/停止按钮液态玻璃美化 + 动态效果，探针把按钮状态镜像到输入卡 `data-rf-send`） |
 | `remote` | balance Remote | — | balance（client 半） | `balance/query` + `balance/list` |
 | `webServer` | `/_dsh/balance/settings` | — | balance | `BalanceWebBackend` |
 | `webServer` | `/_dsh/session-monitor/status` | — | client-ui-session-monitor | turn/end 结束原因 + 执行中工具（`tools`）+ 累计轮次（`rounds`）（浏览器半 + 桌面挂件轮询） |
@@ -734,7 +744,8 @@ Host 半用 esbuild，浏览器半用 **Vite library mode**（与官方 deepseek
 | `webServer` | `/_dsh/session-monitor/notifications` | — | client-ui-session-monitor | 通知 inbox 全量快照（`NotificationStore`，持久化到 `session-monitor-inbox` 分区） |
 | `webServer` | `/_dsh/session-monitor/notifications/ack` | — | client-ui-session-monitor | inbox 已读确认（`{ ids }` / `{ sessionId }` / `{ all }`） |
 | `webServer` | `/_dsh/session-monitor/events` | — | client-ui-session-monitor | 网页半 interaction relay（question / plan-review open/closed） |
-| `webServer` | `/_dsh/session-monitor/jump` | — | client-ui-session-monitor | 桌面→网页跳转队列（POST 入队/消费，GET 查状态，30s TTL） |
+| `webServer` | `/_dsh/session-monitor/jump` | — | client-ui-session-monitor | 桌面→网页跳转队列（POST 入队/消费/存活心跳，GET 查状态，30s TTL） |
+| `webServer` | `/_dsh/session-monitor/jump/poll` | — | client-ui-session-monitor | 桌面→网页跳转队列长轮询（GET 挂起直到有跳转或 25s 超时，后台标签页轮询不受限） |
 
 ---
 
@@ -789,6 +800,6 @@ Host 半用 esbuild，浏览器半用 **Vite library mode**（与官方 deepseek
 | 项 | 值 |
 |---|---|
 | 包版本 | 0.1.0（7 包一致） |
-| 官方 API 基线 | `@deepseek-ai/*` 0.1.0-rc.7（rc.6→rc.7 无破坏性类型变更，见 AGENTS.md 近期改动） |
+| 官方 API 基线 | `@deepseek-ai/*` 0.1.1-rc.2（rc.7→rc.2 无破坏性类型变更，见 AGENTS.md 近期改动） |
 | 语言约定 | 根文档中文；包 README 双语对 + `README.i18n.yaml` hash 凭据 |
 | CI | install → build → pack → git diff 干净（ci.yml）；`v*` tag 发布（publish.yml） |

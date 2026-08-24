@@ -66,7 +66,7 @@ export function MyWidgetCard({ useSessions, undock }: WidgetCardProps) { /* … 
 ctx.slots.inject('widgets.card', () => ctx.slots.register({
   name: 'widgets.card',
   id: 'my-widget',       // must equal the shell.overlay id
-  order: 0, priority: 0, // default 0 wins over the container's built-ins (10)
+  order: 0, priority: 0, // default 0: the container registers no built-in cards
   // locale: 'my-widget', // optional: declares the `t` seat
 }, MyWidgetCard))
 ```
