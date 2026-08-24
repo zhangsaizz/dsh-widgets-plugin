@@ -7,7 +7,7 @@
 
 `dsh-widgets-plugin` 是一个 **DeepSeek Harness 小组件（widgets）monorepo**：
 制作可独立发布、可安装到任意 Harness 实例的插件。浏览器端以 `shell.overlay`
-浮动挂件或 Web 设置页呈现。当前五个小组件：
+浮动挂件或 Web 设置页呈现。当前五个小组件 + 两个支撑包：
 
 | 小组件 | 包 |
 |---|---|
@@ -17,26 +17,40 @@
 | 卡片容器 | `@dsh-plugins/client-ui-card-container` |
 | 彩虹流光 | `@dsh-plugins/client-ui-rainbow-flow` |
 
-其余包是支撑：`@dsh-plugins/client-ui-widget-manager`（小组件管理设置页）、
+支撑包：`@dsh-plugins/client-ui-widget-manager`（小组件管理设置页）、
 `@dsh-plugins/dsh-widgets-plugin`（可安装 bundle，一层挂载全部插件）。
-余额链路已合并为**单包单插件**（`@dsh-plugins/balance` = 能力缝隙 + 厂商 Provider +
-Web 看板），不再拆包。
+
+## 各包主要功能
+
+| 包 | 角色 | 主要功能（插槽 / 关键行为） |
+|---|---|---|
+| `@dsh-plugins/balance` | **单包单插件**（Host 缝隙 + 厂商 + Web 看板） | Host：`BalanceRuntime` 自注册 `ctx.balance`，应答 `balance/query` / `balance/list` Remote；5 个厂商 Provider + 设置驱动用户绑定 + `/_dsh/balance/settings` Web 路由。客户端：`await ctx.remote.$mount(TYPERT_REMOTE)` 后注册 `shell.overlay` 看板挂件（id `balance`，order 100）+ `widgets.config` 供应商配置面板 |
+| `@dsh-plugins/client-ui-token-crit` | 纯 UI（浏览器端） | `shell.overlay` 挂件（id `token-crit`，order 50）+ `widgets.card` token 用量统计卡；数据走标准 `useSessions` 的 `tokenUsage` 投影（无 Host RPC、无轮询） |
+| `@dsh-plugins/client-ui-session-monitor` | **双半插件行** | Host：9 条 `/_dsh/session-monitor/*` 路由（`turn/end` 结束原因、执行中工具 `tools`、累计轮次 `rounds`、桌面快照 `buildDesktopSnapshot`、共享设置、`/jump` 跳转队列 + `/jump/poll` 长轮询、inbox 通知存储、独立挂件页 HTML）。客户端：`shell.overlay`（order 90）+ `widgets.config`，用 `useSessions` 投影列表 + `running` 边沿检测「完成一轮」提醒 + 点击跳转会话 |
+| `@dsh-plugins/client-ui-card-container` | 纯 UI（浏览器端） | `shell.overlay`（id `card-container`，order 20）+ `widgets.config` 配置面板；声明 `widgets.card` 子槽把其他挂件停靠进卡片网格（影子条目隐藏浮窗），**不注册任何内置卡片** |
+| `@dsh-plugins/client-ui-rainbow-flow` | 纯 UI（浏览器端） | `conversation.input.left`（`rainbow-flow-glow` 呼吸光晕 order 99 + `rainbow-flow-toggle` 开关 order 100）、`conversation.input.right`（`rainbow-flow-send` 按钮美化 order 150）、`widgets.config` 配置面板；另用 `MutationObserver` 给会话命令卡按类别上色（`toolAccent`） |
+| `@dsh-plugins/client-ui-widget-manager` | 设置页（纯 UI） | `settings.section`（id `widgets`，order 10）列出小组件、支持添加/关闭；声明 `widgets.config` 子槽，为带配置的挂件提供「配置」弹窗 |
+| `@dsh-plugins/dsh-widgets-plugin` | bundle | `cordis.patch.yml` 一次插入 6 个插件行（balance / ui-token-crit / ui-session-monitor / ui-card-container / ui-rainbow-flow / ui-widget-manager） |
+
+> 完整组件登记册（组件明细、插槽注册、构建产物、依赖关系、维护清单）见
+> [COMPONENTS.md](COMPONENTS.md)。开发新小组件并接入管理面板（含配置弹窗）见
+> [WIDGET-DEVELOPMENT.md](WIDGET-DEVELOPMENT.md)。
 
 ## 工作区结构
 
 ```
 packages/
-  dsh-balance/                合并后的余额插件：Host 缝隙（ctx.balance + balance/query、
-                             balance/list Remote）+ 厂商 Provider + 设置/Web 路由 +
-                             浏览器看板挂件 + 供应商配置面板（单插件行）
-  dsh-client-ui-token-crit/   Web token 暴击挂件（纯 UI，浏览器端）
-  dsh-client-ui-session-monitor/ 会话监控看板（双半：Host 半 turn/end 原因 + 状态
+  dsh-balance/                合并后的余额插件（单插件行）：Host 缝隙（ctx.balance +
+                             balance/query、balance/list Remote）+ 厂商 Provider +
+                             设置/Web 路由 + 浏览器看板挂件 + 供应商配置面板
+  dsh-client-ui-token-crit/   Token 暴击挂件（纯 UI，浏览器端）
+  dsh-client-ui-session-monitor/ 会话监控看板（双半：Host 半 turn/end 原因 + 9 条
                              路由；浏览器端 useSessions 投影列表、running 边沿
                              检测「完成一轮」提醒、点击跳转会话）
   dsh-client-ui-card-container/ 卡片容器（纯 UI，浏览器端：声明 widgets.card 子槽、
-                             停靠影子条目隐藏浮窗、自带紧凑卡片视图）
+                             停靠影子条目隐藏浮窗，挂件自己注册紧凑卡片）
   dsh-client-ui-rainbow-flow/ 彩虹流光（纯 UI，浏览器端：conversation.input.left
-                             注册输入框彩虹流光 + 开关，速度随 token 速率）
+                             + .right + widgets.config，呼吸光晕随 token 速率）
   dsh-client-ui-widget-manager/ 小组件管理设置页（声明 widgets.config 子槽）
 bundles/
   dsh-widgets-plugin/        可安装 bundle：cordis.patch.yml 插入 6 个插件
@@ -62,103 +76,93 @@ pnpm run publish:all         # pnpm -r publish --no-git-checks
 ```
 
 pnpm 版本由 root `package.json` 的 `packageManager` 固定（当前 `pnpm@11.7.0`），
-`pnpm/action-setup` 会按它装对应版本，无需手工升级；本机若用 corepack 管理也会
-读同一字段。Node 引擎约束见 root `engines`（`^22.19.0 || >=24.0.0`）。
+`pnpm/action-setup` 会按它装对应版本，无需手工升级。Node 引擎约束见 root `engines`
+（`^22.19.0 || >=24.0.0`）。没有测试套件：CI 的校验是「install → typecheck → build →
+pack → git diff 干净」。
 
-没有测试套件：CI 的校验是「install → typecheck → build → pack → git diff 干净」。
-类型检查要点：esbuild 只转译不查类型（如运行时时序/引用顺序问题它拦不住），
-改 `src/**` 后本地先跑 `pnpm typecheck` 再提交；`keyof` 用在字符串字面量联合上
-得到的是 `keyof string` 而不是联合成员（widget-manager 曾踩过这个坑）。
+类型检查要点：esbuild 只转译不查类型（运行时时序/引用顺序问题它拦不住），改
+`src/**` 后本地先跑 `pnpm typecheck` 再提交；`keyof` 用在字符串字面量联合上得到
+的是 `keyof string` 而不是联合成员（widget-manager 曾踩过这个坑）。
 
 ## 关键约定（改代码前必读）
 
 ### 1. 语言与文档
 
 - 仓库面向中文用户，根 README 用中文。
-- 仓库级「组件管理列表」见根目录 `COMPONENTS.md`：新增/修改组件时必须同步更新其中
-  的总览、插槽注册与构建产物表，发布前按该文档第 7 节过一遍维护清单。
-- 每个包的 README 是**双语对**：`README.md`（英文）+ `README.zh.md`（中文），
-  头部互相链接（`English | [中文](README.zh.md)`）。
-- 双语对必须**内容同步**：改一侧必须同步另一侧。
+- **COMPONENTS.md** 是组件登记册：新增/修改组件必须同步更新其中的总览、插槽注册
+  与构建产物表，发布前按该文档第 7 节过一遍维护清单。
+- 每个包的 README 是**双语对**：`README.md`（英文）+ `README.zh.md`（中文），头部
+  互相链接；双语对必须**内容同步**（改一侧必须同步另一侧）。
 - 每个双语对配 `README.i18n.yaml`，记录两侧的 **git blob hash**（一致性凭据）。
-  改完 README 后必须重新计算并更新：
+  改完 README 后重新计算并更新：
   ```sh
   git hash-object packages/<pkg>/README.md
   git hash-object packages/<pkg>/README.zh.md
   ```
-  然后把新 hash 写进对应的 `README.i18n.yaml`。
 
 ### 2. 作用域与版本
 
-- 所有可发布包都用 `@dsh-plugins/*` 作用域（独立仓库改写自 harness 的
-  `@deepseek-ai/*`）。
-- 包间依赖用 `workspace:*`（**禁止** `link:` 相对路径——发布时不会改写，会产出坏链接）。
-- 所有包带 `"publishConfig": { "access": "public" }`（scoped 包默认 private，会发布失败）。
+- 所有可发布包用 `@dsh-plugins/*` 作用域（改写自 harness 的 `@deepseek-ai/*`）。
+- 包间依赖用 `workspace:*`（**禁止** `link:`——发布时不会改写，会产出坏链接）。
+- 所有包带 `"publishConfig": { "access": "public" }`（scoped 包默认 private）。
 - 版本号各包保持一致（当前 0.1.0），升级时同步升。
 
 ### 3. 构建产物与 git
 
-- `lib/`、`node_modules/`、`.pnpm-store/`、`*.tgz` 都在 `.gitignore` 里，**不提交**
-  （唯一例外：`@dsh-plugins/balance` 的 `lib/typert.*`，见下）。
-- 改 `src/**` 后运行 `pnpm build` 让 `lib/` 产物跟上（发布需要最新产物；
-  CI 会跑 build 并断言 git 干净，所以不要把产物差异提交进仓库）。
+- `lib/`、`node_modules/`、`.pnpm-store/`、`*.tgz` 都 gitignore，**不提交**。
+- 改 `src/**` 后运行 `pnpm build` 让 `lib/` 跟上（CI 会跑 build 并断言 git 干净）。
 - 行尾由 `.gitattributes` 规范（文本 LF，ps1 CRLF）。
-- **`@dsh-plugins/balance` 的 `lib/types/**` 由 `pnpm build` 内嵌的 tsc 步骤从 src
-  重新生成**（`tsconfig.build.json`，js + d.ts + map，`.ts` 相对引用改写为 `.js`），
-  与源码永远一致，无需手工维护。
-- **`@dsh-plugins/balance` 的 `lib/typert.*` 是 typert codegen 产物**，`pnpm build`
-  不重建（build.mjs 顶部有注释）；**仓库内没有 codegen 工具，无法重新生成，因此这
-  4+1 个文件已用 `git add -f` 提交进 git**（.gitignore 有对应豁免段）。改 Remote 线
-  协议时需要从上游/typert codegen 重新生成后提交，不要手工编辑。
-- `pnpm build` 末尾会做 **exports 完整性校验**：每个 `exports` 目标文件必须存在，
-  缺失即构建失败——防止「tarball 缺文件但 CI 绿」的静默损坏（曾因此踩坑）。
+- **`@dsh-plugins/balance` 的 `lib/types/**`** 由 `pnpm build` 内嵌 tsc 从 src 重生成，
+  与源码永远一致。
+- **`@dsh-plugins/balance` 的 `lib/typert.*`** 是 typert codegen 产物，`pnpm build`
+  不重建；仓库内无 codegen 工具，这 4+1 个文件已 `git add -f` 提交进 git。改 Remote
+  线协议需从上游重新生成后提交，**不要手工编辑**。
+- `pnpm build` 末尾做 **exports 完整性校验**：每个 `exports` 目标文件必须存在，
+  缺失即构建失败——防「tarball 缺文件但 CI 绿」的静默损坏。
 
 ### 4. 新增小组件
 
-按 token-crit 的模板复制最小结构（完整开发指南与面板管理接入见
-`WIDGET-DEVELOPMENT.md`）：
+按 token-crit 的模板复制最小结构（完整开发指南见 `WIDGET-DEVELOPMENT.md`）：
 
 - `src/index.ts`：Host 空 apply（纯 UI 插件）或 seam 逻辑。
-- `src/client/index.ts`：浏览器端 `apply` + `inject`，用 `ctx.slots.inject('shell.overlay', ...)`
-  注册挂件（需要 `@deepseek-ai/dsh-client-ui-layout` 的类型合并）。
-- `package.json` 加 `dsh.client`（inject 依赖 + `platform: "web"`）、`exports["./client"]`、
-  `files: ["lib"]`、`publishConfig.access: public`。
-- 在 `scripts/build.mjs` 加一段 client bundle 构建（Vite lib mode 产出 CJS +
-  提取 CSS，再包 ModuleLoader 包装 + 内联 CSS 注入，照抄现有段落）。
-- 若随 bundle 分发，加进 `bundles/dsh-widgets-plugin/` 的依赖与 `cordis.patch.yml`。
+- `src/client/index.ts`：浏览器端 `apply` + `inject`，用 `ctx.slots.inject('shell.overlay', …)`
+  注册挂件（需 `@deepseek-ai/dsh-client-ui-layout` 的类型合并）。
+- `package.json` 加 `dsh.client`、`exports["./client"]`、`files: ["lib"]`、
+  `publishConfig.access: public`。
+- 在 `scripts/build.mjs` 的 `CLIENT_PACKAGES` 加一行（Vite library mode 产出
+  `lib/client.js`，照抄现有段落）。
+- 若随 bundle 分发：加进 `bundles/dsh-widgets-plugin/` 依赖与 `cordis.patch.yml`。
 - 补双语 README + `README.i18n.yaml`。
 
 ### 5. 余额插件是单包结构
 
-- `@dsh-plugins/balance` 是**一个包、一个插件行**：Host 半在 `src/index.ts` 的
-  `apply()` 里依次「构造 `BalanceRuntime`（自注册 `ctx.balance`）→ 注册厂商与静态
-  bindings → 监听 `balance` 设置分区 → 挂 `/_dsh/balance/settings` Web 路由」；
-  浏览器半在 `src/client/index.ts` 里先 `await ctx.remote.$mount(TYPERT_REMOTE)`
-  再注册看板挂件与 `widgets.config` 配置面板（`remote.balance` 由本插件自己提供，
-  **不进 inject 列表**——cordis 的声明式 inject 沿 fiber 父链解析，`$mount` 的贡献在
-  旁支 fiber，声明会卡死插件；挂载后经 `ctx.get('remote.balance')` 按 store 直读）。
-- 已**废弃对 deepseek-harness 的同步**（sync.mjs 已删除）：上游结构已重构，余额源码
-  从此手工维护。上游 3 个包若再有改动，需要人工搬移并做「三合一」适配。
+`@dsh-plugins/balance` 是**一个包、一个插件行**：
+- Host 半（`src/index.ts`）`apply()` 依次「构造 `BalanceRuntime`（自注册
+  `ctx.balance`）→ 注册厂商与静态 bindings → 监听 `balance` 设置分区 → 挂
+  `/_dsh/balance/settings` Web 路由」。
+- 浏览器半（`src/client/index.ts`）先 `await ctx.remote.$mount(TYPERT_REMOTE)` 再注册
+  看板挂件与 `widgets.config`。`remote.balance` **不进 inject 列表**——cordis 声明式
+  inject 沿 fiber 父链解析，`$mount` 的贡献在旁支 fiber，声明会卡死插件；挂载后经
+  `ctx.get('remote.balance')` 按 store 直读。
+- 已**废弃对 deepseek-harness 的同步**（`sync.mjs` 已删）：余额源码手工维护。
 - 包内跨模块一律相对 import；`@dsh-plugins/balance/types` 等子路径保留给外部类型消费者。
-- 小组件管理页的目录（`dsh-client-ui-widget-manager/src/client/widgets.ts`）把余额看板
-  的 `packageName` 标为 `@dsh-plugins/balance`——新增/重命名包时同步更新。
+- 小组件管理页目录（`dsh-client-ui-widget-manager/src/client/widgets.ts`）把余额看板
+  `packageName` 标为 `@dsh-plugins/balance`——新增/重命名包时同步更新。
 
 ### 6. 包管理（与官方 deepseek-harness 架构对齐）
 
-包管理配置镜像官方仓库（deepseek-ai/deepseek-harness）的做法：
+镜像官方仓库（deepseek-ai/deepseek-harness）的做法：
 
 - root `package.json`：`packageManager` 固定 pnpm 版本（`pnpm@11.7.0`）、
-  `engines.node`（`^22.19.0 || >=24.0.0`）、`workspaces` 列出 `packages/*` 与
-  `bundles/*`（与 `pnpm-workspace.yaml` 的 `packages` 保持一致）。
-- `pnpm-workspace.yaml`：`linkWorkspacePackages: true`、`overrides`（目前为空，
-  保留官方 `link:vendor/...` 用法注释）、`peerDependencyRules.allowedVersions`
-  （typescript `>=5 <7`）、`allowBuilds`（**pnpm 10.26+ 已支持**，官方 pnpm 11
-  同款键，替代旧的 `onlyBuiltDependencies`；默认拒绝、只放行必要的构建脚本）、
-  `patchedDependencies` + `patches/` 目录（当前为空占位）。
-- 每个可发布包的 `package.json` 带 `repository`（`git+https://github.com/
-  zhangsaizz/dsh-widgets-plugin.git` + `directory` 子路径），与官方每个包都声明
-  `repository.directory` 的约定一致。
-- 版本号与官方一样全仓同步（当前 0.1.0，非 rc 预发布风格——本仓库维持稳定版语义）。
+  `engines.node`、`workspaces`（`packages/*` + `bundles/*`，与 `pnpm-workspace.yaml`
+  一致）。
+- `pnpm-workspace.yaml`：`linkWorkspacePackages: true`、`peerDependencyRules.allowedVersions`
+  （typescript `>=5 <7`）、`allowBuilds`（pnpm 10.26+ 同款键，默认拒绝、只放行必要
+  构建脚本）、`patchedDependencies` + `patches/`。`minimumReleaseAgeExclude` 由
+  `pnpm install` 自动写入（预发布依赖白名单，见「关键现状」）。
+- 每个可发布包带 `repository`（`git+https://github.com/zhangsaizz/dsh-widgets-plugin.git`
+  + `directory` 子路径）。
+- 版本号全仓同步（当前 0.1.0，非 rc 预发布风格）。
 
 ## 发布流程
 
@@ -167,309 +171,18 @@ pnpm 版本由 root `package.json` 的 `packageManager` 固定（当前 `pnpm@11
 3. GitHub Actions `publish.yml` 自动 `pnpm -r publish --access public`，
    需仓库配置 `NPM_TOKEN` secret。
 
-## 本次会话的近期改动（了解现状用）
+## 关键现状与坑
 
-- **余额插件 UI 优化（可访问性 + 图标一致性 + 大额可读性）**（纯客户端改动，build 后刷新页面即生效）：
-  - **头部控件/趋势箭头换成内联 SVG**（`src/client/icons.tsx`，14×14 viewBox / 1.5px 圆头描边，
-    自包含、随 `currentColor` 主题化）：原先是 Unicode 文本字形（`− + ⛶ ⤢ ▦ ⟳ —` 与 `▲▼–`），
-    跨平台字体渲染不一致、geometry 固定不可主题化。`trendIcon()` 三元函数统一喂给挂件 / 卡片 /
-    收起胶囊三处的趋势徽标，控件按钮（缩小/放大/吸附/入卡容器/账户模式/刷新/收起）逐个换成
-    `MinusIcon`/`PlusIcon`/`DockIcon`/`DockToCardIcon`/`GridModeIcon`/`RefreshIcon`/`CollapseIcon`。
-  - **金额千分位分隔**（`formatAmount`，挂件 + 卡片各一份）：`toFixed(4)` 后整数部分加
-    `,` 千分位（`\B(?=(\d{3})+(?!\d))`），仍保留至多 4 位小数并去尾零，`1,234,567.8912` 这类大额
-    一眼可读；非有限值回退 `0`，负号带符号。
-  - **prefers-reduced-motion**（挂件 CSS `@media (prefers-reduced-motion: reduce)` +
-    `useAnimatedNumber` 改从 `prefersReducedMotion()` 判定）：关闭 spinner 旋转、面板/胶囊
-    折叠淡入淡出、缩放与 hover 色过渡（`transition: none` + `transform: none`），金额跳动直接
-    snap 不再滚动——对前庭敏感/省电用户是实打实的收益。
-  - **状态点 color-not-only**：`.statusDot` 仅用颜色表达 ok/error/idle，新增 `.srOnly` 裁剪剪切
-    的屏读文本（`statusOk`/`statusError`/`statusIdle` 三个新 locale key，zh/en 同步），
-    辅助技术能读到「余额正常/查询失败/状态未知」。
-  - **设置面板补键盘焦点环**（`BalanceSettings.module.css`）：新增 `:focus-visible` 焦点环
-    （`outline: 2px solid var(--dsw-alias-state-business-primary)`）覆盖输入框/下拉、以及
-    `.action/.remove/.confirmDelete/.segBtn/.segActive/.clearCred/.submit/.cancel/.popupItem` 等
-    自绘控件——主题全局焦点环到不了这些控件，此前只有输入框 border-color 变化过于微弱。
-  - **`.title` 加 `white-space: nowrap`**：修复标题「余额」在紧凑面板里被挤成两行换行。
-  - **看板配置面板（BalanceSettings）同步优化**（仍是纯客户端，build 后刷新生效）：
-    - **行内动作按钮图标化 + 加大命中区**：绑定行的「编辑/删除」从光秃秃的文本按钮改为
-      （SVG 图标 + 文本）inline-flex 按钮（`EditIcon`/`TrashIcon`/`CloseIcon`，icons.tsx 新增），
-      padding 3px→6px、gap 5px、圆角 7px，hover/active 有背景变化。
-    - **字段标签语义关联**：provider（combobox）/vendor/credential/BaseURL 全部字段的标签由
-      `<span>` 改为真正 `<label htmlFor>`+`id`（provider 用 `balance-provider`，ProviderCombobox
-      新增 `id` prop 透传给 input），屏幕阅读器能报出字段名、标签可点击聚焦。`.fieldLabel` 补
-      `font-weight:500` 区分。
-    - **凭据切换改 radiogroup 语义**：`.seg` 由 `role="group"` + class 态改为
-      `role="radiogroup"` + `role="radio"` + `aria-checked`，并加 `onSegKeyDown` 方向键导航
-      （←/↑→ 环境变量引用，→/↓→ 粘贴 Key），键盘用户可横移。
-    - **区段标题层次化**：`.sectionTitle` 加前置主色竖条指示（`::before` 3px 圆角条），
-      两个 section 标题从浮空文字变成清晰的层级。
-  - **跟进官方 API 至 v0.1.1-rc.2**：全部 `@deepseek-ai/*` 依赖范围升级到
-  `^0.1.1-rc.2`（root devDeps `dsh-host-webserver` 精确到 `0.1.1-rc.2`），
-  `pnpm-lock.yaml` 重解析到 rc.2；`pnpm typecheck` / `pnpm build` / `pnpm -r pack`
-  全绿。核对过官方 rc.7→rc.2 发布包：本仓库依赖面（`dsh-client-ui-slots` /
-  `dsh-client-runtime` / `dsh-api-remotes` / `dsh-settings` / `dsh-session` /
-  `dsh-typert-protocol` / `dsh-host-webserver` 等）的 `lib/*.d.ts` 无破坏性变更，
-  故无需改源码（typecheck/build 通过）。
-  **安装陷阱**：pnpm 11.7 的 `autoInstallPeers`（lockfile `settings` 里为 true）
-  自动安装 Host 侧 sandbox 兄弟包的 peer 时，对预发布 peer 范围会推导出非预发布
-  `>=0.1.1 <0.2.0-0`，无法命中已发布的 `0.1.1-rc.2`，首次 `pnpm install` 报
-  `ERR_PNPM_NO_MATCHING_VERSION`（对 `@deepseek-ai/dsh-sandbox` /
-  `dsh-sandbox-policy`）。**修复不是加 overrides**，而是让 pnpm 的 supply-chain
-  策略把这两个 fresh rc.2 版本自动写回 `pnpm-workspace.yaml` 的
-  `minimumReleaseAgeExclude`（`pnpm install` 跑一次即自动补录 11 个 rc.2 白名单，
-  `dsh-sandbox` / `dsh-sandbox-policy` / `dsh-client-ui-conversation` /
-  `dsh-shell` 等在列）；之后 `--frozen-lockfile` 通过。`pnpm-workspace.yaml` 的
-  `patchedDependencies: {}` 占位被 pnpm 重写时抹掉，已人工补回。
-  upstream monorepo 结构保持 `packages/<domain>/<pkg>` 不变，npm 包名扁平不变。
-
-- **跟进官方 API 至 v0.1.0-rc.7**：全部 `@deepseek-ai/*` 依赖范围升级到
-  `^0.1.0-rc.7`（root devDeps `dsh-host-webserver` 精确到 `0.1.0-rc.7`），
-  `pnpm-lock.yaml` 重解析到 rc.7；`pnpm typecheck` / `pnpm build` / `pnpm -r pack`
-  全绿。核对过官方 rc.6→rc.7 发布包：本仓库依赖面（`dsh-client-ui-slots` /
-  `dsh-client-runtime` / `dsh-api-remotes` / `dsh-settings` / `dsh-session` /
-  `dsh-typert-protocol` / `dsh-host-webserver` 等）的 `lib/*.d.ts` 无破坏性变更
-  （仅 client bundle 内 CSS 键序、dsh-tools 图片转发等无关改动），故无需改源码。
-  官方 rc.7 新增的「插件注册设置卡片」（`packages/client/ui-plugin-config`）尚未
-  发布到 npm（registry 404），暂无法消费，仅记录。上游 monorepo 结构已按
-  `packages/<domain>/<pkg>` 重构（client / host / core / session / api / settings
-  等域，见 rc.7 tag 的 `packages/` 树），npm 包名保持扁平不变。
-  `pnpm-workspace.yaml` 新增 `minimumReleaseAgeExclude`（pnpm 11.7 supply-chain
-  策略自动写入的 36 个 rc.7 版本白名单，保留）。
-- **浏览器 bundle 改用 Vite 构建（官方同款工具链）**：`scripts/build.mjs` 的
-  client bundle 段落从 esbuild 换成 **Vite library mode**（`vite` JS API，CJS
-  输出 + CSS Modules 提取，再包 ModuleLoader 包装 + 内联 CSS 注入）；Host 半仍用
-  esbuild。root devDeps 增加 `vite@^6.0.0`。各包 `lib/client.js` 产物结构不变
-  （`@deepseek-ai/*`/`@dsh-plugins/*`/`react` 外部化经 `require` 解析、zod 内联、
-  CSS 内联注入）。
-- **包管理与官方 deepseek-harness 架构对齐**：root `package.json` 增加
-  `packageManager`（现 `pnpm@11.7.0`）、`engines.node`、`workspaces`；
-  `pnpm-workspace.yaml` 采用官方字段（`linkWorkspacePackages`、`overrides`、
-  `peerDependencyRules`、`allowBuilds`、`patchedDependencies`）；新增
-  `patches/` 目录；5 个可发布包补 `repository` 字段。版本维持 0.1.0。
-- bundle 依赖从 `link:` 改为 `workspace:*`，junction 重新指向正确路径。
-- 删除重复脚本 `build-client.mjs`；`build.mjs` 的 esbuild 改用 **JS API（buildSync）**，
-  不再 shell 调用 `bin/esbuild`——非 Windows 上 esbuild 的 postinstall 会把
-  `bin/esbuild` 硬链接替换成原生二进制，`node bin/esbuild` 在 Linux CI 上会直接
-  SyntaxError（CI 踩过这个坑，见下方「修复 CI」条目）。
-- 根 README 重写为「小组件集合」定位；各包 README 补齐双语「使用方式」。
-- 已 `git init` 并完成首次提交与文档提交（身份为 GitHub <noreply@github.com>，
-  仅本地仓库配置）。
-- **余额三包合一**：`balance` + `balance-vendors` + `client-ui-balance` 合并为
-  `@dsh-plugins/balance` 单包单插件行；删除 `scripts/sync.mjs`（废弃 harness 同步）；
-  bundle 的 `cordis.patch.yml` 从 5 行减为 3 行；widget-manager 目录的余额
-  `packageName` 改为 `@dsh-plugins/balance`。
-- **新增会话监控看板** `@dsh-plugins/client-ui-session-monitor`（**双半插件行**：
-  Host 半监听 `session/event` 的 `turn/end` 记结束原因，`/_dsh/session-monitor/status`
-  路由（webServer 可选）；浏览器半 `shell.overlay` id `session-monitor` order 90 +
-  `widgets.config` 配置弹窗）：
-  投影标准 `useSessions` 列表，diff `running` true→false 边沿判定「完成一轮」，
-  弹 toast 提醒（自动消失 / 需确认两种模式，可选音效；**toast 按状态配色**：完成 /
-  待处理 / 子代理 / 出错 / 中止 / 阻塞 / token 上限 / 中断，3s 轮询取 Host reason，
-  Host 缺席退回基础 kind），行点击经
-  `ctx.sessions.open` 跳转会话；**子代理会话默认过滤**（`showSubagents` 开关默认
-  关：列表不显示、计数与通知均不含子代理），但主代理行显示「子×N」徽标（聚合
-   `origin==='subagent' && running && parentId` 的实时子代理执行数）；可收起为胶囊
-   （tap 展开）、拖右下角缩放（0.6×–1.6×）；**时间范围过滤**（`timeWindowMin` 默认
-   60、0=全部，运行中会话始终显示；"最近活跃"取 `max(updatedAt, lastActive)`，
-   `dsh.smon.lastActive` 持久化运行边沿时间戳）；**浏览器通知**（`browserNotify`
-   开关，`Notification` API，勾选时请求授权，同会话 tag 替换、onclick 跳转）；
-   bundle 增至 4 个插件行，
-  widget-manager 目录已登记。已本地安装到 `~/.dsh/profiles/web`（junction 直连
-  仓库包，client bundle 按请求读盘，改代码 build 后刷新页面即生效；**Host 半改动
-  需要重启 web 服务**）。
-- **安装 bundle 更名**：`@dsh-plugins/balance-bundle`（`bundles/dsh-balance-bundle`）
-  更名为 `@dsh-plugins/dsh-widgets-plugin`（`bundles/dsh-widgets-plugin`）；目录用
-  `git mv` 迁移、锁文件 importer 同步改名、全部文档引用与双语 README 已更新。
-- **修复 CI（Linux）构建失败**：`build.mjs` 的 Host 半构建从
-  `node <esbuild/bin/esbuild>` 改为 esbuild **JS API（buildSync）**——esbuild 的
-  postinstall 在非 Windows 平台会把 `bin/esbuild` 硬链接替换为原生 ELF 二进制，
-  `node` 执行报 `SyntaxError: Invalid or unexpected token`（CI 的 `pnpm build`
-  步骤因此失败，Windows 本机不受影响）；JS API 自行解析
-  `@esbuild/<platform>` 平台包，全平台行为一致。
-- **新增卡片容器** `@dsh-plugins/client-ui-card-container`（**纯 UI 插件行**，
-  `shell.overlay` id `card-container` order 20 + `widgets.config` 配置弹窗）：
-  声明 `widgets.card` 子槽（list，条目 id = 挂件 id）渲染停靠卡片；托盘列出当前
-  启用的挂件（`entriesOfSlot` 投影 + 内置名称映射 `widgetName`），chip 拖入网格
-  或点击即**停靠**——控制器向 `shell.overlay` 注册同 id、priority -2（避开
-  widget-manager 的 -1）的影子条目隐藏浮窗（机制与管理页停用一致），网格
-  `renderSlot('widgets.card', {}, { only, fallback })` 渲染紧凑卡片；点 × 移出
-  恢复浮窗；卡片可拖拽排序；网格 gap 12px、列数自适应/2/3/4（设置持久化）；停靠
-  顺序（`dsh-plugins.card-container.docked`）、位置（`.pos`）、设置（`.settings`）
-  写 localStorage，配置变更经 window CustomEvent 通知；容器自身被隐藏时释放全部
-  停靠影子（浮窗恢复浮动），重新启用按持久化顺序恢复。**容器不注册任何内置卡片**
-  （早期「priority 10 内置兜底卡」设计已被下述适配器契约淘汰）：每个提供紧凑卡的
-  挂件以 priority 0 在自己的包里注册 `widgets.card`（token-crit / session-monitor
-  用标准 `useSessions` 读数据、balance 用余额控制器），未注册的挂件停靠时显示占位卡。
-  **卡片接入已规范化为标准适配器契约**：导出 `WidgetCardProps`
-  （= `PropsRuntime<'widgets.card'>`，全局座 useSessions/useWorkspaces，可叠加
-  PropsLocale）+ **槽级注入面 `CardSlotInject`**（useContainer hook +
-  dock/undock 动词），注册模式写入 WIDGET-DEVELOPMENT.md §2.5 与双语 README
-  （`ctx.slots.inject('widgets.card', …)`、条目 id = shell.overlay id、priority
-  默认 0、type-only peer 依赖、容器缺席自动跳过）——任何挂件可选接入，不接入
-  显示占位卡；**卡片支持规格**（`WidgetCardComponent.spec` 静态属性：
-  small 1 列 / medium 2 列 / large 整行，容器读获胜条目组件规格排版；各包的卡
-  token-crit=small、session-monitor=medium、balance=large）；**显示名 label 化**
-  （托盘/卡片头优先读挂件在 shell.overlay 注册的 label thunk，balance /
-  session-monitor / token-crit 均已补 label）；**浮窗快捷停靠**（浮窗头部
-  「⤢」按钮 dispatch `dsh.card-container.dock` window 事件，detail=挂件 id，
-  容器监听并停靠，解耦 no-op）；**管理页停靠态**（widget-manager 识别
-  registrant `card-container` 的停靠影子为「已停靠」独立状态，行动作变
-  「移出容器」——dispatch `dsh.card-container.undock` 事件，容器监听并恢复
-  浮窗；停靠≠停用，不再显示「已停用」/「添加」；停靠态仍可配置）；**完善**：
-  卡片**实时换位**（pointer 拖拽拎起 ghost 跟随 + 其余卡片实时让位，
-  indexFromPointer 按网格矩形映射，拖出网格 24px 松手=移出，tap 不启动拖拽）、
-  **多分组**（groups/active 持久化，旧单 docked 列表自动迁移，顶部分组标签 +
-  ⋯ 管理菜单新建/重命名/删除，一个挂件一次只能停靠一个分组）、键盘可达（卡片
-  Tab 聚焦，Enter/空格移出、方向键排序）、触屏 hover:none chrome 常显、空态
-  引导、ghost 宽度按 spec。已登记
-  widget-manager 目录；bundle 增至 5 个插件行。纯客户端改动，build 后刷新页面即生效。
-- **新增会话监控桌面悬浮窗**（会话监控挂件的 Windows 桌面版）：
-  - **Host 半扩展**（`@dsh-plugins/client-ui-session-monitor`）：
-    - `/_dsh/session-monitor/sessions`：桌面快照 JSON 路由（`src/desktop-snapshot.ts`
-      `buildDesktopSnapshot`，从 `ctx.sessions.list()` + 事件日志折叠 running /
-      title / pending(approval) / subagents 等，**零新增 peer 依赖**；路由带 try/catch
-      失败回 500 + 错误栈）；`ctx.inject(['webServer', 'sessions'])`（cordis 的
-      inject 子上下文只暴露注入列表里的服务，不注入 `sessions` 会抛
-      "cannot get property without inject"——踩过）。
-    - `/_dsh/session-monitor/widget`：**自包含挂件页** `src/widget-page.html`
-      （无框架无外部资源，2s 轮询 sessions + 3s 轮询 status，边沿检测「完成一轮」
-      toast、置顶/隐藏/设置弹窗，`__TAURI__` 缺席退化为普通浏览器页），经
-      build.mjs 的 esbuild **`text` loader** 内联进 Host bundle（`.html` loader
-      只对 session-monitor 包生效；`src/css-modules.d.ts` 补了 `*.html` 声明）。
-    - 三条路由（status/sessions/widget）均带宽松 CORS（`Access-Control-Allow-Origin:
-      *`——桌面壳 `tauri://localhost` 启动探测页需跨源探测）。
-  - **桌面壳**（`desktop/dsh-session-desktop/`，**Tauri 2，Rust 应用，不是 npm 发布
-    包、不在 pnpm workspace 内**；仅用 npm 装 `@tauri-apps/cli`，本目录自带
-    `package-lock.json`）：无边框/透明/置顶/无任务栏 320×560 小窗；启动先加载
-    `src-tauri/assets/start.html` 重试页探测 127.0.0.1:3080 就绪后跳转挂件页；
-    `withGlobalTauri` + `capabilities/default.json`（`remote.urls: ["http://127.0.0.1:*"]`）
-    放行挂件页的拖拽/置顶/隐藏。**桌面与网页跨上下文（WebView2 vs 浏览器）不共享
-    localStorage/BroadcastChannel**（各是独立存储分区），所以配置与跳转都走
-    **Host 服务端中转**：
-    - **设置共享**（`/_dsh/session-monitor/settings`，`src/desktop-settings.ts`
-      注册 `session-monitor` settings 命名空间，schema 镜像客户端
-      `MonitorSettings` 全 10 字段，持久化到 harness settings 文档）：桌面挂件
-      直读直写；网页客户端半做镜像——本地 save（`dsh.smon.settings-changed`
-      事件）debounce POST 上服，启动+5s 轮询 GET，有差异才写 localStorage +
-      重发事件，网页挂件/配置面板代码零改动（仍读 localStorage）。桌面面板
-      "以下选项与网页版共享"：完成提醒/通知方式/自动消失秒/提示音/只显示运行中/
-      子代理/时间范围；刷新间隔是桌面独有（`dsh.smon.desktop.settings` 缓存）。
-    - **点击跳转 = 服务端 jump 队列 + 浏览器回退**：点行 POST
-      `/_dsh/session-monitor/jump` `{sessionId}`（单槽、30s TTL），客户端半 1s
-      轮询 GET，见未消费的跳转就 `ctx.sessions.open` + `window.focus()` + POST
-      `{consume:true}`——**已开着的 Harness 标签页直接切过去，不新开窗口**；桌面
-      端 400ms×8 轮询，`consumed` 才罢手，否则回退 `open_in_browser` 命令
-      （`opener` crate）打开浏览器，URL 带 `?dsh-open=<id>` 开机深链（客户端半
-      启动时读到就重试选中该会话）。命令 ACL：**Tauri 2 自定义 app 命令在本地
-      origin（`tauri://localhost`）默认放行，但从远程 origin
-      （`http://127.0.0.1:3080`）调用必须过 ACL**（实测
-      `Command open_in_browser not allowed by ACL`）：在 `build.rs` 用
-      `tauri_build::AppManifest::new().commands(&["open_in_browser"])` 自动生成
-      `allow-open-in-browser` 权限（产物写进 `src-tauri/permissions/autogenerated/`，
-      已 gitignore），capability 里以**无前缀**标识符 `"allow-open-in-browser"` 引用
-      （app ACL 权限不带 `key:` 前缀，带前缀会报 "Permission not found"）；**Tauri 2
-      应用级没有 `Builder::on_navigation`**（那是 `plugin::Builder` 的 API，踩过坑），
-      所以用命令而非导航拦截；托盘（tray-icon feature）左键/菜单唤回隐藏窗口 + 退出。
-    构建：`npx tauri build --no-bundle`（cargo release + tauri-build 嵌入图标，
-    首编拉取数百个 crates 10–30 分钟）；图标从 `icon-source.png` 用
-    `npx tauri icon` 生成。运行前提：本机 `dsh web`（默认 127.0.0.1:3080）+ 插件
-    Host 半已挂载。
-- **会话监控桌面挂件重构为「待处理通知列表」**（inbox 为主视图 + 会话 Tab 副视图）：
-  - **Host 权威通知存储**（`src/desktop-notifications.ts`，`NotificationStore`）：
-    事件折叠为通知记录（turn/end 原因→kind、approval 审计、question/plan-review
-    **host 工具调用检测**（`ask_user_question` / `exit_plan_mode` 的 `tool/call` →
-    `tool/result`，纯桌面可见；网页 relay 降级为幂等备份）、子代理最后回合结束、
-    P2 标题/新会话），幂等键 `(sessionId, kind, round)`、上限 200、已读/已解决 7 天
-    归档、持久化到 `session-monitor-inbox` settings 分区（1s debounce + 停顿时 flush）；
-    新增路由 `GET /notifications`（全量快照 + unread）、`POST /notifications/ack`
-    （ids/sessionId/all）、`POST /events`（relay）。
-  - **挂件页双 Tab**（`src/widget-page.html`）：「待处理」通知列表（未读徽标、
-    P0/P1/P2 级别开关、处理→跳转+ackOnJump 自动已读/忽略/全部已读、已读与
-    「已处理」折叠区、空态）+「会话」原列表；共享设置新增 `ackOnJump` /
-    `autoAckOnOpen`（网页配置面板同步）。
-  - **网页版未读徽标**：挂件头部 + 收起胶囊 5s 轮询 `/notifications` 显示未读数，
-    点击跳最新未读会话；已读状态经 Host 与桌面共享。
-  - **托盘未读数**（桌面壳）：挂件页每次未读变化经新命令 `set_tray_unread` 上报，
-    Rust 侧更新托盘 tooltip 与菜单状态行（`build.rs` commands 列表与 capability
-    同步加 `allow-set-tray-unread`）。
-  - 设计稿/原型/冒烟测试在包内 `docs/`（`notification-inbox-design.md`、
-    `inbox-prototype.html`、`store-smoke-test.cjs`——后者用 esbuild 打包
-    `desktop-notifications.ts` 后跑 8 组断言）。
-  - **修复桌面「会话」列表闪烁 / 隐藏数与网页不一致（两层根因）**：
-    - 过滤语义：桌面时间窗口只豁免 `running`，子代理在跑但本身不在回合的父会话
-      日志静默期被窗口藏掉、完成又冒出来；隐藏数把 blank/子代理/busy-only 全算
-      进去。已对齐网页语义（busy 豁免窗口与 busy-only、隐藏数只统计窗口隐藏、
-      轮询失败保留上一次列表、列表重建保留滚动位置）。
-    - **冷会话探测不稳定（实测根因）**：`mergeColdSessions` 复用分支带探测 TTL，
-      冷行在缓存过期到下次枚举之间（最长 ~8s）从快照消失；首次全量探测 72 个冷
-      会话要读各自完整事件日志，实测路由延迟尖峰 **12s**，超过挂件页 4s fetch
-      超时 → 轮询中止 → 整表清空。修复：冷行**一旦缓存永久复用**（冷会话不变化，
-      重新附着后即被 attachedIds 排除并逐出缓存）；探测限预算（每枚举 ≤8 个 /
-      ≤1.5s，未探测的后续周期补齐）；fetch 超时 4s → 10s。
-    - **冷会话 blank 与网页对齐（隐藏数 ±1 根因）**：实测 `session.list`（网页权威
-      列表，经 `/api/session.list` 直接调用）对 >1KiB 的冷工件**保守降级为
-      blank:false**（上游 bounded-cold-blank-verification：缓存 blank:true 不可信、
-      大工件不探测、保持可见），而桌面读全量日志正确判 blank:true——一个 3.9 天前
-      从未跑过 turn 的遗留空会话使两端隐藏数差 1（网页 51 vs 桌面 50）。修复：
-      `probeColdSession` 复刻网关阈值规则——缓存 blank:false 信任；否则**只有工件
-      ≤1KiB（`locate()` + stat）才采信日志验证**，大工件/无路径/读取失败一律
-      blank:false。mock 测试覆盖 5 种情形（大/小/缓存 false/无路径/有 turn）。
-- **会话监控优化（桌面快照折叠缓存 + 设置 clamp 对齐）**（纯实现层，无公开 API/行为变更）：
-  - **foldCache（desktop-snapshot.ts）**：`/sessions` 路由此前每次轮询（桌面默认 2s）都对每个
-    已附着会话重扫整份事件日志（foldSession）——长日志在 2s 轮询下是真实浪费。利用 dsh-session
-    的 `session.events` 是「append-only 的不可变快照、在下次 append 前复用同一数组引用」的特性
-    （见 Session#events getter 注释），按「事件数组引用 + 长度」做零成本 unchanged 判定：未变化
-    则复用缓存折叠结果，append 后引用/长度变化即重新折叠。缓存按 sessionId 键控，构建结束对不再
-    附着的会话逐出条目（不跨进程泄漏）；数组被替换或 session id 复用时回退重折，故缓存绝不产出
-    过期数据（冷会话仍走 probeColdSession，不经此缓存）。
-  - **设置 clamp 对齐（桌面写 + Host 边界）**：共享设置的数值过去只在「读」时被客户端 clamp，而
-    「写」侧没有统一边界——桌面 widget-page.html 的 bindNumber 原先只 Math.max(0, v) 无上限，网页端
-    settings 镜像又把**未 clamp 的原始 localStorage blob** 直接 POST 上服（loadSettings 是读时 clamp），
-    所以一个陈旧/越界值（如 timeWindowMin: 99999）能写进 Host 存储、并以原值被桌面读取 → 两端不一致。
-    修复（两层，均为 clamp 而非 reject）：① widget-page.html 的 bindNumber(id, key, lo, hi) 持久化前
-    clamp 到 [lo, hi]（默认 [0, Infinity] 保持旧行为），setAutoDismiss（2–60）、setWindow（0–1440）
-    与网页端 src/client/settings.ts 读时 clamp 完全一致，setWindow 输入补 max="1440"；② index.ts 的
-    SETTINGS_ROUTE POST 经新的 clampSettingsWire 在 settingsScope.replace 前对 autoDismissSec /
-    timeWindowMin 两个数值字段做同样的 clamp——Host 分区是两端共同读取的唯一权威，边界 clamp 让越界值
-    无法进入存储，即便未来某个写者送来脏值。GET（读）响应同样经过 clampSettingsWire（先克隆再 clamp），
-    以便修复历史遗留的越界值：一个在该修复上线前写入 store 的坏值（旧版桌面 bindNumber 或网页端 raw
-    blob 推送所致），会在下一次读取时被夹回合法区间，随后任一侧再次保存即覆盖 store。
-- **会话监控 HTTP 层抽取（index.ts → http.ts）**（纯重构，无行为变更）：把与 apply() 无状态耦合的
-  CORS 门控（CORS_HEADERS / requestHeader / originAllowed / rejectForbidden）、JSON/HTML 响应
-  （responseJson / responseHtml）与有界 JSON body 读取（readJsonBody / MAX_BODY_BYTES）从 793 行的
-  入口文件抽到 src/http.ts 独立模块（纯函数、导出 responseJson / responseHtml / readJsonBody，外部化
-  便于单测），入口改用 import 引入并删除本地重复定义。index.ts 由 ~793 行降到 ~700 行。typecheck/build 全绿。
-- **卡片 busy 计数与浮窗对齐（client/cards.tsx）**：卡片容器的 SessionMonitorCard（紧凑「忙碌」统计）
-  此前的 busy 计算只数「running || pendingInteraction」，不看 showSubagents、也不计「父会话有运行中的
-  子代理/后台任务」这类 busy——与浮窗挂件的 busyCount 语义不一致（子代理行被计入、busy 父会话被漏掉），
-  两个界面并排时数字会打架。改为与浮窗精确对齐：读 showSubagents（loadSettings + SETTINGS_CHANGED_EVENT
-  + storage 双事件，与浮窗一致）、按同谓词聚合 runningSubagentsByParent（祖先链 +1）与
-  runningJobsBySession（仅 running/stopping），再以浮窗相同的谓词统计（子代理行在 showSubagents 关时
-  不计、但父会话因子代理/任务运行仍计 busy）。纯客户端改动，build 后刷新页面即生效。
-- **会话监控 UI 层面优化（可访问性 + 动效克制）**（纯客户端改动，build 后刷新页面即生效；桌面页随 Host bundle 内联，重启 web 生效）：
-  - **reduced-motion 支持**：`SessionMonitorWidget.module.css` 与 `widget-page.html` 各加
-    `@media (prefers-reduced-motion: reduce)`——停止 `.dotRunning` 的 pulse、进度条 sweep、toast
-    滑入、刷新图标旋转等装饰性动画（running 点保持实心绿、进度条保留轨道+完成态填充、toast 立即出现），
-    并关闭各 hover/focus 颜色过渡；对前庭敏感/省电用户是实打实的可访问性收益。
-  - **:focus-visible 焦点环**：主挂件 CSS、配置面板 CSS、桌面页 CSS 都为键盘焦点补显式 ring
-    （`outline: 2px solid 主题主色`, 键盘焦点才显示），浮层/对话框主题的全局焦点环到不了这些自绘控件。
-  - **aria-label 补齐**：主挂件 dock「⤢」/collapse「—」图标按钮补 aria-label（原来只有 title）。
-  - **桌面行键盘可达**：widget-page.html 的可点击会话行（rowEl）与 inbox 行（noteRow）由纯 div
-    改为 `role="button"` + `tabIndex=0` + Enter/空格激活（镜像点击行为）；inbox 的「处理/忽略」按钮
-    仍独立聚焦、stopPropagation 不冲突。
-  - **截图调优（vision_html_screenshot 渲染预览 + 视觉复核）**：构建忠实复刻挂件视觉的独立 HTML 预览
-    （真实 CSS 取值 + 代表性 mock：运行中/子代理/后台任务/待审批/完成/目标进度行、三种 toast、收起胶囊），
-    截图后定位并修复两处真实问题：① 收起胶囊里「3」（蓝色忙碌数）与「7」（红色未读）的 `.pillCount`/
-    `.pillBadge` 高度、字号、内边距不一致 → 统一为 16px 高、inline-flex 居中、10.5px、padding 0 6px；
-    ② 最暗辅助文字对比度偏低 → `.time`/`.toastTime`/`.nrow .time` 0.4→0.5、`.status` 0.72→0.76、
-    `.footerHint`(web) 0.5→0.58、`.count`(web) 0.62→0.68（均为 rgba(232,234,240,·) 回退值，桌面页直接生效）。
-- **配置面板（SessionSettings）信息架构/无障碍/一致性优化**（纯客户端改动 = SessionSettings.tsx/.module.css/locales.ts）：
-  - **三组分组 + 小节标题**：13 项平铺设置改为「通知 / 列表显示 / 桌面」三节（新增 `sectionNotify`/`sectionList`/`sectionDesktop`
-    i18n key，zh/en 同步），扫视效率与认知负担大幅改善；与桌面面板分组语义一致。
-  - **标签语义关联 + 整行可点**：`Row` 由 `<div>` 改为包裹式 `<label>`——屏幕阅读器能把标签与控件关联，且整行成为点击目标
-    （命中区比裸 input 大），与 ui-ux-pro-max 的 a11y/触控规则对齐。
-  - **时间范围真正 disabled**：`runningOnly` 开启时该 `<select>` 由「仅 opacity.55 淡显」改为原生 `disabled` + 淡显，
-    消除「看似禁用却能点」的视觉/行为不一致。
-  - **重置按钮瞬时反馈**：新增 `.flash` 动画（600ms 主题主色闪一下淡出），「重置位置与缩放」「重置设置」点击后可见地确认。
-  - **暗字/换行微调**：`.hint` 0.45→0.52、`.label` 允许 `overflow-wrap:anywhere`（长译文不被右对齐控件挤）、`.row` 加 `cursor:pointer`。
-  已 vision_html_screenshot 渲染配置面板预览复核：三节分组、禁用时间范围、标签关联均正常，typecheck/build 全绿。
+- **官方 API 基线**：`@deepseek-ai/*` 依赖为 `^0.1.1-rc.2`（root devDeps
+  `dsh-host-webserver` 精确到 `0.1.1-rc.2`）。改依赖时注意：pnpm 11.7 的
+  `autoInstallPeers` 对预发布 peer 会推导出非预发布范围 `>=0.1.1 <0.2.0-0`，导致
+  `ERR_PNPM_NO_MATCHING_VERSION`（如 `dsh-sandbox`）。**修复不是加 overrides**，而是
+  让 `pnpm install` 把 fresh rc.2 版本自动写回 `pnpm-workspace.yaml` 的
+  `minimumReleaseAgeExclude`。
+- **本地调试安装**：`dsh plugin --profile <name> add F:/dsh-balance-plugin/bundles/
+  dsh-widgets-plugin`（junction 直连仓库，不拷贝）。改代码后 `pnpm build` 更新 `lib/`；
+  浏览器半改动刷新页面即生效，**Host 半改动需重启 `dsh web`**。
+- **会话监控桌面壳**：`desktop/dsh-session-desktop/` 是 **Tauri 2（Rust）应用，不是
+  npm 发布包、不在 pnpm workspace 内**（仅用 npm 装 `@tauri-apps/cli`）。桌面
+  （WebView2）与网页（浏览器）不共享 localStorage/BroadcastChannel，所以配置与跳转都
+  走 Host 服务端中转（`/_dsh/session-monitor/settings` + `/jump`）。
