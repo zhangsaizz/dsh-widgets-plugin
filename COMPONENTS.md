@@ -163,9 +163,21 @@
   `shell.overlay`，id `token-crit`，order **50** → `TokenCritWidget`。
 - 数据来源：标准 `useSessions` 会话投影 `tokenUsage`（uncachedInput / output /
   cacheRead / cacheWrite 分桶）——**无 Host RPC、无轮询**，运行时响应式推送。
+  投影键的类型来自 `@deepseek-ai/dsh-token-meter/client`（`TokenUsageProjection`，
+  另含同一族的 `contextPressure` / `contextBreakdown`）；`SessionProjectionMap`
+  是可合并扩展的空接口，**必须 type-only import 拥有该键的包**才能让
+  `projectionValues.tokenUsage` 有类型（这就是本包新增该 peer 的原因，替代了
+  过去手写的影子接口 + `as` 断言）。挂件与卡片的 props 分别按
+  `PropsRuntime<'shell.overlay'>` / `PropsRuntime<'widgets.card'>` 声明，
+  选择器按 `SessionListState` 声明。
 - 动效：滚动数字、浮动 input/output 伤害数字、粒子、连击计数、边缘泛光、可选音效；
   hover 显示设置面板（语言、数字格式/字号、标签、连击、粒子、暴击阈值/比例、音效、泛光）；
   位置与缩放写入 `localStorage`。
+- 依赖：`@dsh-plugins/client-ui-card-container`（type-only，peer）；`@deepseek-ai/cordis`、
+  `dsh-client-ui-renderer`、`dsh-client-ui-layout`、`dsh-client-ui-slots`、
+  `dsh-api-session-controller`、`dsh-client-ui-session`、`dsh-token-meter`
+  （**type-only**：投影键与 `TokenUsageProjection` 的类型来源，不在
+  `dsh.client.inject` 里——读的是 Host 推送的投影值，不需要该模块先加载）、`react`（peer）。
 
 ### 3.3 卡片容器（`client-ui-card-container`）
 
@@ -693,6 +705,7 @@ graph LR
 | `@deepseek-ai/dsh-api-remotes` | balance（client） |
 | `@deepseek-ai/dsh-client-ui-renderer` | 全部 6 个客户端包（`ctx.slots` 的 Context 合并，承接退役的 `dsh-client-runtime`） |
 | `@deepseek-ai/dsh-client-store` | balance（`defineStore` / `createSnapshotStore` 等 store API） |
+| `@deepseek-ai/dsh-token-meter` | client-ui-token-crit（**type-only**：`tokenUsage` / `contextPressure` 等投影键与 `TokenUsageProjection` 的类型来源；读的是 Host 推送的投影值，不需要该模块先加载） |
 | `@deepseek-ai/dsh-api-session-controller` | balance、client-ui-token-crit、client-ui-session-monitor（`ISessions` / `SessionListState` / `SessionSummary`） |
 | `@deepseek-ai/dsh-client-ui-session` | client-ui-token-crit、client-ui-session-monitor、client-ui-rainbow-flow（会话作用域标准 prop） |
 | `@deepseek-ai/dsh-client-ui-chat` | client-ui-rainbow-flow（`useChat` 实时会话快照） |

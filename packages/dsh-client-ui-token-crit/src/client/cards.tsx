@@ -17,35 +17,25 @@
  */
 
 import type { PropsLocale, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
-import type { SessionListState, SessionSummary } from '@deepseek-ai/dsh-api-session-controller/client'
-// Type-only: pulls the `useSessions` standard-prop merge from ui-session.
+import type { SessionListState } from '@deepseek-ai/dsh-api-session-controller/client'
+// Type-only: pulls the `useSessions` standard-prop merge from ui-session, and
+// the `tokenUsage` key this card reads out of
+// `SessionSummary.projectionValues` (the projection map is merge-extensible, so
+// the owning package must be type-imported for its keys to exist; the same
+// import also brings the sibling `contextPressure` / `contextBreakdown` keys).
 import type {} from '@deepseek-ai/dsh-client-ui-session/client'
+import type { TokenUsageProjection } from '@deepseek-ai/dsh-token-meter/client'
 // Type-only: pulls the `widgets.card` SlotMap merge and the `card-container`
 // LocaleNamespaceMap merge the card types below depend on.
 import type {} from '@dsh-plugins/client-ui-card-container/client'
 import type { WidgetCardComponent } from '@dsh-plugins/client-ui-card-container/client'
 import css from './cards.module.css'
 
-/** Cumulative token-usage projection value (from the token-meter). */
-interface TokenUsage {
-  uncachedInputTokens?: number
-  outputTokens?: number
-  cacheReadTokens?: number
-  cacheWriteTokens?: number
-}
-
-/** Select the current session's token usage — mirrors the TokenCritWidget.
- *  `projectionValues` is typed `Partial<SessionProjectionMap>` whose declared
- *  keys don't include `tokenUsage`, so read through the projection-value
- *  record like the floating widget does. */
-function selectUsage(s: SessionListState): TokenUsage | undefined {
-  const cid = s.current
-  if (!cid) return undefined
-  const byId = s.byId as Readonly<Record<string, SessionSummary>>
-  const entry = byId[cid]
-  if (!entry || !entry.projectionValues) return undefined
-  const values = entry.projectionValues as Record<string, unknown>
-  return values.tokenUsage as TokenUsage | undefined
+/** Select the current session's token usage — mirrors the TokenCritWidget. */
+function selectUsage(s: SessionListState): TokenUsageProjection | undefined {
+  const current = s.current
+  if (current === undefined) return undefined
+  return s.byId[current]?.projectionValues?.tokenUsage
 }
 
 /** Compact number formatting (1.2K / 3.4M / 1.1B). */

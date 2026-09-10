@@ -20,16 +20,17 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { CSSProperties, PointerEvent as ReactPointerEvent } from 'react'
+// Type-only: the `useSessions` standard-prop merge (ui-session) plus the
+// `tokenUsage` projection key this widget reads out of
+// `SessionSummary.projectionValues` — the projection map is merge-extensible,
+// so the owning package must be type-imported for its keys to exist (the same
+// import also brings the sibling `contextPressure` / `contextBreakdown` keys).
+import type {} from '@deepseek-ai/dsh-client-ui-session/client'
+import type { SessionListState } from '@deepseek-ai/dsh-api-session-controller/client'
+import type { PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
+import type { TokenUsageProjection } from '@deepseek-ai/dsh-token-meter/client'
 import { TokenCritFx, fmt } from './TokenCritFx'
 import css from './TokenCritWidget.module.css'
-
-/** Cumulative token-usage projection value (from the token-meter). */
-interface TokenUsage {
-  uncachedInputTokens?: number
-  outputTokens?: number
-  cacheReadTokens?: number
-  cacheWriteTokens?: number
-}
 
 /** Pointer-drag state. */
 interface DragState {
@@ -53,10 +54,10 @@ function clamp(v: number, lo: number, hi: number): number {
   return v < lo ? lo : v > hi ? hi : v
 }
 
-function selectUsage(s: any): TokenUsage | undefined {
-  const cid = s.current
-  const entry = cid ? s.byId[cid] : undefined
-  return entry && entry.projectionValues ? entry.projectionValues.tokenUsage : undefined
+function selectUsage(s: SessionListState): TokenUsageProjection | undefined {
+  const current = s.current
+  if (current === undefined) return undefined
+  return s.byId[current]?.projectionValues?.tokenUsage
 }
 
 function loadPos(): { x: number; y: number } | null {
@@ -328,7 +329,7 @@ const panelI18n = {
   },
 }
 
-export function TokenCritWidget(props: { useSessions: (sel: (s: any) => any) => any }) {
+export function TokenCritWidget(props: PropsRuntime<'shell.overlay'>) {
   const usage = props.useSessions(selectUsage)
 
   const input = usage

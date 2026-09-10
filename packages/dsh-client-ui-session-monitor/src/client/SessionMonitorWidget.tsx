@@ -141,7 +141,12 @@ function mapReasonKind(reason: string | undefined, base: ToastKind): ToastKind {
 }
 
 /** Why a session is waiting on the user (`PendingQuestion.kind` splits the
- *  plan-review presentation out of the generic question). */
+ *  plan-review presentation out of the generic question). The pending snapshot
+ *  types `kind` as a bare `string` (each domain owns its own vocabulary), so
+ *  this is a narrowing of the kinds the shipped domains publish today — only
+ *  `ui-approval` and `ui-user-questions` register pending interactions in
+ *  0.1.5. A future domain's kind would fall through {@link interactionKind} to
+ *  `question`; extend this union (and that mapping) when one appears. */
 type PendingInteractionStatus = 'approval' | 'question' | 'plan-review'
 
 /** One session list row plus the pending interaction joined from its own snapshot. */
