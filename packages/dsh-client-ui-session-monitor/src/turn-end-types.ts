@@ -26,7 +26,9 @@ export interface SessionMonitorTurnEnd {
   readonly reason: string
   /** Event wall time (Unix epoch milliseconds). */
   readonly at: number
-  /** Durable count of `turn/end` events in the log, this one included. */
+  /** Durable count of `turn/end` events in the log, this one included. The
+   *  fold covers the fork-inherited prefix too (whole-log convention), so a
+   *  forked session continues its parent's numbering. */
   readonly round: number
 }
 

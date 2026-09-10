@@ -24,9 +24,18 @@
  * consequences of folding the LOG rather than watching this process:
  *  - `round` is the durable count of `turn/end` events in the session's log,
  *    not a counter that starts at zero when the Host boots (the browser's
- *    "第 N 轮" is therefore correct across restarts).
- *  - the value exists for sessions that this process never saw end a turn,
- *    because the fold runs over the whole log.
+ *    "第 N 轮" is therefore correct across restarts). The fold starts at seq 0,
+ *    so a FORKED session's count includes its inherited prefix — the same
+ *    whole-log convention `sessionStats` uses. Counting only the turns since
+ *    the fork would need `init`'s `inheritedEventCount` subtracted, which is a
+ *    product decision, not a fold detail.
+ *  - the value exists for sessions this process never watched live, as long as
+ *    the unit has folded them (any event or read builds the cell by folding the
+ *    whole in-memory log). A COLD session's value comes from its persisted
+ *    checkpoint row instead — `dsh-session-projection-cache` flushes one on
+ *    every `turn/end` — so a session whose last turn ended before this unit was
+ *    registered has no usable row and reads as absent until a fuller read path
+ *    refolds it.
  * Bump `stateVersion` whenever the state shape or the fold semantics change, so
  * cached rows from the older unit are discarded instead of being
  * forward-applied into garbage.
@@ -34,7 +43,7 @@
  * @module @dsh-plugins/client-ui-session-monitor/turn-end-projection
  */
 
-import z from 'zod'
+import { z } from 'zod'
 import type { Context } from '@deepseek-ai/cordis'
 import type { SessionEvent } from '@deepseek-ai/dsh-session'
 import type { ProjectionDefinition } from '@deepseek-ai/dsh-session-projection'
