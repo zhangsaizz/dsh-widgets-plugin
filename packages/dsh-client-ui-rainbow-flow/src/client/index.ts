@@ -22,9 +22,10 @@
  *    opened from the widget manager ("Configure"), editing opacity / speed /
  *    mood in the shared settings store.
  *
- * The slot is declared by ui-conversation (`InputZone` owner share: the
- * point-in-time session/input snapshots), so all entries read
- * `props.session.running` directly — no Host RPC, no polling for state.
+ * The slot is declared by ui-conversation (`InputZone` owner share), so all
+ * entries read the session-scoped standard props (`useSession` for lifecycle,
+ * `useChat` for the live streaming snapshot) — no Host RPC, no polling for
+ * state.
  *
  * @module @dsh-plugins/client-ui-rainbow-flow/client
  */

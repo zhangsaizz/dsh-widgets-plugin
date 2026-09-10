@@ -50,6 +50,14 @@ export interface ModelDirectoriesLike {
   directoryFor(sessionId: SessionId): { store: ModelDirectoryStore }
 }
 
+/**
+ * Late-bound lookup for that source. The owning plugin
+ * (`@deepseek-ai/dsh-client-ui-model-selection`) is not a declared dependency, so
+ * the service may be absent when this plugin applies and may appear later; every
+ * read goes through this lookup instead of a value captured at apply time.
+ */
+export type ModelDirectoriesProvider = () => ModelDirectoriesLike | undefined
+
 const INITIAL: BalanceViewState = Object.freeze({
   phase: 'idle', provider: null, model: null, result: null, accounts: null,
 })
@@ -64,10 +72,13 @@ export class BalanceController implements HostObservable<BalanceViewState> {
   private readonly unsubSessions: () => void
   private readonly refreshIntervalMs: number
   private unsubModel: (() => void) | undefined
+  /** Session whose directory the model subscription is bound to. */
+  private boundModelSessionId: SessionId | undefined
   private timer: ReturnType<typeof setInterval> | undefined
   private generation = 0
   private disposed = false
-  /** Last session id the model subscription is bound to (avoid needless rebinds). */
+  /** Current session id last seen by `onSessionChange` (skips list mutations
+   *  that did not move the selection). */
   private lastSessionId: SessionId | undefined
   /** Whether the initial bind/reconcile already ran (the guard below must not
    *  skip the constructor's first call, where both ids are `undefined`). */
@@ -76,14 +87,15 @@ export class BalanceController implements HostObservable<BalanceViewState> {
   /**
    * @param remote - the generated balance Remote namespace.
    * @param sessions - client sessions service (current-selection feed).
-   * @param modelDirectories - optional reactive selection source (authoritative
-   *   current model for a session; absent when ui-model-selection is not mounted).
+   * @param modelDirectories - late-bound lookup for the optional model-selection
+   *   service (authoritative current model for a session; absent when
+   *   ui-model-selection is not mounted, and re-read on every use).
    * @param refreshIntervalMs - periodic refresh interval (clamped to ≥ 1s).
    */
   constructor(
     private readonly remote: BalanceRemote,
     private readonly sessions: ISessions,
-    private readonly modelDirectories: ModelDirectoriesLike | undefined,
+    private readonly modelDirectories: ModelDirectoriesProvider,
     refreshIntervalMs: number,
   ) {
     // Guard against a non-positive interval: setInterval would spin at
@@ -108,7 +120,7 @@ export class BalanceController implements HostObservable<BalanceViewState> {
   dispose(): void {
     this.disposed = true
     this.unsubSessions()
-    this.unsubModel?.()
+    this.unbindModelSource()
     if (this.timer !== undefined) clearInterval(this.timer)
   }
 
@@ -122,17 +134,43 @@ export class BalanceController implements HostObservable<BalanceViewState> {
     if (this.sessionBound && current === this.lastSessionId) return
     this.sessionBound = true
     this.lastSessionId = current
+    this.bindModelSource(current)
+    void this.reconcile()
+  }
+
+  /**
+   * Subscribe to the current session's model directory when the optional
+   * model-selection service is present. Called on every session change and on
+   * every reconcile, so a service that was absent at apply time — or a session
+   * scope minted later — still becomes the reactive source for `/model`
+   * switches instead of leaving the dashboard on a stale model until reload.
+   * @param sessionId - the session whose directory to follow, if any.
+   */
+  private bindModelSource(sessionId: SessionId | undefined): void {
+    // A reconcile can still be in flight (or a refresh() clicked) when the fiber
+    // unloads; re-subscribing then would outlive disposal.
+    if (this.disposed) return
+    if (sessionId === undefined) {
+      this.unbindModelSource()
+      return
+    }
+    if (this.unsubModel !== undefined && this.boundModelSessionId === sessionId) return
+    this.unbindModelSource()
+    const directories = this.modelDirectories()
+    if (directories === undefined) return
+    try {
+      this.unsubModel = directories.directoryFor(sessionId).store.subscribe(() => { void this.reconcile() })
+      this.boundModelSessionId = sessionId
+    } catch (_scopeNotReady) {
+      // The session scope is not minted yet; the poll timer re-attempts this.
+    }
+  }
+
+  /** Withdraw the model subscription, if any. */
+  private unbindModelSource(): void {
     this.unsubModel?.()
     this.unsubModel = undefined
-    if (current !== undefined && this.modelDirectories !== undefined) {
-      try {
-        const directory = this.modelDirectories.directoryFor(current)
-        this.unsubModel = directory.store.subscribe(() => { void this.reconcile() })
-      } catch (_scopeNotReady) {
-        // The session scope is not minted yet; the poll timer still covers it.
-      }
-    }
-    void this.reconcile()
+    this.boundModelSessionId = undefined
   }
 
   /** Resolve the authoritative selection, then query and publish the answer. */
@@ -143,6 +181,9 @@ export class BalanceController implements HostObservable<BalanceViewState> {
       this.publish({ phase: 'no-session', provider: null, model: null, result: null, accounts: null })
       return
     }
+    // Re-attempt the model subscription here as well: the service may have been
+    // absent when the session was bound (see bindModelSource).
+    this.bindModelSource(sessionId)
     let selected: ModelSelection | undefined
     try {
       selected = this.resolveSelection(sessionId)
@@ -226,15 +267,21 @@ export class BalanceController implements HostObservable<BalanceViewState> {
 
   /** Read the session's effective selection from the shared model directory. */
   private resolveSelection(sessionId: SessionId): ModelSelection | undefined {
-    // The directory service is optional (ui-model-selection may be absent) and
-    // `directoryFor` throws until the session scope is minted, so both the
-    // absent-service and the not-yet-scoped case resolve to "no selection".
-    if (this.modelDirectories === undefined) return undefined
+    const directories = this.modelDirectories()
+    // The directory service is optional (ui-model-selection may be absent); its
+    // absence means "no model known yet", not a failed read.
+    if (directories === undefined) return undefined
+    let directory: ReturnType<ModelDirectoriesLike['directoryFor']>
     try {
-      return this.modelDirectories.directoryFor(sessionId).store.getSnapshot().current ?? undefined
+      directory = directories.directoryFor(sessionId)
     } catch (_scopeNotReady) {
+      // The session scope is not minted yet; the poll timer retries, so this
+      // round reports "no selection" rather than a query failure.
       return undefined
     }
+    // Past the scope check a throw is a genuine failure: it propagates so the
+    // caller publishes the explicit error state instead of a silent "no model".
+    return directory.store.getSnapshot().current ?? undefined
   }
 
   /** Replace the view and drop stale work when the fiber unloads. */

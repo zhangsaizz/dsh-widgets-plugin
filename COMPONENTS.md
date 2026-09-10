@@ -99,6 +99,13 @@
     注册进小组件管理声明的 `widgets.config` 子槽；管理器缺席时自动跳过）。
   - `BalanceController`：以 `ctx.get('remote.balance')` 为源，跟随当前会话 + 模型，
     `REFRESH_INTERVAL_MS = 30_000` 固定轮询，暴露 `refresh()`。
+  - **当前模型的来源**：`ctx.modelDirectories`（ui-model-selection 的
+    `directoryFor(sessionId).store`，即 composer `/model` 座位显示的同一份状态）。
+    该服务**不属于本插件的声明依赖**：不在 `dsh.client.inject`，也不在
+    `peerDependencies`，因为它只在 web app bundle 里随 ui-model-selection 出现。
+    因此 controller 收的是**延迟查找函数**（`ModelDirectoriesProvider`），
+    每次绑定 / 对账重新 `ctx.get`：服务当时缺席、或会话作用域稍后才铸造，都会在
+    下一次绑定或轮询（≤30s）自愈，而不会把「未选择模型」永久钉在面板上。
   - **视觉**：看板面板 / 收起胶囊 / 多账户悬停提示用**液态玻璃**材质——与
     彩虹流光输入框同一配方（165° 半透明白渐变 + `blur(5px) saturate(1.35)`
     磨砂 + 1px 边缘反光 + 柔和投影，`--bal-glass-*` token 主题感知，
@@ -133,7 +140,8 @@
   `BalanceAccountData`、`BalanceAccount`、`BalanceQueryResult`、`BalanceListResult`、
   `BalanceBindingConfig`（`./types`）、client 面 `BalanceController`、`BalancePhase`、
   `BalanceRemote`、`BalanceViewState`、`BalanceWidgetProps`、`BalanceInject`、
-  `BalanceSettingsInjected`、`BalanceKey`、`createBalanceViewStore`（`./client` 类型面）。
+  `BalanceSettingsInjected`、`BalanceKey`、`createBalanceViewStore`、`ModelDirectoriesLike`、
+  `ModelDirectoriesProvider`（`./client` 类型面）。
 - 依赖：`zod`、`@deepseek-ai/schemastery`、`@deepseek-ai/dsh-settings`（deps）；
   `@deepseek-ai/cordis`、`dsh-credentials`、`dsh-invariants`、`dsh-typert-protocol`、
   `dsh-api-remotes`、`dsh-api-session-controller`、`dsh-client-store`、
@@ -686,6 +694,7 @@ graph LR
 | `@deepseek-ai/dsh-api-session-controller` | balance、client-ui-token-crit、client-ui-session-monitor（`ISessions` / `SessionListState` / `SessionSummary`） |
 | `@deepseek-ai/dsh-client-ui-session` | client-ui-token-crit、client-ui-session-monitor、client-ui-rainbow-flow（会话作用域标准 prop） |
 | `@deepseek-ai/dsh-client-ui-chat` | client-ui-rainbow-flow（`useChat` 实时会话快照） |
+| `@deepseek-ai/dsh-client-ui-model-selection` | balance（**可选**：当前模型经 `ctx.get('modelDirectories')` 延迟读取，不在 inject / peer 里；缺席时看板显示「未选择模型」） |
 | `@deepseek-ai/dsh-client-ui-layout` | balance、client-ui-token-crit、client-ui-session-monitor、client-ui-card-container、client-ui-widget-manager（`shell.overlay` 类型合并） |
 | `@deepseek-ai/dsh-client-ui-conversation` | client-ui-rainbow-flow（`conversation.input.left` 类型合并） |
 | `@deepseek-ai/dsh-client-locale` | balance、client-ui-session-monitor、client-ui-card-container、client-ui-widget-manager |

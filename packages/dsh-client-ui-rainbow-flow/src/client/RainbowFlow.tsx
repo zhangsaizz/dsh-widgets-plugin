@@ -34,10 +34,11 @@
  *  - `RainbowFlowSend` — the send/stop button beautification probe (see its
  *    own doc block below).
  *
- * All entries read the owner share `InputZone` (point-in-time snapshots
- * re-rendered on store change), so no subscription is needed for the running
- * bit. The toggle store uses `useSyncExternalStore` so the entries stay in
- * sync without a Host round-trip.
+ * All entries read the owner share `InputZone` plus the session-scoped standard
+ * props: `useSession` for the running bit and `useChat` for the live streaming
+ * snapshot (both are selector hooks, so each entry re-renders only on its own
+ * selection). The toggle store uses `useSyncExternalStore` so the entries stay
+ * in sync without a Host round-trip.
  *
  * @module @dsh-plugins/client-ui-rainbow-flow/client
  */

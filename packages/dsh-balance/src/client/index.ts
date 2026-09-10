@@ -50,7 +50,7 @@ import { createBalanceViewStore } from './store.ts'
 import { en, zh } from './locales.ts'
 import type { BalanceKey } from './locales.ts'
 
-export type { BalanceController, BalancePhase, BalanceRemote, BalanceViewState, ModelDirectoriesLike } from './controller.ts'
+export type { BalanceController, BalancePhase, BalanceRemote, BalanceViewState, ModelDirectoriesLike, ModelDirectoriesProvider } from './controller.ts'
 export type { BalanceInject, BalanceWidgetProps } from './BalanceWidget.tsx'
 export type { BalanceCardInject } from './BalanceCard.tsx'
 export type { BalanceSettingsInjected } from './BalanceSettings.tsx'
@@ -75,7 +75,9 @@ export const REFRESH_INTERVAL_MS = 30_000
  * Required services: the Remote mount service, overlay slots, sessions, and
  * locale. `remote.balance` is intentionally absent: it is provided by this same
  * apply via `$mount`, and cordis would treat a declared inject of it as an
- * unmet dependency (see the module header).
+ * unmet dependency (see the module header). `modelDirectories` is absent too:
+ * it belongs to the optional ui-model-selection plugin and is read late-bound
+ * through a lookup (see the controller).
  */
 export const inject = ['remote', 'slots', 'sessions', 'locale']
 
@@ -96,7 +98,10 @@ export async function apply(ctx: ClientContext): Promise<void> {
   const controller = new BalanceController(
     ctx.get('remote.balance') as BalanceRemote,
     ctx.sessions,
-    ctx.get('modelDirectories') as ModelDirectoriesLike | undefined,
+    // Late-bound on purpose: ui-model-selection is not a declared dependency of
+    // this plugin, so the service may be absent now and appear later; the
+    // controller re-reads it on every bind and reconcile.
+    () => ctx.get('modelDirectories') as ModelDirectoriesLike | undefined,
     REFRESH_INTERVAL_MS,
   )
 
