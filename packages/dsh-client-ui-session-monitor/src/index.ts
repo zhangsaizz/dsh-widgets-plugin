@@ -24,6 +24,7 @@ import type {} from '@deepseek-ai/dsh-host-webserver'
 import type {} from '@deepseek-ai/dsh-settings'
 import type { Session } from '@deepseek-ai/dsh-session'
 import { buildDesktopSnapshot, eventsOf, lastTitle } from './desktop-snapshot.ts'
+import { installTurnEndProjection } from './turn-end-projection.ts'
 import { MONITOR_SETTINGS_NS, MonitorSettingsSchema } from './desktop-settings.ts'
 import type { MonitorSettingsWire } from './desktop-settings.ts'
 import { INBOX_NS, InboxStoreSchema, NotificationStore } from './desktop-notifications.ts'
@@ -220,6 +221,12 @@ function clampSettingsWire(body: Record<string, unknown>): Record<string, unknow
 export function apply(ctx: Context): void {
   const store = new TurnEndStore()
   const inbox = new NotificationStore()
+  // Register the framework-native `sessionMonitorTurnEnd` projection alongside
+  // the in-memory store above (see ./turn-end-projection.ts). Both are fed by
+  // the same committed events today; the projection is what lets browser
+  // clients read turn-end reasons off `SessionSummary.projectionValues`
+  // instead of polling STATUS_ROUTE.
+  installTurnEndProjection(ctx)
   /** Open-turn depth per session (turn/start +1, turn/end −1) — drives the
    *  "subagent finished" edge (only the LAST turn end of a child notifies). */
   const turnDepth = new Map<string, number>()

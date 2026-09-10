@@ -278,8 +278,22 @@
   `session/title`（P2 标题变更）、`session/created`（P2 新会话，子代理跳过）、
   子代理最后回合结束（turn 深度归零 → 父会话 `subagent` 通知）、**host 工具调用
   检测 question/plan-review**（`ask_user_question` / `exit_plan_mode` 的
-  `tool/call` → `tool/result` 即等待生命周期，纯桌面可见）+ 网页 relay 幂等备份；
-  经 `ctx.inject(['webServer', 'sessions', 'settings'])`
+  `tool/call` → `tool/result` 即等待生命周期，纯桌面可见）+ 网页 relay 幂等备份。
+- **`sessionMonitorTurnEnd` 会话投影**（`src/turn-end-projection.ts` +
+  `src/turn-end-types.ts`，**与上面的内存表并行**）：把同一件事实（最新一次
+  `turn/end` 的 `{ reason, at, round }`）改成注册进 harness 的
+  `ctx.sessionProjections`，于是订阅、按会话水位缓存、持久化检查点
+  （`(sessionId, key, ver, seq, val)`，重启后仍在、冷会话也能读）与客户端变更
+  通知都由框架负责；`wire` 视图让它随
+  `SessionSummary.projectionValues.sessionMonitorTurnEnd` 直达每个浏览器客户端，
+  网页半因此**不必再轮询 `status`**（该路由保留给桌面壳页面，也作为未组合
+  `dsh-session-projection` 时的回退）。两处**有意**的语义差异：`round` 是**日志
+  累计**的 `turn/end` 次数（不是 Host 启动后从 0 起的计数），且进程没见过的会话
+  也有值；改状态形状或折叠语义时必须递增 `stateVersion`。类型面拆到
+  `turn-end-types.ts`（只 type-only 引 `dsh-session-projection/types`），Host 侧
+  单元才引 zod 与注册表——客户端 bundle 因此不含该模块、也不内联 zod（已验证）。
+  注册用 `ctx.inject(['sessionProjections'], …)` 可选挂载，注册随 fiber 卸载撤销。
+- Host 半的路由挂载：经 `ctx.inject(['webServer', 'sessions', 'settings'])`
   可选挂载九条路由（webServer 缺席时跳过；`sessions`/`settings` 不注入会抛
   "cannot get property without inject"——踩过）：
   - `/_dsh/session-monitor/status`（GET → `{ ok, value: { sessions: { id: {
@@ -448,9 +462,12 @@
 - 类型面：`SessionMonitorWidgetProps`、`SessionMonitorInject`、`SessionSettingsInjected`、
   `SessionMonitorKey`、`MonitorSettings` + `DEFAULT_SETTINGS` / `loadSettings` /
   `saveSettings`（`./client` 类型面）。
-- 依赖：`@dsh-plugins/client-ui-widget-manager`（type-only，peer）；`@deepseek-ai/cordis`、
+- 依赖：`@dsh-plugins/client-ui-widget-manager`（type-only，peer）；`zod`（deps，投影
+  状态/线协议 schema）；`@deepseek-ai/cordis`、
   `dsh-api-session-controller`、`dsh-client-ui-renderer`、`dsh-client-ui-session`、
   `dsh-client-ui-layout`、`dsh-client-ui-slots`、`dsh-client-locale`、
+  `dsh-session-projection`（Host 半投影注册表 + 类型面，peer——**可选组合**：
+  缺席时 `installTurnEndProjection` 不注册，仅保留路由路径）、
   `dsh-session`（Host 半 `session/event` 类型，peer）、`react`（peer）。
 - 构建：Host → `lib/index.js`（ESM，外部化）；Client → `lib/client.js`
   （ModuleLoader CJS + 内联 CSS，Vite library mode）。
@@ -706,6 +723,8 @@ graph LR
 | `@deepseek-ai/dsh-client-ui-renderer` | 全部 6 个客户端包（`ctx.slots` 的 Context 合并，承接退役的 `dsh-client-runtime`） |
 | `@deepseek-ai/dsh-client-store` | balance（`defineStore` / `createSnapshotStore` 等 store API） |
 | `@deepseek-ai/dsh-token-meter` | client-ui-token-crit（**type-only**：`tokenUsage` / `contextPressure` 等投影键与 `TokenUsageProjection` 的类型来源；读的是 Host 推送的投影值，不需要该模块先加载） |
+| `@deepseek-ai/dsh-session-projection` | client-ui-session-monitor（Host 半：`ctx.sessionProjections` 注册 `sessionMonitorTurnEnd` 投影单元 + 投影表类型面；**可选组合**，缺席时该注册跳过） |
+| `zod` | balance（typert 生成产物）、client-ui-session-monitor（投影 state/wire schema，deps） |
 | `@deepseek-ai/dsh-api-session-controller` | balance、client-ui-token-crit、client-ui-session-monitor（`ISessions` / `SessionListState` / `SessionSummary`） |
 | `@deepseek-ai/dsh-client-ui-session` | client-ui-token-crit、client-ui-session-monitor、client-ui-rainbow-flow（会话作用域标准 prop） |
 | `@deepseek-ai/dsh-client-ui-chat` | client-ui-rainbow-flow（`useChat` 实时会话快照） |
