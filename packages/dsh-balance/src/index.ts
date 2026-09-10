@@ -11,6 +11,8 @@
 
 import type { Context } from '@deepseek-ai/cordis'
 import z from '@deepseek-ai/schemastery'
+// Type-only: pulls the host `ctx.settings` (SettingsProvider) Context merge.
+import type {} from '@deepseek-ai/dsh-settings'
 import { BalanceRuntime } from './runtime.ts'
 import type { BalanceBindingConfig } from './types.ts'
 import { BalanceWebBackend, installBalanceWeb } from './web.ts'

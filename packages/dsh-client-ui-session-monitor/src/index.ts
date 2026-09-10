@@ -20,6 +20,8 @@
 import type { Context } from '@deepseek-ai/cordis'
 // Type-only: pulls the `webServer` service merge onto Context (dsh-host-webserver).
 import type {} from '@deepseek-ai/dsh-host-webserver'
+// Type-only: pulls the host `ctx.settings` (SettingsProvider) Context merge.
+import type {} from '@deepseek-ai/dsh-settings'
 import type { Session } from '@deepseek-ai/dsh-session'
 import { buildDesktopSnapshot, eventsOf, lastTitle } from './desktop-snapshot.ts'
 import { MONITOR_SETTINGS_NS, MonitorSettingsSchema } from './desktop-settings.ts'

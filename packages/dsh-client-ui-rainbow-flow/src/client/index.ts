@@ -29,10 +29,16 @@
  * @module @dsh-plugins/client-ui-rainbow-flow/client
  */
 
-import type { ClientContext } from '@deepseek-ai/dsh-client-runtime/client'
+import type { Context as ClientContext } from '@deepseek-ai/cordis'
 // Type-only: pulls the `conversation.input.left`/`.right` SlotMap merge from
 // ui-conversation (its InputZone owner contract).
 import type {} from '@deepseek-ai/dsh-client-ui-conversation/client'
+// Type-only: pulls the `ctx.slots` (SlotRegistry) Context merge from ui-renderer.
+import type {} from '@deepseek-ai/dsh-client-ui-renderer/client'
+// Type-only: pulls the session-scope `useSession` kit (ui-session) and the
+// `useChat` standard prop (ui-chat) the glow's rate sampler reads.
+import type {} from '@deepseek-ai/dsh-client-ui-session/client'
+import type {} from '@deepseek-ai/dsh-client-ui-chat/client'
 // Type-only: pulls the locale plugin's Context merge (ctx.locale).
 import type {} from '@deepseek-ai/dsh-client-locale/client'
 // Type-only: pulls the `widgets.config` SlotMap merge declared by the widget

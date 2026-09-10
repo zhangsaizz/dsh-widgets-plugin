@@ -15,7 +15,6 @@
  */
 
 import z from '@deepseek-ai/schemastery'
-import { settingsNamespace } from '@deepseek-ai/dsh-settings'
 
 /** Server-side mirror of the client `MonitorSettings` shape (see
  *  `src/client/settings.ts`); every field the web config panel edits. */
@@ -54,7 +53,7 @@ export interface MonitorSettingsWire {
 }
 
 /** Settings namespace owning the shared session-monitor options. */
-export const MONITOR_SETTINGS_NS = settingsNamespace('session-monitor')
+export const MONITOR_SETTINGS_NS = 'session-monitor'
 
 /** Schema for the shared settings section. Defaults mirror the client
  *  `DEFAULT_SETTINGS` so an absent section resolves identically on both sides. */

@@ -53,7 +53,7 @@
 
 import type { PropsRuntime, SlotComponent, TranslateNS } from '@deepseek-ai/dsh-client-ui-slots'
 import { resolveSlotLabel } from '@deepseek-ai/dsh-client-ui-slots'
-import type { ClientContext } from '@deepseek-ai/dsh-client-runtime/client'
+import type { Context as ClientContext } from '@deepseek-ai/cordis'
 import type { CardContainerKey } from './locales.ts'
 
 /** Standard composed props for any `widgets.card` entry: the framework's

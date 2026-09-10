@@ -12,10 +12,14 @@
  * @module @dsh-plugins/client-ui-session-monitor/client
  */
 
-import type { ClientContext } from '@deepseek-ai/dsh-client-runtime/client'
-import type { SessionId } from '@deepseek-ai/dsh-client-runtime/client'
+import type { Context as ClientContext } from '@deepseek-ai/cordis'
+import type { SessionId } from '@deepseek-ai/dsh-session/types'
+// Type-only: pulls the client session contract (`ctx.sessions`, ISessions).
+import type {} from '@deepseek-ai/dsh-api-session-controller/client'
 // Type-only: pulls the shell.overlay SlotMap merge from ui-layout.
 import type {} from '@deepseek-ai/dsh-client-ui-layout/client'
+// Type-only: pulls the `ctx.slots` (SlotRegistry) Context merge from ui-renderer.
+import type {} from '@deepseek-ai/dsh-client-ui-renderer/client'
 // Type-only: pulls the locale plugin's Context merge (ctx.locale).
 import type {} from '@deepseek-ai/dsh-client-locale/client'
 // Type-only: pulls the `widgets.config` SlotMap merge declared by the widget

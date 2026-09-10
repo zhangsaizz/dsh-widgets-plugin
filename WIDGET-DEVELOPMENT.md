@@ -35,9 +35,11 @@ export function apply(): void {}
 `src/client/index.ts`（浏览器半，核心是向 `shell.overlay` 注册一个条目）：
 
 ```ts
-import type { ClientContext } from '@deepseek-ai/dsh-client-runtime/client'
+import type { Context as ClientContext } from '@deepseek-ai/cordis'
 // Type-only: 拉入 shell.overlay 槽的类型合并（ui-layout 声明）。
 import type {} from '@deepseek-ai/dsh-client-ui-layout/client'
+// Type-only: 拉入 `ctx.slots`（SlotRegistry）的 Context 类型合并（ui-renderer 声明）。
+import type {} from '@deepseek-ai/dsh-client-ui-renderer/client'
 // Type-only: 拉入 locale 插件的 ctx.locale 类型合并。
 import type {} from '@deepseek-ai/dsh-client-locale/client'
 import { ClockWidget } from './ClockWidget.tsx'
@@ -107,7 +109,7 @@ export function ClockWidget({ t }: ClockWidgetProps) {
   "dsh": {
     "client": {                              // 浏览器插件声明：加载顺序 + 平台
       "inject": [
-        "@deepseek-ai/dsh-client-runtime",
+        "@deepseek-ai/dsh-client-ui-renderer",
         "@deepseek-ai/dsh-client-ui-layout",
         "@deepseek-ai/dsh-client-locale"
       ],
@@ -117,10 +119,10 @@ export function ClockWidget({ t }: ClockWidgetProps) {
   "files": ["lib"],
   "peerDependencies": {
     "@deepseek-ai/cordis": "^4.0.1",
-    "@deepseek-ai/dsh-client-runtime": "^0.1.1-rc.2",
-    "@deepseek-ai/dsh-client-ui-layout": "^0.1.1-rc.2",
-    "@deepseek-ai/dsh-client-ui-slots": "^0.1.1-rc.2",
-    "@deepseek-ai/dsh-client-locale": "^0.1.1-rc.2",
+    "@deepseek-ai/dsh-client-ui-renderer": "^0.1.5-rc.1",
+    "@deepseek-ai/dsh-client-ui-layout": "^0.1.5-rc.1",
+    "@deepseek-ai/dsh-client-ui-slots": "^0.1.5-rc.1",
+    "@deepseek-ai/dsh-client-locale": "^0.1.5-rc.1",
     "react": "^18.2.0"
   }
 }
@@ -337,8 +339,9 @@ packages/dsh-client-ui-clock/
 
 ```ts
 // src/client/index.ts（合并 1.1 + 2.4 的要点）
-import type { ClientContext } from '@deepseek-ai/dsh-client-runtime/client'
+import type { Context as ClientContext } from '@deepseek-ai/cordis'
 import type {} from '@deepseek-ai/dsh-client-ui-layout/client'
+import type {} from '@deepseek-ai/dsh-client-ui-renderer/client'
 import type {} from '@deepseek-ai/dsh-client-locale/client'
 import type {} from '@dsh-plugins/client-ui-widget-manager/client'   // widgets.config 类型
 import { ClockWidget } from './ClockWidget.tsx'

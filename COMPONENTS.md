@@ -87,8 +87,8 @@
   4. 挂 `/_dsh/balance/settings` Web 后端（`BalanceWebBackend`，GET 脱敏快照 /
      POST 乐观并发保存，`webServer` 缺席时跳过）。
   - 所有注册都是本 fiber 的 effect，卸载级联撤回。
-- 浏览器半 `src/client/index.ts`：`inject = ['remote', 'slots', 'sessions', 'connection',
-  'locale']`（**不含 `remote.balance`**——由本插件自己 `$mount` 提供；cordis 会把
+- 浏览器半 `src/client/index.ts`：`inject = ['remote', 'slots', 'sessions', 'locale']`
+  （**不含 `remote.balance`**——由本插件自己 `$mount` 提供；cordis 会把
   声明式 inject 沿 fiber 父链解析，而 `$mount` 的贡献在旁支 fiber，声明反而会卡死插件，
   所以挂载后经 `ctx.get('remote.balance')` 按 store 直读，不经属性解析）：
   - `await ctx.remote.$mount(TYPERT_REMOTE)` 先挂 Remote，再注册：
@@ -121,9 +121,10 @@
 - 配置（`Config`）：`requestTimeoutMs`（默认 10000）、`newApiBaseURL`（默认
   `http://localhost:3000`）、`bindings[]`（`provider` + `vendor` + `credentialRef`
   或 `credential` + 可选 `baseURL`）。
-- 设置区（`src/settings.ts`）：`BALANCE_SETTINGS_NS = settingsNamespace('balance')`；
-  `BalanceSettingsSchema = { bindings[] }`；`bindingSchema`（credential 带 `secret`
-  role、credentialRef 带 `credential-ref` role）。
+- 设置区（`src/settings.ts`）：`BALANCE_SETTINGS_NS = 'balance'`（纯字面量，经
+  `SettingsNamespaceInput` 校验；`@deepseek-ai/dsh-settings` 仅 type-only import 拉入
+  `ctx.settings` 类型合并）；`BalanceSettingsSchema = { bindings[] }`；`bindingSchema`
+  （credential 带 `secret` role、credentialRef 带 `credential-ref` role）。
 - Web 后端（`src/web.ts`）：`SETTINGS_ROUTE = '/_dsh/balance/settings'`（`webServer`
   精确路由）——GET 返回脱敏快照，POST `save`（`expectedRevision` 乐观并发，留空
   凭据 = 保留原值）。
@@ -135,7 +136,8 @@
   `BalanceSettingsInjected`、`BalanceKey`、`createBalanceViewStore`（`./client` 类型面）。
 - 依赖：`zod`、`@deepseek-ai/schemastery`、`@deepseek-ai/dsh-settings`（deps）；
   `@deepseek-ai/cordis`、`dsh-credentials`、`dsh-invariants`、`dsh-typert-protocol`、
-  `dsh-api-remotes`、`dsh-client-runtime`、`dsh-client-locale`、`dsh-client-ui-layout`、
+  `dsh-api-remotes`、`dsh-api-session-controller`、`dsh-client-store`、
+  `dsh-client-ui-renderer`、`dsh-client-locale`、`dsh-client-ui-layout`、
   `dsh-client-ui-slots`、`@dsh-plugins/client-ui-widget-manager`（type-only，peer）、
   `react`（peer）。
 - 构建：Host → `lib/index.js`（ESM，外部化，esbuild）；Client → `lib/client.js`
@@ -193,7 +195,7 @@
   token 主题感知，`prefers-color-scheme: light` 换浅色玻璃）。
 - 字典 NS `card-container`（zh / en），经 `LocaleNamespaceMap` 类型合并声明。
 - 依赖：`@dsh-plugins/client-ui-widget-manager`（type-only，peer）；`@deepseek-ai/cordis`、
-  `dsh-client-runtime`、`dsh-client-ui-layout`、`dsh-client-ui-slots`、
+  `dsh-client-ui-renderer`、`dsh-client-ui-layout`、`dsh-client-ui-slots`、
   `dsh-client-locale`、`react`（peer）。
 - 构建：Host → `lib/index.js`（ESM，外部化，空 apply）；Client → `lib/client.js`
   （ModuleLoader CJS + 内联 CSS，Vite library mode）。
@@ -282,7 +284,7 @@
     错误栈（便于排障）。全部路由均带宽松 CORS（`Access-Control-Allow-Origin: *`
     ——桌面壳的 `tauri://localhost` 启动探测页需要跨源探测）；
   - `/_dsh/session-monitor/settings`（GET 快照 / POST 替换）：**共享设置存储**——
-    `src/desktop-settings.ts` 用 `settingsNamespace('session-monitor')` +
+    `src/desktop-settings.ts` 用 `MONITOR_SETTINGS_NS = 'session-monitor'` +
     `MonitorSettingsSchema`（镜像客户端 `MonitorSettings` 全 12 字段，默认值与
     网页版 `DEFAULT_SETTINGS` 一致）注册到 `ctx.settings`（持久化进 harness
     settings 文档）。桌面挂件直读直写；网页客户端半镜像同步（见下）。
@@ -427,8 +429,9 @@
   `SessionMonitorKey`、`MonitorSettings` + `DEFAULT_SETTINGS` / `loadSettings` /
   `saveSettings`（`./client` 类型面）。
 - 依赖：`@dsh-plugins/client-ui-widget-manager`（type-only，peer）；`@deepseek-ai/cordis`、
-  `dsh-client-runtime`、`dsh-client-ui-layout`、`dsh-client-ui-slots`、
-  `dsh-client-locale`、`dsh-session`（Host 半 `session/event` 类型，peer）、`react`（peer）。
+  `dsh-api-session-controller`、`dsh-client-ui-renderer`、`dsh-client-ui-session`、
+  `dsh-client-ui-layout`、`dsh-client-ui-slots`、`dsh-client-locale`、
+  `dsh-session`（Host 半 `session/event` 类型，peer）、`react`（peer）。
 - 构建：Host → `lib/index.js`（ESM，外部化）；Client → `lib/client.js`
   （ModuleLoader CJS + 内联 CSS，Vite library mode）。
 
@@ -436,7 +439,7 @@
 
 - 包：`@dsh-plugins/client-ui-rainbow-flow`（`packages/dsh-client-ui-rainbow-flow`），**纯 UI**。
 - Host 半（`src/index.ts`）：空 apply（surface 占位）。
-- Client 半（`src/client/index.ts`）：`inject = ['slots']`，在
+- Client 半（`src/client/index.ts`）：`inject = ['slots', 'locale']`，在
   `conversation.input.left`（ui-conversation 声明的输入框工具行席位，
   `InputZone` owner 契约）注册两个条目：
   - id `rainbow-flow-glow`，order **99** → `RainbowFlowGlow`：会话运行中时，
@@ -487,8 +490,8 @@
     `position:relative`），自动跟随卡片高度，无需测量；
   - id `rainbow-flow-toggle`，order **100** → `RainbowFlowToggle`：工具行左端
     **液态玻璃质感**彩虹小圆点开关（半透明渐变 + blur + 顶部高光；关闭时圆点
-    变灰），右上角状态点随 `session.running` 变绿；开关状态经模块级 store +
-    `useSyncExternalStore` 与光环共享，持久化到 `localStorage`
+    变灰），右上角状态点随 `useSession((s) => s.running)` 变绿；开关状态经模块级
+    store + `useSyncExternalStore` 与光环共享，持久化到 `localStorage`
     （`dsh.rnglow.enabled`，默认开）。
   - 另注册 `widgets.config`，id **`rainbow-flow`**，order **0** →
     `RainbowFlowSettings`（`src/client/SettingsPanel.tsx`）：小组件管理页「配置」
@@ -550,8 +553,8 @@
     的 reasoning 块、非工具卡），归类为新增的 **`think`**（淡紫 `--rf-tool-think`
     `#c084fc`）并同款上色。全套 12 色**一色一家族、明显可区分**（暖色系 绿/黄/橙/棕，
      冷色系 蓝→青→靛→紫→淡紫 逐一错开，红色专属 ask，仅 other 为灰）；**每类颜色可按用户配置自定义**（经 `settings.ts` 的 `toolColors` → 本模块写成 `<html>` 内联 `--rf-tool-*`，覆盖样式表 `:root` 默认并实时生效，配置面板「命令文字颜色」编辑）；**最新行动（命令/思考）被彩虹扫过（正文除外）**（会话里**最新的一条**——命令卡或 `data-variant="think"` 思考行，`setLatest` 在 `[data-tool]` 与 `[data-variant="think"]` 的并集取最晚标 `data-rf-latest`——其 `_title`/`_summary`/`_fileLink` 被 `ToolAccent.css` 的**流动彩虹渐变**（`background-clip: text`）扫过每个字符，输出正文不参与；**跟随最新行动持续**（read/edit 等秒完的命令也亮），直到**其后出现正文回复**（flow-item 结构精确判定）才熄灭）——纯 CSS、不重渲染 DOM、`prefers-reduced-motion` 冻结为静态彩虹；**受 `commandSweep` 开关控制**（本模块把设置写成 `<html>` 的 `data-rf-sweep='on'|'off'` 门控；`setLatest` **每次从 DOM 确定性重算** `[data-tool]`/`[data-variant="think"]` 并集里最晚一行来标 `data-rf-latest`，并据 flow-item 结构判定其后方是否出现正文回复（无 sticky 状态，无 `textContent` 误判）——扫字选择器只用并集标出的 `data-rf-latest`，故**独立于 `commandColor` 上色开关**）。命令上色本身**受 `commandColor` 开关控制**（关掉时本模块停止打标签并清除已有 `data-rf-tool-cat`/`title`，命令卡恢复原厂外观）。
-- **呼吸节奏随 token 速率**：光环组件内 500ms 采样 `session.partial`（流式输出
-  内容）文本长度增量 → 估算每秒输出 token 数（约 2 字符/token，EMA 平滑）
+- **呼吸节奏随 token 速率**：光环组件内 500ms 采样 `useChat((c) => c.legacy.partial)`
+  （流式输出内容）文本长度增量 → 估算每秒输出 token 数（约 2 字符/token，EMA 平滑）
   → 映射呼吸周期 5s（慢）↔ 1s（快）——静止时是舒缓的深呼吸、峰值输出时是
   轻快的急促呼吸；思考/工具调用间隙平滑回落；运动模型抽在纯
   模块 `src/client/rate.ts`（`rateToDuration` / `rateToSpeed` / `easeSpeed`，
@@ -579,9 +582,10 @@
   完整，同样不染色输入）；不支持 `backdrop-filter` 的浏览器仍保留半透明
   白玻璃（磨砂模糊是增强）；`prefers-reduced-motion` 下 JS 跳过 rAF 循环、
   渲染单帧静态中间呼吸位（matchMedia `change` 监听实时响应系统设置切换）。
-- 依赖：`@deepseek-ai/cordis`、`dsh-client-runtime`、
-  `dsh-client-ui-conversation`（`conversation.input.left`/`.right` 类型合并，peer）、
-  `dsh-client-ui-slots`、`react`（peer）。
+- 依赖：`@deepseek-ai/cordis`、`dsh-client-ui-renderer`、
+  `dsh-client-ui-session` / `dsh-client-ui-chat`（`useSession` / `useChat` 会话作用域
+  标准 prop，peer）、`dsh-client-ui-conversation`（`conversation.input.left`/`.right`
+  类型合并，peer）、`dsh-client-ui-slots`、`react`（peer）。
 - 构建：Host → `lib/index.js`（ESM，外部化，空 apply）；Client →
   `lib/client.js`（ModuleLoader CJS + 内联 CSS，Vite library mode）。
 
@@ -677,7 +681,11 @@ graph LR
 | `@deepseek-ai/dsh-credentials` / `dsh-typert-protocol` | balance |
 | `@deepseek-ai/dsh-settings` | balance（设置区 + Web 后端） |
 | `@deepseek-ai/dsh-api-remotes` | balance（client） |
-| `@deepseek-ai/dsh-client-runtime` | balance、client-ui-token-crit、client-ui-session-monitor、client-ui-card-container、client-ui-rainbow-flow、client-ui-widget-manager |
+| `@deepseek-ai/dsh-client-ui-renderer` | 全部 6 个客户端包（`ctx.slots` 的 Context 合并，承接退役的 `dsh-client-runtime`） |
+| `@deepseek-ai/dsh-client-store` | balance（`defineStore` / `createSnapshotStore` 等 store API） |
+| `@deepseek-ai/dsh-api-session-controller` | balance、client-ui-token-crit、client-ui-session-monitor（`ISessions` / `SessionListState` / `SessionSummary`） |
+| `@deepseek-ai/dsh-client-ui-session` | client-ui-token-crit、client-ui-session-monitor、client-ui-rainbow-flow（会话作用域标准 prop） |
+| `@deepseek-ai/dsh-client-ui-chat` | client-ui-rainbow-flow（`useChat` 实时会话快照） |
 | `@deepseek-ai/dsh-client-ui-layout` | balance、client-ui-token-crit、client-ui-session-monitor、client-ui-card-container、client-ui-widget-manager（`shell.overlay` 类型合并） |
 | `@deepseek-ai/dsh-client-ui-conversation` | client-ui-rainbow-flow（`conversation.input.left` 类型合并） |
 | `@deepseek-ai/dsh-client-locale` | balance、client-ui-session-monitor、client-ui-card-container、client-ui-widget-manager |
@@ -800,6 +808,6 @@ Host 半用 esbuild，浏览器半用 **Vite library mode**（与官方 deepseek
 | 项 | 值 |
 |---|---|
 | 包版本 | 0.1.0（7 包一致） |
-| 官方 API 基线 | `@deepseek-ai/*` 0.1.1-rc.2（rc.7→rc.2 无破坏性类型变更，见 AGENTS.md 近期改动） |
+| 官方 API 基线 | `@deepseek-ai/*` 0.1.5-rc.1（`dsh-client-runtime` 已退役：`ctx.slots` 改由 `dsh-client-ui-renderer` 提供、store API 在 `dsh-client-store`，见 AGENTS.md「关键现状与坑」） |
 | 语言约定 | 根文档中文；包 README 双语对 + `README.i18n.yaml` hash 凭据 |
 | CI | install → build → pack → git diff 干净（ci.yml）；`v*` tag 发布（publish.yml） |

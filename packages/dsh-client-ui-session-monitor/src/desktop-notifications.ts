@@ -26,7 +26,6 @@
  */
 
 import z from '@deepseek-ai/schemastery'
-import { settingsNamespace } from '@deepseek-ai/dsh-settings'
 
 /** Every notification kind the inbox knows. P2 kinds are generated but off by
  *  default in the UI (filtered client-side). */
@@ -72,7 +71,7 @@ export interface InboxNotification {
 
 /** Settings namespace holding the persisted inbox (separate section from the
  *  shared monitor options, which stay in `session-monitor`). */
-export const INBOX_NS = settingsNamespace('session-monitor-inbox')
+export const INBOX_NS = 'session-monitor-inbox'
 
 /** Cap on retained records; the oldest are dropped beyond this. */
 const MAX_NOTES = 200

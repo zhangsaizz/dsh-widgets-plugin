@@ -6,7 +6,6 @@
  */
 
 import z from '@deepseek-ai/schemastery'
-import { settingsNamespace } from '@deepseek-ai/dsh-settings'
 import type { BalanceBindingConfig } from './types.ts'
 
 /** One deployment-configured balance binding (filled directly in cordis.patch.yml). */
@@ -33,4 +32,4 @@ export const BalanceSettingsSchema: z<BalanceSettingsShape> = z.object({
 })
 
 /** Settings namespace owning the user-managed balance bindings. */
-export const BALANCE_SETTINGS_NS = settingsNamespace('balance')
+export const BALANCE_SETTINGS_NS = 'balance'

@@ -33,9 +33,11 @@ import type { CSSProperties, PointerEvent as ReactPointerEvent } from 'react'
 import type {
   InjectFace, PropsLocale, PropsRuntime, TranslateNS,
 } from '@deepseek-ai/dsh-client-ui-slots'
-import type {
-  PendingInteractionStatus, SessionListState, SessionSummary,
-} from '@deepseek-ai/dsh-client-runtime/client'
+import type { SessionListState, SessionSummary } from '@deepseek-ai/dsh-api-session-controller/client'
+import type { SessionId } from '@deepseek-ai/dsh-session/types'
+// Type-only: pulls the `useSessions` / `useSessionPendingInteraction`
+// standard-prop merge from ui-session.
+import type {} from '@deepseek-ai/dsh-client-ui-session/client'
 import {
   MAX_SCALE, MIN_SCALE, POS_KEY, SETTINGS_CHANGED_EVENT, SETTINGS_KEY, clampToViewport, loadDone,
   loadLastActive, loadPos, loadScale, loadSettings, playChime, saveDone, saveLastActive, savePos, saveScale,
@@ -137,6 +139,16 @@ const REASON_KINDS: ReadonlySet<string> = new Set([
 function mapReasonKind(reason: string | undefined, base: ToastKind): ToastKind {
   return reason !== undefined && REASON_KINDS.has(reason) ? reason as ToastKind : base
 }
+
+/** Why a session is waiting on the user (`PendingQuestion.kind` splits the
+ *  plan-review presentation out of the generic question). */
+type PendingInteractionStatus = 'approval' | 'question' | 'plan-review'
+
+/** One session list row plus the pending interaction joined from its own snapshot. */
+type MonitorSessionRow = SessionSummary & { pendingInteraction?: PendingInteractionStatus }
+
+/** List snapshot whose rows carry the joined pending status. */
+type MonitorSessionList = Omit<SessionListState, 'byId'> & { byId: Record<SessionId, MonitorSessionRow> }
 
 /** Map a session's pending-interaction status onto its notification kind. */
 function interactionKind(status: PendingInteractionStatus | undefined): ToastKind {
@@ -296,7 +308,7 @@ function isUserAway(): boolean {
  * work — running subagents or background jobs), then round-done, then idle;
  * each group newest first.
  */
-function orderRows(list: readonly SessionSummary[], doneIds: ReadonlySet<string>, busyIds: ReadonlySet<string>): SessionSummary[] {
+function orderRows(list: readonly MonitorSessionRow[], doneIds: ReadonlySet<string>, busyIds: ReadonlySet<string>): MonitorSessionRow[] {
   const rows = list.slice()
   rows.sort((a, b) => {
     const rankA = a.running || busyIds.has(a.id) ? 0 : doneIds.has(a.id) ? 1 : 2
@@ -310,7 +322,31 @@ function orderRows(list: readonly SessionSummary[], doneIds: ReadonlySet<string>
 export function SessionMonitorWidget(props: SessionMonitorWidgetProps) {
   const { t, open } = props
   /** The live session-list snapshot (stable reference between changes). */
-  const sessions = props.useSessions((s: SessionListState) => s)
+  const list = props.useSessions((s: SessionListState) => s)
+  /** Pending user interactions by session (approval / question / plan-review). */
+  const pendingInteractions = props.useSessionPendingInteraction((m) => m)
+  /**
+   * The list with each row's pending-interaction kind joined back on. The
+   * framework publishes pending interactions in their own session-keyed
+   * snapshot (a list row no longer carries the status), while every consumer
+   * below reads `row.pendingInteraction` — so the join happens once here, and
+   * the joined list changes identity with either source (which keeps the
+   * `[sessions]` effects and memos below in step with pauses appearing and
+   * clearing).
+   */
+  const sessions: MonitorSessionList = useMemo(() => {
+    if (pendingInteractions.size === 0) return list
+    const byId: Record<SessionId, MonitorSessionRow> = { ...list.byId }
+    let joined = false
+    for (const [id, interaction] of pendingInteractions) {
+      const row = byId[id]
+      // Address-only rows (a catalog route with no list row) stay untouched.
+      if (row === undefined) continue
+      byId[id] = { ...row, pendingInteraction: interaction.kind as PendingInteractionStatus }
+      joined = true
+    }
+    return joined ? { ...list, byId } : list
+  }, [list, pendingInteractions])
 
   const [settings, setSettings] = useState<MonitorSettings>(loadSettings)
   const [collapsed, setCollapsed] = useState(false)
@@ -609,7 +645,7 @@ export function SessionMonitorWidget(props: SessionMonitorWidgetProps) {
   useEffect(() => {
     const prev = prevRunningRef.current
     const next = new Map<string, boolean>()
-    const finished: SessionSummary[] = []
+    const finished: MonitorSessionRow[] = []
     for (const id of sessions.ids) {
       const row = sessions.byId[id]
       if (!row) continue
@@ -707,7 +743,7 @@ export function SessionMonitorWidget(props: SessionMonitorWidgetProps) {
     // only pauses that happen while the widget is open notify.
     const finishedIds = new Set<string>(finished.map((row) => row.id))
     // byId is keyed by SessionId (a branded string); index through a plain view.
-    const byId = sessions.byId as Readonly<Record<string, SessionSummary>>
+    const byId = sessions.byId as Readonly<Record<string, MonitorSessionRow>>
     for (const id of next.keys()) {
       const row = byId[id]
       if (!row) continue
@@ -957,7 +993,7 @@ export function SessionMonitorWidget(props: SessionMonitorWidgetProps) {
       const seen = new Set<string>()
       // byId is keyed by SessionId (a branded string); the ancestor chain walks
       // parentId strings, so index through a plain-string view.
-      const byId = sessions.byId as Readonly<Record<string, SessionSummary>>
+      const byId = sessions.byId as Readonly<Record<string, MonitorSessionRow>>
       let pid: string | undefined = row.parentId
       while (pid !== undefined && !seen.has(pid)) {
         seen.add(pid)
@@ -1014,7 +1050,7 @@ export function SessionMonitorWidget(props: SessionMonitorWidgetProps) {
   const { rows, hiddenCount } = useMemo(() => {
     const live = sessions.ids
       .map((id) => sessions.byId[id])
-      .filter((row): row is SessionSummary =>
+      .filter((row): row is MonitorSessionRow =>
         !!row && !row.blank && (settings.showSubagents || row.origin !== 'subagent'))
     // "Busy" rows are still doing work even though the session itself is not
     // in a turn: it has subagents or background jobs executing. They are

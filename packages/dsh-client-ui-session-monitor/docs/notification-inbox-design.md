@@ -144,7 +144,8 @@ interface InboxNotification {
 
 ### 5.3 补盲区：question / plan-review 的检测
 
-`question` / `plan-review` 是客户端 `useSessions` 投影里的瞬态状态，不写会话日志。
+`question` / `plan-review` 是客户端 `useSessionPendingInteraction` 标准 prop 暴露的瞬态状态
+（按会话 id 索引的 pending 快照；`dsh-client-runtime` 退役后不再挂在会话列表行上），不写会话日志。
 但这两类等待**必然经由模型工具调用进入**，所以 Host 可以自己看到（不依赖网页开着）：
 
 - `ask_user_question` 的 `tool/call` → 记一条 `question`；`arguments` 里的

@@ -14,9 +14,11 @@
  * @module @dsh-plugins/client-ui-widget-manager/client
  */
 
-import type { ClientContext } from '@deepseek-ai/dsh-client-runtime/client'
+import type { Context as ClientContext } from '@deepseek-ai/cordis'
 // Type-only: pulls the shell.overlay SlotMap merge from ui-layout.
 import type {} from '@deepseek-ai/dsh-client-ui-layout/client'
+// Type-only: pulls the `ctx.slots` (SlotRegistry) Context merge from ui-renderer.
+import type {} from '@deepseek-ai/dsh-client-ui-renderer/client'
 // Type-only: pulls the settings.section SlotMap merge from ui-settings.
 import type {} from '@deepseek-ai/dsh-client-ui-settings/client'
 // Type-only: pulls the locale plugin's Context merge (ctx.locale).

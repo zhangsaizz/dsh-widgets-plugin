@@ -8,11 +8,11 @@
  * @module @dsh-plugins/balance/client/controller
  */
 
-import type {
-  IApiClient, ModelSelection, SessionId,
-} from '@deepseek-ai/dsh-api-remotes/client'
-import type { ISessions, SnapshotStore } from '@deepseek-ai/dsh-client-runtime/client'
-import { createSnapshotStore } from '@deepseek-ai/dsh-client-runtime/client'
+import type { SessionId } from '@deepseek-ai/dsh-api-remotes/client'
+import type { ISessions } from '@deepseek-ai/dsh-api-session-controller/client'
+import type { ModelSelection } from '@deepseek-ai/dsh-api-session-controller/types'
+import type { SnapshotStore } from '@deepseek-ai/dsh-client-store'
+import { createSnapshotStore } from '@deepseek-ai/dsh-client-store'
 import type { HostObservable } from '@deepseek-ai/dsh-client-ui-slots'
 import type { RemoteResult } from '@deepseek-ai/dsh-typert-protocol'
 import type { BalanceListEntry, BalanceListResult, BalanceQueryResult } from '../types.ts'
@@ -76,14 +76,13 @@ export class BalanceController implements HostObservable<BalanceViewState> {
   /**
    * @param remote - the generated balance Remote namespace.
    * @param sessions - client sessions service (current-selection feed).
-   * @param models - the wire `sessions.models` read for authoritative selection.
-   * @param modelDirectories - optional reactive selection source for prompt model switches.
+   * @param modelDirectories - optional reactive selection source (authoritative
+   *   current model for a session; absent when ui-model-selection is not mounted).
    * @param refreshIntervalMs - periodic refresh interval (clamped to ≥ 1s).
    */
   constructor(
     private readonly remote: BalanceRemote,
     private readonly sessions: ISessions,
-    private readonly models: Pick<IApiClient['sessions'], 'models'>,
     private readonly modelDirectories: ModelDirectoriesLike | undefined,
     refreshIntervalMs: number,
   ) {
@@ -146,10 +145,10 @@ export class BalanceController implements HostObservable<BalanceViewState> {
     }
     let selected: ModelSelection | undefined
     try {
-      selected = await this.resolveSelection(sessionId)
+      selected = this.resolveSelection(sessionId)
     } catch {
-      // The wire call itself failed — publish an explicit error state instead
-      // of leaving the view stuck (and an unhandled rejection behind).
+      // Selection resolution failed — publish an explicit error state instead
+      // of leaving the view stuck on its previous phase.
       if (this.disposed || generation !== this.generation) return
       const previous = this.store.getSnapshot()
       this.publish({
@@ -225,13 +224,17 @@ export class BalanceController implements HostObservable<BalanceViewState> {
     }
   }
 
-  /** Read the current selection from the wire, tolerating a missing model. */
-  private async resolveSelection(sessionId: SessionId): Promise<ModelSelection | undefined> {
-    // Same stale-bundle guard as the remote reads: an absent method would
-    // throw synchronously and abort the reconcile.
-    if (typeof this.models?.models !== 'function') return undefined
-    const { result } = await this.models.models({ sessionId })
-    return result.ok ? result.value.current : undefined
+  /** Read the session's effective selection from the shared model directory. */
+  private resolveSelection(sessionId: SessionId): ModelSelection | undefined {
+    // The directory service is optional (ui-model-selection may be absent) and
+    // `directoryFor` throws until the session scope is minted, so both the
+    // absent-service and the not-yet-scoped case resolve to "no selection".
+    if (this.modelDirectories === undefined) return undefined
+    try {
+      return this.modelDirectories.directoryFor(sessionId).store.getSnapshot().current ?? undefined
+    } catch (_scopeNotReady) {
+      return undefined
+    }
   }
 
   /** Replace the view and drop stale work when the fiber unloads. */

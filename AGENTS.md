@@ -126,7 +126,9 @@ pack → git diff 干净」。
 
 - `src/index.ts`：Host 空 apply（纯 UI 插件）或 seam 逻辑。
 - `src/client/index.ts`：浏览器端 `apply` + `inject`，用 `ctx.slots.inject('shell.overlay', …)`
-  注册挂件（需 `@deepseek-ai/dsh-client-ui-layout` 的类型合并）。
+  注册挂件（`shell.overlay` 槽的类型合并来自 `@deepseek-ai/dsh-client-ui-layout`，
+  `ctx.slots` 来自 `@deepseek-ai/dsh-client-ui-renderer`——`dsh-client-runtime` 退役后
+  改由它提供）。
 - `package.json` 加 `dsh.client`、`exports["./client"]`、`files: ["lib"]`、
   `publishConfig.access: public`。
 - 在 `scripts/build.mjs` 的 `CLIENT_PACKAGES` 加一行（Vite library mode 产出
@@ -173,12 +175,23 @@ pack → git diff 干净」。
 
 ## 关键现状与坑
 
-- **官方 API 基线**：`@deepseek-ai/*` 依赖为 `^0.1.1-rc.2`（root devDeps
-  `dsh-host-webserver` 精确到 `0.1.1-rc.2`）。改依赖时注意：pnpm 11.7 的
-  `autoInstallPeers` 对预发布 peer 会推导出非预发布范围 `>=0.1.1 <0.2.0-0`，导致
-  `ERR_PNPM_NO_MATCHING_VERSION`（如 `dsh-sandbox`）。**修复不是加 overrides**，而是
-  让 `pnpm install` 把 fresh rc.2 版本自动写回 `pnpm-workspace.yaml` 的
-  `minimumReleaseAgeExclude`。
+- **官方 API 基线**：`@deepseek-ai/*` 依赖为 `^0.1.5-rc.1`（root devDeps
+  `dsh-host-webserver` / `dsh-settings` 同为 `^0.1.5-rc.1`，`@deepseek-ai/schemastery`
+  为 `^3.18.2`）。改依赖时注意：pnpm 11.7 的 `autoInstallPeers` 对预发布 peer 会推导出
+  非预发布范围 `>=0.1.5 <0.2.0-0`，导致 `ERR_PNPM_NO_MATCHING_VERSION`
+  （如 `dsh-sandbox`）。**修复不是加 overrides**，而是让 `pnpm install` 把 fresh rc.1
+  版本自动写回 `pnpm-workspace.yaml` 的 `minimumReleaseAgeExclude`。
+- **`dsh-client-runtime` 已退役**：`@deepseek-ai/dsh-client-runtime` 最后发布的版本是
+  `0.1.1-rc.2`，`0.1.5-rc.1` 起不再存在、也不再是浏览器模块；它原来的能力面已拆分——
+  `ctx.slots`（SlotRegistry）的 Context 合并改由 `@deepseek-ai/dsh-client-ui-renderer`
+  提供，`defineStore` / `createSnapshotStore` 等 store API 在
+  `@deepseek-ai/dsh-client-store`，`ISessions` / `SessionListState` / `SessionSummary`
+  在 `@deepseek-ai/dsh-api-session-controller/client`，`SessionId` 在
+  `@deepseek-ai/dsh-session/types`，客户端 `ClientContext` 直接用
+  `@deepseek-ai/cordis` 的 `Context`（`import type { Context as ClientContext }`）。
+  客户端 `dsh.client.inject` 列表因此不再出现 `dsh-client-runtime`，改为引用上述承接
+  包（消费会话数据的包另注入 `dsh-client-ui-session` / `dsh-api-session-controller`，
+  彩虹流光另注入 `dsh-client-ui-chat`）。
 - **本地调试安装**：`dsh plugin --profile <name> add F:/dsh-balance-plugin/bundles/
   dsh-widgets-plugin`（junction 直连仓库，不拷贝）。改代码后 `pnpm build` 更新 `lib/`；
   浏览器半改动刷新页面即生效，**Host 半改动需重启 `dsh web`**。

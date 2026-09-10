@@ -18,7 +18,9 @@
 
 import { useEffect, useState } from 'react'
 import type { PropsLocale, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
-import type { SessionListState, SessionSummary } from '@deepseek-ai/dsh-client-runtime/client'
+import type { SessionListState, SessionSummary } from '@deepseek-ai/dsh-api-session-controller/client'
+// Type-only: pulls the `useSessions` standard-prop merge from ui-session.
+import type {} from '@deepseek-ai/dsh-client-ui-session/client'
 // Type-only: pulls the `widgets.card` SlotMap merge and the `card-container`
 // LocaleNamespaceMap merge the card types below depend on.
 import type {} from '@dsh-plugins/client-ui-card-container/client'
@@ -34,8 +36,10 @@ function selectSessions(s: SessionListState): SessionListState {
 /** Compact busy-count card (running or busy) — mirrors the floating widget's
  *  `busyCount` so the two surfaces never disagree. */
 export function SessionMonitorCard(props: PropsRuntime<'widgets.card'> & PropsLocale<'card-container'>) {
-  const { useSessions, t } = props
+  const { useSessions, useSessionPendingInteraction, t } = props
   const sessions = useSessions(selectSessions)
+  /** Pending user interactions by session (the list rows no longer carry the status). */
+  const pendingInteractions = useSessionPendingInteraction((m) => m)
   // Respect the "show subagents" toggle the same way the floating widget does:
   // a hidden subagent row must not inflate the count, but its PARENT still
   // counts as busy (see below). Re-read on every settings change, so a toggle
@@ -88,7 +92,7 @@ export function SessionMonitorCard(props: PropsRuntime<'widgets.card'> & PropsLo
     if (!row || row.blank) return n
     if (row.origin === 'subagent' && !showSubagents) return n
     if (row.running) return n + 1
-    if (row.pendingInteraction !== undefined) return n + 1
+    if (pendingInteractions.has(id)) return n + 1
     if ((subagentsByParent.get(id) ?? 0) > 0 || (jobsBySession.get(id) ?? 0) > 0) return n + 1
     return n
   }, 0)

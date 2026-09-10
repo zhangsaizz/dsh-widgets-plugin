@@ -7,7 +7,7 @@
  * @module @dsh-plugins/balance/client/store
  */
 
-import { defineStore, type EngineStoreHandle } from '@deepseek-ai/dsh-client-runtime/client'
+import { defineStore, type EngineStoreHandle } from '@deepseek-ai/dsh-client-store'
 
 /** Dock corner, or \`free\` for drag-placed position. */
 export type DockCorner = 'free' | 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right'

@@ -19,12 +19,15 @@
  * @module @dsh-plugins/balance/client
  */
 
-import type { ClientContext } from '@deepseek-ai/dsh-client-runtime/client'
-import type { ConnectionHandle } from '@deepseek-ai/dsh-api-remotes/client'
+import type { Context as ClientContext } from '@deepseek-ai/cordis'
 // Type-only: pulls the generated balance Remote namespace and the ctx.remote merge.
 import type {} from '@deepseek-ai/dsh-api-remotes/client'
+// Type-only: pulls the client session contract (`ctx.sessions`, ISessions).
+import type {} from '@deepseek-ai/dsh-api-session-controller/client'
 // Type-only: pulls the shell.overlay SlotMap merge from ui-layout.
 import type {} from '@deepseek-ai/dsh-client-ui-layout/client'
+// Type-only: pulls the `ctx.slots` (SlotRegistry) Context merge from ui-renderer.
+import type {} from '@deepseek-ai/dsh-client-ui-renderer/client'
 // Type-only: pulls the locale plugin's Context merge (ctx.locale).
 import type {} from '@deepseek-ai/dsh-client-locale/client'
 // Type-only: pulls the `widgets.config` SlotMap merge declared by the widget
@@ -69,12 +72,12 @@ const NS = 'balance'
 export const REFRESH_INTERVAL_MS = 30_000
 
 /**
- * Required services: the Remote mount service, overlay slots, sessions,
- * connection, and copy. `remote.balance` is intentionally absent: it is
- * provided by this same apply via `$mount`, and cordis would treat a declared
- * inject of it as an unmet dependency (see the module header).
+ * Required services: the Remote mount service, overlay slots, sessions, and
+ * locale. `remote.balance` is intentionally absent: it is provided by this same
+ * apply via `$mount`, and cordis would treat a declared inject of it as an
+ * unmet dependency (see the module header).
  */
-export const inject = ['remote', 'slots', 'sessions', 'connection', 'locale']
+export const inject = ['remote', 'slots', 'sessions', 'locale']
 
 /**
  * Client plugin body: mount the balance Remote first so `ctx.remote.balance`
@@ -89,12 +92,10 @@ export async function apply(ctx: ClientContext): Promise<void> {
 
   ctx.effect(() => ctx.locale.register(NS, { zh, en }), 'balance: dictionaries')
 
-  const connection = ctx.get('connection') as ConnectionHandle
   const t = ctx.locale.bind(NS)
   const controller = new BalanceController(
     ctx.get('remote.balance') as BalanceRemote,
     ctx.sessions,
-    connection.api.sessions,
     ctx.get('modelDirectories') as ModelDirectoriesLike | undefined,
     REFRESH_INTERVAL_MS,
   )

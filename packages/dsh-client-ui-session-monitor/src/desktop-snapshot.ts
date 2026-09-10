@@ -29,14 +29,14 @@
  * service simply yields attached-only rows.
  *
  * Type notes: this module runs on the HOST context, where `ctx.sessions` is
- * the `dsh-session` `SessionStore`. The `dsh-client-runtime/client` module
- * augmentation (pulled in by the browser half of this same package) re-declares
- * `Context.sessions` as the client `ISessions` face, so the store is reached
- * through an explicit cast. Plugin-merged event types (`session/title`,
- * `approval/asked`, `approval/decided`) are declared by peer packages that are
- * intentionally NOT in this package's typecheck graph, so events are viewed
- * through a loose local shape; persistence services are accessed via `get()`
- * with a loose shape for the same reason.
+ * the `dsh-session` `SessionStore`. The `dsh-api-session-controller/client`
+ * module augmentation (pulled in by the browser half of this same package)
+ * re-declares `Context.sessions` as the client `ISessions` face, so the store
+ * is reached through an explicit cast. Plugin-merged event types
+ * (`session/title`, `approval/asked`, `approval/decided`) are declared by peer
+ * packages that are intentionally NOT in this package's typecheck graph, so
+ * events are viewed through a loose local shape; persistence services are
+ * accessed via `get()` with a loose shape for the same reason.
  *
  * @module @dsh-plugins/client-ui-session-monitor/desktop-snapshot
  */
@@ -129,7 +129,10 @@ interface LoosePersistence {
 
 /** The session's raw event log, viewed through the loose local shape. */
 export function eventsOf(session: Session): readonly AnyEvent[] {
-  return session.events as unknown as readonly AnyEvent[]
+  // `snapshotEvents()` materializes the log's cached immutable snapshot (the
+  // same reference is reused until the next append), which is what the fold's
+  // cheap change detection compares.
+  return session.snapshotEvents() as unknown as readonly AnyEvent[]
 }
 
 /** Last accepted title from the log, or undefined while untitled. */

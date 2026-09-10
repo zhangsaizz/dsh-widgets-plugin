@@ -17,7 +17,9 @@
  */
 
 import type { PropsLocale, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
-import type { SessionListState, SessionSummary } from '@deepseek-ai/dsh-client-runtime/client'
+import type { SessionListState, SessionSummary } from '@deepseek-ai/dsh-api-session-controller/client'
+// Type-only: pulls the `useSessions` standard-prop merge from ui-session.
+import type {} from '@deepseek-ai/dsh-client-ui-session/client'
 // Type-only: pulls the `widgets.card` SlotMap merge and the `card-container`
 // LocaleNamespaceMap merge the card types below depend on.
 import type {} from '@dsh-plugins/client-ui-card-container/client'

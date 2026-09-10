@@ -130,9 +130,9 @@ function getSnapshot(): boolean {
 }
 
 /** The toggle switch with a live running indicator. */
-export function RainbowFlowToggle({ session, t }: RainbowFlowProps & RainbowFlowToggleInjected): React.JSX.Element {
+export function RainbowFlowToggle({ useSession, t }: RainbowFlowProps & RainbowFlowToggleInjected): React.JSX.Element {
   const on = React.useSyncExternalStore(subscribe, getSnapshot)
-  const running = !!session && session.running
+  const running = useSession((s) => s.running)
   const label = (on ? t('toggleOn') : t('toggleOff')) + (running ? `（${t('running')}）` : `（${t('idle')}）`)
   return (
     <button
@@ -166,15 +166,22 @@ export function RainbowFlowToggle({ session, t }: RainbowFlowProps & RainbowFlow
  *  phase. The thinking cool-tint is a cross-fade: the eased mood factor moves
  *  opacity from the warm layer to the cool layer — pure opacity animation,
  *  nothing re-rasterizes (see the module header). */
-export function RainbowFlowGlow({ session }: RainbowFlowProps): React.JSX.Element | null {
+export function RainbowFlowGlow({ useSession, useChat }: RainbowFlowProps): React.JSX.Element | null {
   const on = React.useSyncExternalStore(subscribe, getSnapshot)
-  const running = !!session && session.running
+  const running = useSession((s) => s.running)
+  // The rate sampler and the mood cross-fade read the live Chat target: the
+  // streaming partial assistant's text length and the running tool calls —
+  // neither rides the Session lifecycle snapshot any more.
+  const partial = useChat((c) => c.legacy.partial)
+  const toolCallCount = useChat((c) => c.legacy.runningCalls.length)
   // Settings (opacity / speed / mood) — re-read live on change.
   const settings = React.useSyncExternalStore(subscribeSettings, getSettings)
 
-  // Keep the latest snapshot readable from the rAF loop below.
-  const sessionRef = React.useRef(session)
-  sessionRef.current = session
+  // Keep the latest chat snapshot readable from the rAF loop below.
+  const partialRef = React.useRef(partial)
+  partialRef.current = partial
+  const toolCallCountRef = React.useRef(toolCallCount)
+  toolCallCountRef.current = toolCallCount
 
   // The two halo layers are written imperatively each frame; React never
   // touches them.
@@ -232,7 +239,7 @@ export function RainbowFlowGlow({ session }: RainbowFlowProps): React.JSX.Elemen
     // Sample the streaming output length and update the EMA rate -> target
     // breathing frequency in Hz (1 / period: faster output -> faster breath).
     const sample = (now: number): void => {
-      const partial = sessionRef.current?.partial ?? null
+      const partial = partialRef.current
       let len = 0
       if (partial && Array.isArray(partial.blocks)) {
         for (const b of partial.blocks) {
@@ -275,8 +282,7 @@ export function RainbowFlowGlow({ session }: RainbowFlowProps): React.JSX.Elemen
       // a tool (no new output), warm back to the full rainbow while it
       // streams output. `runningCalls` marks tool execution; a live EMA means
       // output is flowing. Eased so the cross-fade glides, not snaps.
-      const snap = sessionRef.current
-      const toolWorking = !!snap && Array.isArray(snap.runningCalls) && snap.runningCalls.length > 0
+      const toolWorking = toolCallCountRef.current > 0
       const outputting = emaRef.current > 0.05
       moodTargetRef.current = toolWorking || !outputting ? 1 : 0
       moodFactorRef.current = easeSpeed(moodFactorRef.current, moodTargetRef.current, dt)
@@ -375,12 +381,13 @@ export function RainbowFlowGlow({ session }: RainbowFlowProps): React.JSX.Elemen
  *
  * @module @dsh-plugins/client-ui-rainbow-flow/client
  */
-export function RainbowFlowSend({ session }: RainbowFlowRightProps): React.JSX.Element {
+export function RainbowFlowSend({ useSession }: RainbowFlowRightProps): React.JSX.Element {
   const on = React.useSyncExternalStore(subscribe, getSnapshot)
-  const running = !!session && session.running
+  const running = useSession((s) => s.running)
+  const subagent = useSession((s) => s.subagent)
   // Mirrors InputBar's `primaryStops = running && subagent === null`: the
   // primary button turns into a stop control only for the parent session.
-  const stops = running && !session?.subagent
+  const stops = running && !subagent
   const state = on ? (stops ? 'stop' : 'send') : 'off'
 
   // The probe lives in the composer card's trailing row, so `closest` walks

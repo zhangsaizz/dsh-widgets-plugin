@@ -21,7 +21,7 @@
  * @module @dsh-plugins/client-ui-widget-manager/client/controller
  */
 
-import type { ClientContext } from '@deepseek-ai/dsh-client-runtime/client'
+import type { Context as ClientContext } from '@deepseek-ai/cordis'
 import type { HostObservable, StoredEntry } from '@deepseek-ai/dsh-client-ui-slots'
 import { WIDGET_CATALOG } from './widgets.ts'
 import type { WidgetDescriptor } from './widgets.ts'

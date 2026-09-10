@@ -8,9 +8,11 @@
  * @module @dsh-plugins/client-ui-token-crit/client
  */
 
-import type { ClientContext } from '@deepseek-ai/dsh-client-runtime/client'
+import type { Context as ClientContext } from '@deepseek-ai/cordis'
 // Type-only: pulls the shell.overlay SlotMap merge from ui-layout.
 import type {} from '@deepseek-ai/dsh-client-ui-layout/client'
+// Type-only: pulls the `ctx.slots` (SlotRegistry) Context merge from ui-renderer.
+import type {} from '@deepseek-ai/dsh-client-ui-renderer/client'
 // Type-only: pulls the `widgets.card` SlotMap merge the card registration
 // below type-checks against (declared by the card container).
 import type {} from '@dsh-plugins/client-ui-card-container/client'

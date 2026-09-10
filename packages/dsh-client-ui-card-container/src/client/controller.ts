@@ -29,7 +29,7 @@
  * @module @dsh-plugins/client-ui-card-container/client/controller
  */
 
-import type { ClientContext } from '@deepseek-ai/dsh-client-runtime/client'
+import type { Context as ClientContext } from '@deepseek-ai/cordis'
 import type { HostObservable, StoredEntry } from '@deepseek-ai/dsh-client-ui-slots'
 
 /** The container's own `shell.overlay` id (never dockable). */
