@@ -1,9 +1,11 @@
 /* Tool-command colour accents (part of the rainbow-flow plugin).
  *
- * The chat transcript renders each model TOOL CALL as a card (ToolRow) whose
- * root carries a stable `data-tool="<name>"` attribute, and the assistant's
- * reasoning block as a "Think" row whose root carries `data-variant="think"`.
- * This plain (non-module) stylesheet tints both by category — shell, read,
+ * The chat transcript renders each model TOOL CALL as a card whose root carries
+ * a stable attribute: the generic ToolRow uses `data-tool="<name>"`, while the
+ * purpose-built shell card renders its own component and uses only
+ * `data-variant="bash"` (no `data-tool`). The assistant's reasoning block is a
+ * "Think" row whose root carries `data-variant="think"`. This plain (non-module)
+ * stylesheet tints all of them by category — shell, read,
  * search, write, edit, code, web, ask, plan, memory, think — so different
  * commands (and thinking) read differently at a glance. Each row gets a
  * **category-coloured left edge** AND its **related text** (the row title such
@@ -12,13 +14,15 @@
  * (theme-aware, so it stays legible on both the dark and light themes).
  *
  * Wiring: `toolAccent.ts` (a MutationObserver) reads each row's `data-tool`
- * name (or `data-variant="think"`), classifies it with `classify.ts`, and
+ * name, or its `data-variant` (`bash` for the shell card, `think` for a
+ * reasoning row), classifies it with `classify.ts`, and
  * stamps the category onto the same element as `data-rf-tool-cat="<category>"`
  * plus a native `title` tooltip. This file only paints; the category drives
  * the accent colour. The root selector is simply `[data-rf-tool-cat]` — that
- * attribute is only ever stamped on the decorated tool/think rows, so it is a
- * safe, stable anchor that covers both kinds without depending on hashed
- * classes or the `data-tool`/`data-variant` values.
+ * attribute is only ever stamped on the decorated rows, so it is a
+ * safe, stable anchor that covers every kind without depending on hashed
+ * classes or the `data-tool`/`data-variant` values. Slash-command cards are not
+ * rows of this family and keep the shipped look.
  *
  * Selector strategy: the row's own class is a CSS-module hash, so it is
  * deliberately avoided. Its title/leading/summary use CSS-module classes
@@ -174,13 +178,14 @@
 }
 
 /* Latest action header — a rainbow band sweeps across its text. The LATEST
-   action row — a tool command card (`data-tool`) or a Think reasoning row
-   (`data-variant="think"`) — is repainted as a MOVING rainbow gradient
+   action row — a tool card (`data-tool`, or the shell card's
+   `data-variant="bash"`) or a Think reasoning row (`data-variant="think"`) — is
+   repainted as a MOVING rainbow gradient
    (`background-clip: text`) that flows across its title / summary / file link,
    lighting each character in turn. `toolAccent.ts` marks only the newest action
    row (`data-rf-latest`) and clears it once a 正文 reply (the assistant's
    plain-text answer) appears after it, so the effect follows the most recent
-   command/think (instant commands like read/edit still show it) until the model
+   action (instant commands like read/edit still show it) until the model
    writes its answer. The output BODY (the stdout/results, a separate element) is
    deliberately NOT targeted, so only the header is swept. Independent of the
    category-colour stamp AND of `commandColor` — gated only by

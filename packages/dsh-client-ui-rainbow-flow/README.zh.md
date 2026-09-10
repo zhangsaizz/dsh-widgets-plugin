@@ -104,7 +104,9 @@
   纯类别色渲染（不破坏链接下划线）——悬停卡片还显示类别名。中间的**「Think」思考推理行**（模型
   的 reasoning 块，`data-variant="think"`，不属于工具卡）也按**同款方式**着色，
   归入 `think` 淡紫类别。它读取每张
-  卡片稳定的 `data-tool="<工具名>"` 属性（harness ToolRow 自带的），用一个
+  卡片稳定的 `data-tool="<工具名>"` 属性（harness ToolRow 自带的；**shell 卡
+  例外**——它由专用卡片组件渲染，只带 `data-variant="bash"`、没有 `data-tool`，
+  故按变体归入 `shell`；斜杠命令卡不在上色范围），用一个
   `MutationObserver` 把类别写回 `data-rf-tool-cat`，再由 `ToolAccent.css`
   上色——**不重渲染卡片、不改动产品 DOM**，harness 升级后仍生效（按 CSS-module
   本地名后缀 `_title`/`_leading`/`_summary` 选中文字，与发送按钮的 `_primary`

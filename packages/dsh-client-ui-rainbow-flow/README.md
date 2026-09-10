@@ -156,7 +156,10 @@ send/stop button with dynamic effects.
   — `data-variant="think"`, not a tool card) is coloured the **same way**, in
   the `think` lavender category. It reads the card's stable
   `data-tool="<name>"` attribute (shipped by
-  the harness ToolRow), a `MutationObserver` writes the category back as
+  the harness ToolRow — the **shell card is the exception**: a dedicated card
+  component renders it with only `data-variant="bash"` and no `data-tool`, so it
+  is classified as `shell` from that variant; slash-command cards are out of
+  scope), a `MutationObserver` writes the category back as
   `data-rf-tool-cat`, and `ToolAccent.css` paints it — **no re-render, no
   changes to the product's DOM**, so it survives harness upgrades (the text is
   matched on the CSS-module local-name suffix `_title`/`_leading`/`_summary`,

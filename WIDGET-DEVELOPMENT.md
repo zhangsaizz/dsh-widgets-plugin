@@ -425,7 +425,9 @@ export const en: Record<ClockKey, string> = { title: 'Clock', secondsLabel: 'Sho
   管理器未安装、或槽声明与注册时机/`id` 不一致）。
 - **停靠进卡片容器后显示的是占位卡而不是我的卡片？** `widgets.card` 没有该 id 的
   条目——按第 2.5 节注册（注意 `id` 必须与 `shell.overlay` 一致；容器未安装时注册
-  会被跳过，属正常行为）。
+  会被跳过，属正常行为）。诊断提示：渲染器只会为「没有胜出者」的 id 产出占位，且
+  卡片组件抛错时它渲染的是 `div[data-slot-error]`（不是容器的 `cardMissing` 兜底卡），
+  所以看到 `data-slot-error` 说明是注册 id 不匹配或卡片自身出错，而不是容器没兜底。
 - **卡片尺寸不对（想占 2 列/整行）？** 给卡片组件设置静态 `spec` 属性
   （`'small'` / `'medium'` / `'large'`），见第 2.5 节「卡片规格」。
 - **弹窗样式和主题不一致？** 用 `--dsw-alias-*` 语义令牌（面板弹窗：

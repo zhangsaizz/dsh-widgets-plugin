@@ -1,15 +1,21 @@
 /**
  * Tool-command colour-accent tagging (browser half).
  *
- * The rainbow-flow plugin colours the transcript's command rows by what each
- * tool does. The rows are shipped chrome rendered by the harness (the ToolRow
- * command cards and the assistant's "Think" reasoning rows), so this module
- * does not re-render them — it decorates the live DOM:
+ * The rainbow-flow plugin colours the transcript's tool-call rows by what each
+ * tool does. The rows are shipped chrome rendered by the harness, so this
+ * module does not re-render them — it decorates the live DOM:
  *
- *  1. It reads each row's stable `data-tool="<name>"` attribute (a tool call)
- *     or `data-variant="think"` (a reasoning row).
+ *  1. It reads each row's stable attribute: `data-tool="<name>"` on the generic
+ *     ToolRow (what most tools render), `data-variant="bash"` on the
+ *     purpose-built shell card (that card renders itself and carries NO
+ *     `data-tool`), or `data-variant="think"` on a reasoning row.
  *  2. It classifies the tool name with {@link classifyTool} into a category
- *     (a reasoning row always lands on `think`).
+ *     (a reasoning row always lands on `think`, and the shell card — which
+ *     exposes no tool name — lands on `shell`).
+ *
+ * Slash-command cards are NOT targets: the command row is a separate harness
+ * component (`GenericCommandCard`, `data-variant="others"`, no `data-tool`), so
+ * it keeps the shipped look.
  *  3. It stamps the category back onto the same element as
  *     `data-rf-tool-cat="<category>"` plus a native `title` tooltip (the
  *     bilingual category label). `ToolAccent.css` then paints the row's left
@@ -23,15 +29,14 @@
  * module stops stamping and clears `data-rf-tool-cat` / `title` from every
  * already-decorated row so cards revert to the shipped look. The latest-action
  * rainbow sweep (see the sweep CSS) is independent — it marks with
- * `data-rf-latest` the LATEST action row (tool command card `[data-tool]` /
- * Think row `[data-variant="think"]`) and clears it once a 正文 reply (the
- * assistant's plain-text answer) appears after it, so the effect follows the
- * most recent command/think (including instant tools like read/edit) until the
- * model writes its answer. Whether a 正文 reply follows is detected from the
- * flow-item structure only (no `textContent` over-matching), and the state is
- * recomputed deterministically from the live DOM on every change. Only the
- * header text is swept — never the output body, so it works whether or not
- * colouring is on.
+ * `data-rf-latest` the LATEST action row (a tool row, or a Think row) and
+ * clears it once a 正文 reply (the assistant's plain-text answer) appears after
+ * it, so the effect follows the most recent action (including instant tools like
+ * read/edit) until the model writes its answer. Whether a 正文 reply follows is
+ * detected from the flow-item structure only (no `textContent` over-matching),
+ * and the state is recomputed deterministically from the live DOM on every
+ * change. Only the header text is swept — never the output body, so it works
+ * whether or not colouring is on.
  *
  * A single `MutationObserver` keeps the tags current without touching React:
  * it watches for added/dropped rows (childList — handles both added `Element`s
@@ -53,12 +58,22 @@ import type { ToolCategory } from './classify.ts'
 import { DEFAULT_TOOL_COLORS, getSettings, subscribeSettings } from './settings.ts'
 import type { ToolColors } from './settings.ts'
 
-/** Attribute the harness sets on every tool-card root (stable). */
+/** Attribute the harness sets on a generic tool-card root (stable). The
+ *  purpose-built shell card is the exception: it carries `data-variant`
+ *  instead (see {@link BASH_VARIANT}). */
 const TOOL_ATTR = 'data-tool'
-/** Attribute the harness sets on the reasoning ("Think") row root. */
+/** Attribute the harness sets on the reasoning ("Think") row root and on the
+ *  purpose-built shell card root. */
 const VARIANT_ATTR = 'data-variant'
 /** The reasoning-row variant value. */
 const THINK_VARIANT = 'think'
+/** The shell-card variant value. The harness's shell card renders itself
+ *  (its own card component rather than the generic ToolRow) and sets
+ *  `data-variant="bash"` — with no `data-tool` — so it needs its own selector
+ *  entry; without it every bash card would stay uncoloured. The literal is
+ *  emitted by exactly one component in the shipped client, so the entry cannot
+ *  match anything else. */
+const BASH_VARIANT = 'bash'
 /** Attribute this module stamps with the classified category. */
 const CAT_ATTR = 'data-rf-tool-cat'
 
@@ -72,9 +87,10 @@ export const LATEST_ATTR = 'data-rf-latest'
 export const SWEEP_GATE_ATTR = 'data-rf-sweep'
 
 /** Root selector for every row this decorator colours: tool-call cards (they
- *  carry `data-tool`) plus the assistant's reasoning "Think" rows (they carry
- *  `data-variant="think"` but no `data-tool`). */
-const ROW_SELECTOR = `[${TOOL_ATTR}], [${VARIANT_ATTR}="${THINK_VARIANT}"]`
+ *  carry `data-tool`), the shell card (it carries `data-variant="bash"` but no
+ *  `data-tool`), and the assistant's reasoning "Think" rows (they carry
+ *  `data-variant="think"`). */
+const ROW_SELECTOR = `[${TOOL_ATTR}], [${VARIANT_ATTR}="${THINK_VARIANT}"], [${VARIANT_ATTR}="${BASH_VARIANT}"]`
 
 /** Bilingual category label, resolved from the document language. */
 function labelFor(category: ToolCategory): string {
@@ -85,12 +101,17 @@ function labelFor(category: ToolCategory): string {
 /** Classify + stamp one row. Idempotent — re-stamping the same values writes
  *  nothing (and neither attribute is observed, so no loop). A reasoning
  *  ("Think") row carries `data-variant="think"` (it has no `data-tool`), so it
- *  always lands on the `think` category; every other row is a tool call keyed
- *  by its `data-tool` name. */
+ *  always lands on the `think` category; the shell card carries only
+ *  `data-variant="bash"`, so it lands on `shell` (there is no tool name to
+ *  classify); every other row is a tool call keyed by its `data-tool` name. */
 function applyTo(element: Element): void {
-  const category: ToolCategory = element.getAttribute(VARIANT_ATTR) === THINK_VARIANT
+  const variant = element.getAttribute(VARIANT_ATTR)
+  const tool = element.getAttribute(TOOL_ATTR)
+  const category: ToolCategory = variant === THINK_VARIANT
     ? 'think'
-    : classifyTool(element.getAttribute(TOOL_ATTR) ?? '')
+    : tool === null && variant === BASH_VARIANT
+      ? 'shell'
+      : classifyTool(tool ?? '')
   element.setAttribute(CAT_ATTR, category)
   element.setAttribute('title', labelFor(category))
 }
@@ -198,8 +219,8 @@ export function mountToolAccent(): () => void {
     return false
   }
 
-  /** Mark the LATEST action row (the newest `[data-tool]`/`[data-variant="think"]`
-   *  row in document order) with `data-rf-latest` unless it is superseded by a
+  /** Mark the LATEST action row (the newest {@link ROW_SELECTOR} row in
+   *  document order) with `data-rf-latest` unless it is superseded by a
    *  正文 reply — so a fast command like read/edit stays highlighted until the
    *  model writes its text answer. Recomputed deterministically from the DOM each
    *  time (no sticky state); only the header is swept, never the output body. */
