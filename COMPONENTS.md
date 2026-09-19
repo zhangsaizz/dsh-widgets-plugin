@@ -851,6 +851,6 @@ Host 半用 esbuild，浏览器半用 **Vite library mode**（与官方 deepseek
 | 项 | 值 |
 |---|---|
 | 包版本 | 0.1.0（7 包一致） |
-| 官方 API 基线 | `@deepseek-ai/*` 0.1.5-rc.1（`dsh-client-runtime` 已退役：`ctx.slots` 改由 `dsh-client-ui-renderer` 提供、store API 在 `dsh-client-store`，见 AGENTS.md「关键现状与坑」） |
+| 官方 API 基线 | `@deepseek-ai/*` 0.1.5-rc.2（`dsh-client-runtime` 已退役：`ctx.slots` 改由 `dsh-client-ui-renderer` 提供、store API 在 `dsh-client-store`，见 AGENTS.md「关键现状与坑」） |
 | 语言约定 | 根文档中文；包 README 双语对 + `README.i18n.yaml` hash 凭据 |
 | CI | install → build → pack → git diff 干净（ci.yml）；`v*` tag 发布（publish.yml） |

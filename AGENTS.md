@@ -175,12 +175,22 @@ pack → git diff 干净」。
 
 ## 关键现状与坑
 
-- **官方 API 基线**：`@deepseek-ai/*` 依赖为 `^0.1.5-rc.1`（root devDeps
-  `dsh-host-webserver` / `dsh-settings` 同为 `^0.1.5-rc.1`，`@deepseek-ai/schemastery`
-  为 `^3.18.2`）。改依赖时注意：pnpm 11.7 的 `autoInstallPeers` 对预发布 peer 会推导出
-  非预发布范围 `>=0.1.5 <0.2.0-0`，导致 `ERR_PNPM_NO_MATCHING_VERSION`
-  （如 `dsh-sandbox`）。**修复不是加 overrides**，而是让 `pnpm install` 把 fresh rc.1
-  版本自动写回 `pnpm-workspace.yaml` 的 `minimumReleaseAgeExclude`。
+- **官方 API 基线**：`@deepseek-ai/*` 依赖为 `^0.1.5-rc.2`（npm `latest` / `next`
+  dist-tag 的当前指向；root devDeps `dsh-host-webserver` / `dsh-settings` 同为
+  `^0.1.5-rc.2`，`@deepseek-ai/schemastery` 为 `^3.18.2`）。改依赖时注意：pnpm 11.7 的
+  `autoInstallPeers` 对预发布 peer 会推导出非预发布范围 `>=0.1.5 <0.2.0-0`，导致
+  `ERR_PNPM_NO_MATCHING_VERSION`（如 `dsh-sandbox`）。**修复不是加 overrides**，而是让
+  `pnpm install` 把 fresh rc 版本自动写回 `pnpm-workspace.yaml` 的
+  `minimumReleaseAgeExclude`。（`alpha` dist-tag 另有更高的 `0.1.6-alpha.*` 预发布，
+  未采纳：种子模块表与 API 面可能变动，见下一条。）
+  **升版只改 specifier 会留下「半新」依赖图**：`pnpm install` 会复用 lockfile 里仍满足
+  新范围的旧解析，于是直接依赖跳到 rc.2、而 `autoInstallPeers` 补进来的传递依赖
+  （`dsh-agent` / `dsh-tools` / `dsh-fs` / `dsh-scope` …）留在 rc.1，rc.2 那批 peer 要求
+  `^0.1.5-rc.2` 就全部落空（`pnpm peers check` 会列一长串 unmet peer）。修法是删掉
+  `pnpm-lock.yaml` 与 `node_modules/` 重新解析一次（store 已预热时只要几秒），之后
+  `pnpm peers check` 应是 `No peer dependency issues found`。`@deepseek-ai/cordis` 也必须
+  跟着抬到 `^4.0.2`——0.1.5-rc.2 的 20 个包 peer 全部要求 `^4.0.2`，而 4.0.1 与 4.0.2
+  的产物逐字节相同（只有 `package.json` 的 version 不同），抬范围零风险。
 - **`dsh-client-runtime` 已退役**：`@deepseek-ai/dsh-client-runtime` 最后发布的版本是
   `0.1.1-rc.2`，`0.1.5-rc.1` 起不再存在、也不再是浏览器模块；它原来的能力面已拆分——
   `ctx.slots`（SlotRegistry）的 Context 合并改由 `@deepseek-ai/dsh-client-ui-renderer`
@@ -192,8 +202,30 @@ pack → git diff 干净」。
   客户端 `dsh.client.inject` 列表因此不再出现 `dsh-client-runtime`，改为引用上述承接
   包（消费会话数据的包另注入 `dsh-client-ui-session` / `dsh-api-session-controller`，
   彩虹流光另注入 `dsh-client-ui-chat`）。
+- **本机 dsh 必须 ≥ 0.1.5**：浏览器端 bundle 的 `require()` 只认两种来源——壳的**种子
+  模块表**（staticModules，写在 `dsh-web-frontend` 里）和引导图里的插件行。0.1.5 的种子表是
+  `react` / `react/jsx-runtime` / `react-dom` / `react-dom/client` / `@deepseek-ai/cordis`
+  / `@deepseek-ai/dsh-client-store` / `@deepseek-ai/dsh-client-ui-slots`
+  / `@deepseek-ai/dsh-client-ui-primitives` / `@deepseek-ai/dsh-client-ui-dockkit`；
+  0.1.1 的种子表**没有 `dsh-client-store`**，于是 balance 客户端 bundle 的第一行
+  `require("@deepseek-ai/dsh-client-store")` 直接抛
+  `client-modules: require(...) missed the module table`（GUI 卡片显示
+  「Failed to load plugins / failed to import loader entry … (@dsh-plugins/balance)」）。
+  6 个 bundle 运行时的外部 require 只有 `react` / `react/jsx-runtime` /
+  `dsh-client-store` / `dsh-client-ui-slots` / `dsh-client-ui-primitives`，全部在上述种子表
+  内，所以**无需** `dsh.client.external` 声明。升级方式：`npm install -g
+  @deepseek-ai/dsh@0.1.5-rc.2`（该前缀通常在 `C:\Program Files\nodejs\node_global`，
+  需管理员 shell），或免管理员用 `npx -y @deepseek-ai/dsh@0.1.5-rc.2 web --port 8080`。
+  自检：`dsh --version` ≥ 0.1.5；`dsh web --dump-config` 里应能看到 6 条 `@dsh-plugins/*`
+  行；浏览器 `GET /plugins/@dsh-plugins/balance/client.js` 应返回 200 而不是 404。
+  注意 0.1.5 把 `healProfilesModuleFallback` 从 `prepareProfile` 移进了同步不执行的
+  `composeProfile`（`--dump-config` 不会 heal），所以 `$DSH_HOME/profiles/node_modules`
+  的链接只有在真正 `dsh web` 启动时才重指到启动它的那份安装。
 - **本地调试安装**：`dsh plugin --profile <name> add F:/dsh-balance-plugin/bundles/
-  dsh-widgets-plugin`（junction 直连仓库，不拷贝）。改代码后 `pnpm build` 更新 `lib/`；
+  dsh-widgets-plugin`（junction 直连仓库，不拷贝）。该命令除了写 profile 的
+  `dependencies`，还会按「安装状态」把 bundle 追加回 `dsh.profile.bundles`——两者缺一
+  都不会挂载插件（profile 只有 `dsh-base` / `dsh-web-app` 两个 bundle 层时，插件行根本
+  不在 loader 里，`/plugins/@dsh-plugins/...` 全 404）。改代码后 `pnpm build` 更新 `lib/`；
   浏览器半改动刷新页面即生效，**Host 半改动需重启 `dsh web`**。
 - **会话监控桌面壳**：`desktop/dsh-session-desktop/` 是 **Tauri 2（Rust）应用，不是
   npm 发布包、不在 pnpm workspace 内**（仅用 npm 装 `@tauri-apps/cli`）。桌面
