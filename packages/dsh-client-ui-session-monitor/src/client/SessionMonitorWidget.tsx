@@ -123,6 +123,10 @@ function goalProjectionOf(row: SessionSummary): GoalProjectionLoose | null | und
   return goal as GoalProjectionLoose
 }
 
+/** One kind of work a session row can have in flight; the row's progress bar
+ *  shows one at a time and rotates through them when several are live. */
+type ProgressKind = 'turn' | 'sub' | 'jobs'
+
 /** A finished round waiting for its Host turn-end reason before toasting. */
 interface PendingAlert {
   at: number
@@ -255,6 +259,12 @@ const INBOX_ROUTE = '/_dsh/session-monitor/notifications'
 const INBOX_ACK_ROUTE = '/_dsh/session-monitor/notifications/ack'
 /** Badge poll cadence — slower than the reasons table, the count is not urgent. */
 const INBOX_POLL_MS = 5000
+/** How long each activity kind keeps the progress bar while a row has several
+ *  kinds in flight at once (see the rotating-progress logic in the row list). */
+const PROGRESS_ROTATE_MS = 1600
+/** Phase modulus for that rotation: 6 is divisible by both 2 and 3 kinds, so
+ *  every kind gets the same share of a cycle whichever combination is live. */
+const PROGRESS_ROTATE_STEPS = 6
 /** How long a Host turn-end record may precede the client's edge detection
  *  and still count as the reason for THAT round. The Host records the turn-end
  *  at event wall time, which precedes the client's running-flip detection by a
@@ -414,6 +424,11 @@ export function SessionMonitorWidget(props: SessionMonitorWidgetProps) {
   /** Currently-executing tool per session (Host-tracked; state so the row
    *  progress labels update when the status poll lands a change). */
   const [tools, setTools] = useState<Readonly<Record<string, CurrentTool>>>({})
+  /** Rotation phase for progress bars of rows with SEVERAL kinds of work in
+   *  flight (a turn plus subagents plus background jobs): one shared phase for
+   *  the whole list, advanced by a single interval while such a row is visible
+   *  (see rotatingProgressVisible below). */
+  const [progressPhase, setProgressPhase] = useState(0)
 
   /** Last-observed running bits per session; a true→false edge = one finished round. */
   const prevRunningRef = useRef<Map<string, boolean>>(new Map())
@@ -1142,6 +1157,32 @@ export function SessionMonitorWidget(props: SessionMonitorWidgetProps) {
     return { rows: orderRows(visible, doneIds, busyIds), hiddenCount }
   }, [sessions, settings.runningOnly, settings.timeWindowMin, settings.showSubagents, lastActive, now, doneIds, runningSubagentsByParent, runningJobsBySession])
 
+  /**
+   * Whether any visible row has SEVERAL kinds of work in flight at once (a turn
+   * + subagents, subagents + background jobs, all three — goal rows excluded,
+   * their bar is determinate). Those rows rotate their progress accent/label
+   * through the active kinds, so a session running subagents AND background
+   * jobs no longer hides one behind the other. One shared interval drives the
+   * whole list (kept in step, and only while such a row is on screen).
+   */
+  const rotatingProgressVisible = !collapsed && rows.some((row) => {
+    const goal = goalProjectionOf(row)?.goal
+    if (goal !== undefined && goal.phase !== 'complete') return false
+    let kinds = 0
+    if (row.running) kinds++
+    if ((runningSubagentsByParent.get(row.id) ?? 0) > 0) kinds++
+    if ((runningJobsBySession.get(row.id) ?? 0) > 0) kinds++
+    return kinds > 1
+  })
+
+  useEffect(() => {
+    if (!rotatingProgressVisible) return
+    const id = window.setInterval(() => {
+      setProgressPhase((p) => (p + 1) % PROGRESS_ROTATE_STEPS)
+    }, PROGRESS_ROTATE_MS)
+    return () => window.clearInterval(id)
+  }, [rotatingProgressVisible])
+
   /** Close the live system notification for one session (no-op when none is showing). */
   function closeBrowserNotify(sessionId: string): void {
     const inst = notifyInstRef.current.get(sessionId)
@@ -1553,9 +1594,40 @@ export function SessionMonitorWidget(props: SessionMonitorWidgetProps) {
               const goalPct = goalActive && (goalProj.goal?.maxGoalRounds ?? 0) > 0
                 ? Math.min(100, Math.round(((goalProj.roundsStarted ?? 0) / (goalProj.goal?.maxGoalRounds ?? 1)) * 100))
                 : undefined
-              const active = row.running || subRunning > 0 || jobsRunning > 0 || goalPausedOrBlocked
+              // Kinds of work in flight on this row, in display precedence.
+              // This is the SINGLE source of the busy conditions: `active`
+              // derives from it (plus the paused/blocked goal exception), so the
+              // non-goal branch below can never run with an empty kind list.
+              const progressKinds: ProgressKind[] = []
+              if (row.running) progressKinds.push('turn')
+              if (subRunning > 0) progressKinds.push('sub')
+              if (jobsRunning > 0) progressKinds.push('jobs')
+              const active = progressKinds.length > 0 || goalPausedOrBlocked
               let progressCls: string | undefined
               let progressLabel: string | undefined
+              /** What one kind says when it owns the bar. */
+              const progressLabelOf = (kind: ProgressKind): string => {
+                if (kind === 'sub') return t('progressSub', { n: String(subRunning) })
+                if (kind === 'jobs') {
+                  // Name the first still-executing job when exactly one is
+                  // running; a multi-job session just gets the count.
+                  const jobs = jobRows[row.id] ?? []
+                  const firstLabel = jobs.find((j) => j.status === 'running' || j.status === 'stopping')?.label
+                  return firstLabel !== undefined && jobsRunning === 1
+                    ? t('progressJobOne', { label: firstLabel })
+                    : t('progressJobs', { n: String(jobsRunning) })
+                }
+                // Round number of the IN-PROGRESS turn: the Host's cumulative
+                // finished-round count + 1 (accurate even for long turns — the
+                // count is not TTL-pruned), else the widget's own observed
+                // count + 1, else 1.
+                const hostCount = roundsHostRef.current[row.id]
+                const round = (hostCount ?? roundsRef.current.get(row.id) ?? 0) + 1
+                const toolName = tools[row.id]?.name
+                return toolName !== undefined
+                  ? t('progressTool', { round: String(round), tool: toolName })
+                  : t('roundOf', { n: String(round) })
+              }
               if (active) {
                 if (goalActive) {
                   // Goal progress wins the bar: determinate, round/cap label.
@@ -1574,30 +1646,19 @@ export function SessionMonitorWidget(props: SessionMonitorWidgetProps) {
                       ? t('goalProgressTool', { round: started, cap, tool: toolName })
                       : t('goalProgress', { round: started, cap })
                   }
-                } else if (row.running) {
-                  progressCls = css.progressRunning
-                  // Round number of the IN-PROGRESS turn: the Host's cumulative
-                  // finished-round count + 1 (accurate even for long turns — the
-                  // count is not TTL-pruned), else the widget's own observed
-                  // count + 1, else 1.
-                  const hostCount = roundsHostRef.current[row.id]
-                  const round = (hostCount ?? roundsRef.current.get(row.id) ?? 0) + 1
-                  const toolName = tools[row.id]?.name
-                  progressLabel = toolName !== undefined
-                    ? t('progressTool', { round: String(round), tool: toolName })
-                    : t('roundOf', { n: String(round) })
-                } else if (busySub) {
-                  progressCls = css.progressSub
-                  progressLabel = t('progressSub', { n: String(subRunning) })
                 } else {
-                  progressCls = css.progressJobs
-                  // Name the first still-executing job when exactly one is
-                  // running; a multi-job session just gets the count.
-                  const jobs = jobRows[row.id] ?? []
-                  const firstLabel = jobs.find((j) => j.status === 'running' || j.status === 'stopping')?.label
-                  progressLabel = firstLabel !== undefined && jobsRunning === 1
-                    ? t('progressJobOne', { label: firstLabel })
-                    : t('progressJobs', { n: String(jobsRunning) })
+                  // Several kinds at once (a turn with subagents and/or
+                  // background jobs): ROTATE the bar through their accents and
+                  // labels on the shared phase, so 子代理 (violet) and 后台任务
+                  // (cyan) each get a turn instead of the lower-precedence one
+                  // staying invisible. A single kind is unchanged.
+                  const kind = progressKinds.length > 1
+                    ? progressKinds[progressPhase % progressKinds.length]
+                    : progressKinds[0]
+                  progressCls = kind === 'sub'
+                    ? css.progressSub
+                    : kind === 'jobs' ? css.progressJobs : css.progressRunning
+                  progressLabel = progressLabelOf(kind)
                 }
               }
               return (

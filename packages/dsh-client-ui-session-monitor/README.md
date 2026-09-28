@@ -60,7 +60,12 @@ rounds. Without the host half the widget still works (base notification kinds).
   cumulative finished-round count + 1, accurate even for long turns; without
   the host half the label falls back to the round only); busy-not-running rows
   show the subagent / background-task load (a single background task names the
-  task itself, e.g. "后台任务 · npm install").
+  task itself, e.g. "后台任务 · npm install"). When a row has **several kinds of
+  work in flight at once** (e.g. background jobs *and* subagents), the accent
+  and label **rotate** through them, 1.6 s each (green = turn, violet =
+  subagents, cyan = background jobs), on one phase shared by the whole list, so
+  the lower-precedence kind is never permanently hidden. A single kind of work
+  keeps exactly the old color/label, and the determinate goal bar never rotates.
 - **Task-goal progress**: when a session runs in **goal mode** (a task goal
   was created via `create_goal` and the agent advances round after round), the
   bar upgrades to a **determinate** one — the `goal` session projection

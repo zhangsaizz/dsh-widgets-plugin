@@ -341,7 +341,12 @@
    INDETERMINATE — a sweeping highlight that says "executing" — while the
    .progressLabel names what is executing. The accent follows the same coding
    as the status dots/badges: green = a running turn, violet = subagents,
-   cyan = background jobs. */
+   cyan = background jobs. When a row has SEVERAL kinds in flight at once the
+   component rotates the accent/label through them (one shared phase, see the
+   rotating-progress effect in SessionMonitorWidget): the track wash below
+   transitions, so a swap between accents reads as a fade, while the sweep
+   gradient (background-image gradients do not interpolate) and the label text
+   change on the step boundary. */
 .progress {
   margin-top: 5px;
   min-width: 0;
@@ -354,6 +359,7 @@
   overflow: hidden;
   /* Track: a faint wash of the accent; the sweep rides on top. */
   background: color-mix(in srgb, var(--progress-accent, var(--dsw-alias-state-success, #3dd68c)) 18%, transparent);
+  transition: background 260ms ease;
 }
 
 /* The sweeping highlight. Left-animated (not background-position, which is
@@ -780,6 +786,7 @@
    on every poll. */
 @media (prefers-reduced-motion: reduce) {
   .dotRunning { animation: none; }
+  .progressBar { transition: none; }
   .progressBar::after { animation: none; }
   .progressFill { transition: none; }
   .toast { animation: none; }
