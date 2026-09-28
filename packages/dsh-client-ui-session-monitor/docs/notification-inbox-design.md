@@ -32,6 +32,9 @@
 - 不改网页版主界面（网页版保持列表 + toast）；
 - 不做跨进程推送（系统通知中心、托盘闪动等）——列为可选的后续阶段；
 - 不引入新的 peer 依赖（沿用现有 `ctx.sessions` 事件日志 + webServer 路由模式）。
+  *（范围声明，指 inbox 重构本身；harness 0.1.7 基座迁移另行为本包引入了
+  `dsh-api-job-controller` / `dsh-client-ui-workspace` / `cordis-plugin-loader` 等
+  peer 依赖——见 AGENTS.md「0.1.5 → 0.1.7 的 API 迁移」。）*
 
 ---
 
@@ -126,8 +129,9 @@ interface InboxNotification {
 
 ### 5.1 存储
 
-- 内存环形缓冲（上限 ~200 条）+ 持久化到 harness settings 文档（与现有
-  `desktop-settings.ts` 的 `session-monitor` 命名空间同源，`ctx.settings` 读写），
+- 内存环形缓冲（上限 ~200 条）+ 持久化到 harness settings 文档（插件自己 Config 条目的
+  `inbox` volatile 字段——0.1.7 里 settings 命名空间就是 profile 条目的**原始 id**
+  `ui-session-monitor`，经 `ctx.settings.update(ns, { inbox })` 读写），
   重启不丢、已读不丢；
 - 幂等键 `(sessionId, kind, round)`：同一轮同一种类只产生一条，轮询/重复事件天然去重；
 - 自动归档：已读超过 N 天（默认 7）或总量超上限时裁剪。
@@ -144,8 +148,10 @@ interface InboxNotification {
 
 ### 5.3 补盲区：question / plan-review 的检测
 
-`question` / `plan-review` 是客户端 `useSessionPendingInteraction` 标准 prop 暴露的瞬态状态
-（按会话 id 索引的 pending 快照；`dsh-client-runtime` 退役后不再挂在会话列表行上），不写会话日志。
+`question` / `plan-review` 是客户端 `useSessionStatus` 标准 prop 暴露的瞬态状态
+（返回 `Map<SessionId, { running, pendingInteraction, completionUnread }>`，kind 取
+`status.pendingInteraction?.kind`；`useSessionPendingInteraction` 已删除，
+`dsh-client-runtime` 退役后也不再挂在会话列表行上），不写会话日志。
 但这两类等待**必然经由模型工具调用进入**，所以 Host 可以自己看到（不依赖网页开着）：
 
 - `ask_user_question` 的 `tool/call` → 记一条 `question`；`arguments` 里的
@@ -253,6 +259,10 @@ interface InboxNotification {
   relay 备份仍覆盖网页场景；
 - **通知量噪声**：P2 默认关 + 自动归档兜底；完成一轮高频会话可关掉 P1 的 `done`；
 - **存储写入频率**：通知存储的持久化用 debounce（如 1s），避免 2s 轮询写放大；
+  但**终止性变更（ack / resolve）不等 debounce**，由 store 的持久化钩子标记 `immediate`
+  立即落盘——否则一次「点完已读就刷新/停用插件」会把这笔改动吃掉；卸载时仍做一次尽力
+  而为的 flush 兜底（0.1.7 走 Config 写入，插件 fiber 已非 ACTIVE 时会被拒，失败会记 warn
+  而不是静默吞掉）；
 - **冷会话（cold）**：已持久化会话的事件不产生新通知（没有新活动）；通知只反映
   当前进程内观察到的事件，与现有快照语义一致。
 

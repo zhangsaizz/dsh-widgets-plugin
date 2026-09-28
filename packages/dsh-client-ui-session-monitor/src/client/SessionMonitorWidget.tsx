@@ -21,7 +21,8 @@
  *    toast notification for every finished round ("完成一轮"), with 跳转
  *    (jump) and 知道了 (dismiss) actions — auto-dismiss or confirm-required;
  *  - clicking a row (or a toast's jump button) switches the app to that
- *    session through the injected `open` action (ctx.sessions.open).
+ *    session through the injected `open` action
+ *    (ctx.uiWorkspace.openSession in harness 0.1.7).
  *
  * Settings and the panel position persist to localStorage; the config panel
  * (widgets.config) writes the same keys and announces changes via a window
@@ -35,9 +36,12 @@ import type {
 } from '@deepseek-ai/dsh-client-ui-slots'
 import type { SessionListState, SessionSummary } from '@deepseek-ai/dsh-api-session-controller/client'
 import type { SessionId } from '@deepseek-ai/dsh-session/types'
-// Type-only: pulls the `useSessions` / `useSessionPendingInteraction`
-// standard-prop merge from ui-session.
+// Type-only: pulls the `useSessions` / `useSessionStatus` standard-prop merge
+// from ui-session (`useSessionPendingInteraction` was replaced by the unified
+// status snapshot in 0.1.7).
 import type {} from '@deepseek-ai/dsh-client-ui-session/client'
+import { currentSessionId } from './session-selection.ts'
+import { jobWatchTargets, useWatchedJobRows } from './jobs-bridge.ts'
 import {
   MAX_SCALE, MIN_SCALE, POS_KEY, SETTINGS_CHANGED_EVENT, SETTINGS_KEY, clampToViewport, loadDone,
   loadLastActive, loadPos, loadScale, loadSettings, playChime, saveDone, saveLastActive, savePos, saveScale,
@@ -45,7 +49,9 @@ import {
 import type { MonitorSettings } from './settings.ts'
 import css from './SessionMonitorWidget.module.css'
 
-/** Injected business face: the jump-to-session verb (backed by ctx.sessions.open). */
+/** Injected business face: the jump-to-session verb (backed by
+ *  `ctx.uiWorkspace.openSession` — 0.1.7 moved Session navigation out of the
+ *  Session Controller). */
 export interface SessionMonitorInject {
   open: (sessionId: string) => void
 }
@@ -160,6 +166,14 @@ function interactionKind(status: PendingInteractionStatus | undefined): ToastKin
   if (status === 'approval') return 'approval'
   if (status === 'plan-review') return 'plan-review'
   return 'question'
+}
+
+/** Narrow a published pending-interaction kind onto this widget's vocabulary.
+ *  The status snapshot types `kind` as a bare `string` (each domain owns its
+ *  own vocabulary), so only the kinds the shipped domains publish today are
+ *  recognised; an unknown domain's kind falls through to `question`. */
+function narrowPendingKind(kind: string): PendingInteractionStatus {
+  return kind === 'approval' || kind === 'plan-review' ? kind : 'question'
 }
 
 /** Window event the widget dispatches for client-transient interaction pauses
@@ -328,8 +342,22 @@ export function SessionMonitorWidget(props: SessionMonitorWidgetProps) {
   const { t, open } = props
   /** The live session-list snapshot (stable reference between changes). */
   const list = props.useSessions((s: SessionListState) => s)
+  /**
+   * Unified per-session UI status (0.1.7 replaced the standalone pending
+   * interaction snapshot with one map carrying running / pendingInteraction /
+   * completionUnread per Session).
+   */
+  const sessionStatus = props.useSessionStatus((m) => m)
   /** Pending user interactions by session (approval / question / plan-review). */
-  const pendingInteractions = props.useSessionPendingInteraction((m) => m)
+  const pendingInteractions = useMemo(() => {
+    const map = new Map<SessionId, PendingInteractionStatus>()
+    for (const [id, status] of sessionStatus) {
+      const kind = status.pendingInteraction?.kind
+      if (kind === undefined) continue
+      map.set(id, narrowPendingKind(kind))
+    }
+    return map
+  }, [sessionStatus])
   /**
    * The list with each row's pending-interaction kind joined back on. The
    * framework publishes pending interactions in their own session-keyed
@@ -347,11 +375,20 @@ export function SessionMonitorWidget(props: SessionMonitorWidgetProps) {
       const row = byId[id]
       // Address-only rows (a catalog route with no list row) stay untouched.
       if (row === undefined) continue
-      byId[id] = { ...row, pendingInteraction: interaction.kind as PendingInteractionStatus }
+      byId[id] = { ...row, pendingInteraction: interaction }
       joined = true
     }
     return joined ? { ...list, byId } : list
   }, [list, pendingInteractions])
+
+  /**
+   * The Session the main view currently shows (0.1.7: derived from the list
+   * row's `mainView` retention — the controller no longer carries `current`).
+   */
+  const currentId = currentSessionId(sessions)
+
+  /** Brand-free view of the list rows (`SessionId` is a branded string). */
+  const rowsById = sessions.byId as Readonly<Record<string, MonitorSessionRow>>
 
   const [settings, setSettings] = useState<MonitorSettings>(loadSettings)
   const [collapsed, setCollapsed] = useState(false)
@@ -425,7 +462,7 @@ export function SessionMonitorWidget(props: SessionMonitorWidgetProps) {
   const posRef = useRef<{ x: number; y: number } | null>(null)
   const scaleRef = useRef(scale)
   /** Latest current-session id for the return-cleanup listener (below). */
-  const currentIdRef = useRef<string | undefined>(sessions.current)
+  const currentIdRef = useRef<string | undefined>(currentId)
   /** Previous current-session id for the app-open acknowledgment effect. */
   const prevCurrentRef = useRef<string | undefined>(undefined)
   /** Skip the first run of that effect: the mount-time current is not an "opened" event. */
@@ -442,7 +479,7 @@ export function SessionMonitorWidget(props: SessionMonitorWidgetProps) {
   useEffect(() => { settingsRef.current = settings }, [settings])
   useEffect(() => { doneIdsRef.current = doneIds }, [doneIds])
   useEffect(() => { lastActiveRef.current = lastActive }, [lastActive])
-  useEffect(() => { currentIdRef.current = sessions.current })
+  useEffect(() => { currentIdRef.current = currentId })
   // Re-point the flush ref every render: flushPending closes over the latest
   // `t`/settings, so the mount-time poll loop must not hold the first frame's.
   useEffect(() => { flushPendingRef.current = flushPending })
@@ -624,7 +661,7 @@ export function SessionMonitorWidget(props: SessionMonitorWidgetProps) {
   // so nothing fires then — the return-cleanup owns that window.
   useEffect(() => {
     const prev = prevCurrentRef.current
-    const next = sessions.current
+    const next = currentId
     prevCurrentRef.current = next
     if (currentFirstRunRef.current) {
       currentFirstRunRef.current = false
@@ -644,7 +681,7 @@ export function SessionMonitorWidget(props: SessionMonitorWidgetProps) {
       return n
     })
     broadcastSync({ type: 'opened', sessionId: next })
-  }, [sessions.current])
+  }, [currentId])
 
   // Round-completion detection: diff the running bits across snapshots.
   useEffect(() => {
@@ -703,7 +740,7 @@ export function SessionMonitorWidget(props: SessionMonitorWidgetProps) {
       // rounds that stop waiting for the user's input/confirmation always
       // notify — "your turn" is the one case the user must not miss, even
       // while looking at the page (the ordinary "round done" can stay silent).
-      if (row.id === sessions.current && !cfg.notifyCurrent && !userAway && !row.pendingInteraction) continue
+      if (row.id === currentId && !cfg.notifyCurrent && !userAway && !row.pendingInteraction) continue
       newDone.add(row.id)
       // Base kind from what the client alone can observe; the Host reason may
       // refine it to error / aborted / blocked / max-tokens / interrupted.
@@ -1009,17 +1046,30 @@ export function SessionMonitorWidget(props: SessionMonitorWidgetProps) {
     return map
   }, [sessions])
 
+  // Only the Sessions that can have a roster are watched (running, already
+  // holding a live job, or the current one) — 0.1.7 serves rosters per Session,
+  // so watching the whole list would keep one stream open per Session.
+  const jobRows = useWatchedJobRows((rows) => jobWatchTargets(
+    sessions.ids,
+    (id) => rowsById[id]?.running === true,
+    rows,
+    currentId,
+  ))
+
   /**
-   * Live background-job count per session (shown as a 后×N badge on the row),
-   * mirrored from the runtime's `session/jobs` mirror (`jobsBySession`). Only
-   * still-executing jobs (`running` / `stopping`) count: settled jobs
-   * (`completed` / `killed` / `failed`) linger in the registry until the owner
-   * session is disposed, so including them would show stale totals.
+   * Live background-job count per session (shown as a 后×N badge on the row).
+   * 0.1.7 removed the runtime's global `session/jobs` mirror
+   * (`SessionListState.jobsBySession`): rosters now come from `ctx.jobs`, one
+   * reference-counted `job.list` stream per watched session (see
+   * ./jobs-bridge.ts). Only still-executing jobs (`running` / `stopping`) count:
+   * settled jobs (`completed` / `killed` / `failed`) linger in the registry
+   * until the owner session is disposed, so including them would show stale
+   * totals.
    */
   const runningJobsBySession = useMemo(() => {
     const map = new Map<string, number>()
     for (const id of sessions.ids) {
-      const jobs = sessions.jobsBySession[id]
+      const jobs = jobRows[id]
       if (!jobs || jobs.length === 0) continue
       let n = 0
       for (const job of jobs) {
@@ -1028,7 +1078,7 @@ export function SessionMonitorWidget(props: SessionMonitorWidgetProps) {
       if (n > 0) map.set(id, n)
     }
     return map
-  }, [sessions])
+  }, [sessions, jobRows])
 
   // Sessions currently doing work: in a turn, or not in a turn but with
   // subagents / background jobs executing. Feeds the header and collapsed-pill
@@ -1080,7 +1130,7 @@ export function SessionMonitorWidget(props: SessionMonitorWidgetProps) {
           if (row.running || busyIds.has(row.id)) return true
           // The current session is always visible too — never hide what the
           // user is actively using, even when its updatedAt is old.
-          if (row.id === sessions.current) return true
+          if (row.id === currentId) return true
           return now - Math.max(row.updatedAt, lastActive[row.id] ?? 0) <= windowMs
         })
       : live
@@ -1364,8 +1414,6 @@ export function SessionMonitorWidget(props: SessionMonitorWidgetProps) {
     anchorStyle.bottom = DEFAULT_BOTTOM
   }
 
-  const currentId = sessions.current
-
   let body
   if (collapsed) {
     body = (
@@ -1545,7 +1593,7 @@ export function SessionMonitorWidget(props: SessionMonitorWidgetProps) {
                   progressCls = css.progressJobs
                   // Name the first still-executing job when exactly one is
                   // running; a multi-job session just gets the count.
-                  const jobs = sessions.jobsBySession[row.id] ?? []
+                  const jobs = jobRows[row.id] ?? []
                   const firstLabel = jobs.find((j) => j.status === 'running' || j.status === 'stopping')?.label
                   progressLabel = firstLabel !== undefined && jobsRunning === 1
                     ? t('progressJobOne', { label: firstLabel })

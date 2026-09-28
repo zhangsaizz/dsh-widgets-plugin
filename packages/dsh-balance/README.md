@@ -40,10 +40,15 @@ hover tooltip / loading states, light & dark themes](../../docs/previews/balance
   | SiliconFlow | `GET /v1/user/info` | `siliconflow` | `SILICONFLOW_API_KEY` | CNY |
   | New API | `GET /api/user/self` (quota ÷ 500000 = USD) | `new-api` | `NEW_API_KEY` | USD |
 
-- **User-managed bindings** — the `balance` settings section (`bindings[]`:
-  `provider` + `vendor` + `credentialRef` or `credential` + optional
-  `baseURL`) is registered on the `settings` seam and reconciled
-  live on change; a same-origin Web route (`/_dsh/balance/settings`) serves a
+- **User-managed bindings** — the plugin's own Config entry carries them
+  (`bindings[]`: `provider` + `vendor` + `credentialRef` or `credential` +
+  optional `baseURL`) as its **volatile** field, so the settings namespace *is*
+  that profile entry's raw id (`balance`) — `ctx.settings.register` is gone in
+  0.1.7. The plugin re-registers the bound providers whenever the Loader commits
+  a change in place (`loader/volatile-update`), and writes go through
+  `ctx.settings.update(ns, { bindings })` (merge — `replace` would reset the
+  entry's other volatile fields). A same-origin Web route
+  (`/_dsh/balance/settings`) serves a
   redacted GET snapshot and POST save (blank credential keeps the stored value;
   a `credentialClear` flag removes it explicitly). The config panel in the
   widget manager's "Configure" dialog supports add, inline edit (provider route,
@@ -103,8 +108,10 @@ default bindings need no configuration — just store the matching API key in
 the credential reference (DeepSeek → `DEEPSEEK_API_KEY`, Moonshot →
 `MOONSHOT_API_KEY`, OpenRouter → `OPENROUTER_API_KEY`, SiliconFlow →
 `SILICONFLOW_API_KEY`, New API → `NEW_API_KEY`). To query additional or
-self-hosted routes, add a binding in Web settings → Widgets manager →
-Balance → **Configure** (dialog) and store the token (the provider route
+self-hosted routes, add a binding in the harness **Plugins** page (the
+`@dsh-plugins/dsh-widgets-plugin` bundle → the `balance` row → **Configure**),
+or in Web settings → Widgets manager → Balance → **Configure**; both open this
+package's provider panel. Store the token there (the provider route
 dropdown mirrors the model list — only providers that expose models — or the
 route can be typed freely); the next dashboard refresh picks it up without a
 restart. Bindings can be edited in place and removed with a two-step confirm;

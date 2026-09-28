@@ -102,6 +102,7 @@ export type SessionMonitorKey =
   | 'goalProgressTool'
   | 'goalPaused'
   | 'goalBlocked'
+  | 'rowConfigSummary'
 
 /** Simplified Chinese dictionary. */
 export const zh: Record<SessionMonitorKey, string> = {
@@ -201,6 +202,7 @@ export const zh: Record<SessionMonitorKey, string> = {
   goalProgressTool: '目标 第 {round}/{cap} 轮 · 正在执行 {tool}',
   goalPaused: '目标已暂停 · 第 {round}/{cap} 轮',
   goalBlocked: '目标受阻 · 第 {round}/{cap} 轮',
+  rowConfigSummary: '跨会话总览、完成提醒与跳转；与桌面挂件共享同一份设置',
 }
 
 /** English dictionary. */
@@ -301,4 +303,5 @@ export const en: Record<SessionMonitorKey, string> = {
   goalProgressTool: 'goal round {round}/{cap} · running {tool}',
   goalPaused: 'goal paused · round {round}/{cap}',
   goalBlocked: 'goal blocked · round {round}/{cap}',
+  rowConfigSummary: 'Cross-session overview, completion reminders, and jump-to-session — sharing one settings store with the desktop widget',
 }

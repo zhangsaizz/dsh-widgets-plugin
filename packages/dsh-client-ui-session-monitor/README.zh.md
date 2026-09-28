@@ -23,7 +23,12 @@
   的会话始终显示，被隐藏的旧会话数量会有淡色提示。**子代理会话默认过滤**（可在
   配置弹窗里重新开启显示与提醒），但主代理行会显示紧凑的 **子×N** 徽标，表示
   当前共有 N 个子代理（含嵌套派生的所有后代）正在执行。每行还会显示 **后×N** 徽标——该会话当前在后台
-   执行的任务数（`session/jobs` 镜像，只统计运行中/停止中的任务，已结束的不计）。
+  执行的任务数（经 `ctx.jobs` 观察：0.1.7 的 roster 是按会话提供的，由
+  `src/client/jobs-bridge.ts` 的 `useWatchedJobRows` + 纯策略 `jobWatchTargets` 封装；
+  0.1.5 的 `SessionListState.jobsBySession` 全局镜像已删除，只统计运行中/停止中的任务，
+  已结束的不计）。由于每个被观察的会话都会占一条 `job.list` 流，观察范围收敛为**可能真有
+  roster 的会话**——运行中、已持有在跑任务、以及当前会话——而不是整张列表；空闲且从未报过
+  任务的会话不观察。
   当主会话自身不在回合中、但仍有子代理或后台任务在执行时，状态不再显示「空闲」，
   而是显示 **子代理执行中**（紫）/ **后台执行中**（青），并像运行中一样置顶、
   不被时间窗隐藏；「只显示忙碌中」开关保留运行中 + 有子代理/后台任务在执行的会话，只隐藏真正空闲的。若该行还带「本轮
@@ -71,7 +76,8 @@
   标记会同步关闭（BroadcastChannel），设置改动也跨标签同步；会话被删除/归档后，
   其待发提醒与已弹提醒条自动清除。
 - **点击跳转**：点击任意列表行——或提醒条上的「跳转」按钮——立即把应用切到该
-  会话（`ctx.sessions.open`）。
+  会话（`ctx.uiWorkspace.openSession`，Workspace UI 服务，需在客户端 `inject`
+  列表里注入 `uiWorkspace`）。
 - **未读 inbox 徽标**：头部与收起胶囊显示待处理通知数（5s 轮询
   `/notifications`，红色徽标 0 隐藏），点击跳到最新一条未读会话**并标记该会话
   已读**（`POST /notifications/ack { sessionId }`——等同桌面「处理 + 自动已读」；
@@ -109,7 +115,8 @@ Host 半另托管一个**独立挂件页**（`/_dsh/session-monitor/widget`，�
 - **持久待办**：会话事件（等待审批 / 等待回答 / 等待审阅计划 / 出错 / 阻塞 / Token 上限 /
   完成一轮 / 子代理完成 / 中止 / 中断，以及可选的标题变更、新会话）由 **Host 半折叠成
   通知记录**（`src/desktop-notifications.ts`：幂等、上限 200、已读/已解决 7 天归档、
-  持久化到 harness settings 文档），窗口隐藏或重启后回来仍能看到——toast 负责「响了」，
+  持久化到插件自己 Config 条目的 `inbox` volatile 字段——settings 命名空间即 profile
+  条目 id `ui-session-monitor`），窗口隐藏或重启后回来仍能看到——toast 负责「响了」，
   inbox 负责「还没处理完」。
 - **分级排序**：P0 需要处理（审批/回答/计划/出错/阻塞/Token 上限）→ P1 值得看
   （完成一轮/子代理/中止/中断）→ P2 信息流（默认关）；头部与 Tab 显示**未读徽标**。
@@ -146,7 +153,7 @@ Host 半另托管一个**独立挂件页**（`/_dsh/session-monitor/widget`，�
 ```
 src/index.ts                  # Host 半：turn/end 原因跟踪 + 执行中工具折叠 + 通知 inbox + 路由
 src/desktop-snapshot.ts       # 桌面会话快照折叠（/sessions 路由；含 goal 折叠）
-src/desktop-settings.ts       # 共享设置命名空间 + schema（/settings 路由）
+src/desktop-settings.ts       # Config 条目的 volatile 字段（`settings` / `inbox`）+ schema（/settings 路由）
 src/desktop-notifications.ts  # 通知 inbox 存储（/notifications、ack、events 路由）
 src/widget-page.html          # 独立挂件页（inbox + 会话 Tab，内联进 Host bundle）
 src/client/index.ts           # 浏览器 apply + inject（设置镜像 / jump 消费 / relay）
@@ -198,6 +205,8 @@ web 服务才能被加载**。
    右下角的缩放手柄可在 0.6×～1.6× 之间缩放。位置与缩放都持久化。
 4. **提醒**——会话完成一轮时弹出提醒条（按设置自动消失或需确认）；点「跳转」
    直达该会话，「知道了」关闭提醒。
-5. **配置**——Web 设置 → 小组件管理 → 会话监控看板 → **配置**，调节提醒（开关、
+5. **配置**——在 harness 的 **Plugins 页**（`@dsh-plugins/dsh-widgets-plugin` bundle →
+   `ui-session-monitor` 行 → **配置**）或 Web 设置 → 小组件管理 → 会话监控看板 →
+   **配置**，两处打开的是同一个选项面板；调节提醒（开关、
    关闭方式、秒数、音效、当前会话范围）、是否显示子代理（默认关）与列表
    （只显示忙碌中、完成标记）。

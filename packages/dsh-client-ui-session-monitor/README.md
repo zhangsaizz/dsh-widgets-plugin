@@ -31,8 +31,15 @@ rounds. Without the host half the widget still works (base notification kinds).
   listing and notifying them), but a parent row shows a compact **子×N** badge
   while it has N subagents running (all descendants, nested ones included).
   Each row also shows a **后×N** badge — how
-  many tasks that session currently has executing in the background (mirrored
-  from `session/jobs`; only running/stopping tasks count, settled ones don't).
+  many tasks that session currently has executing in the background (watched
+  through `ctx.jobs`, whose rosters are per-session, wrapped as
+  `useWatchedJobRows` + the pure `jobWatchTargets` policy in
+  `src/client/jobs-bridge.ts` — the 0.1.5 `SessionListState.jobsBySession` global
+  mirror is gone; only running/stopping tasks count, settled ones don't). Because
+  0.1.7 serves one `job.list` stream per watched session, the watch set is
+  narrowed to the sessions that can actually have a roster — running ones, ones
+  already holding a live job, and the current session — instead of the whole
+  list; an idle session that never reported a job is not watched.
   When a session is not in a turn itself but still has subagents or background
   jobs executing, its status reads **子代理执行中** (subagents working, violet)
   or **后台执行中** (bg jobs running, cyan) instead of 空闲 — such rows rank
@@ -111,7 +118,8 @@ rounds. Without the host half the widget still works (base notification kinds).
   changes propagate across tabs too; when a session is disposed/archived, its
   pending and already-shown reminders are dropped automatically.
 - **Jump to session**: clicking any row — or a toast's 跳转 button — switches
-  the app to that session immediately (`ctx.sessions.open`).
+  the app to that session immediately (`ctx.uiWorkspace.openSession`, the
+  Workspace UI service, which must be in the client `inject` list).
 - **Unread inbox badge**: the header and the collapsed pill show how many
   notifications still need attention (polled every 5 s from `/notifications`;
   the red badge hides at 0). Clicking it jumps to the newest unread session
@@ -170,7 +178,8 @@ than a session list:
   interrupted, plus optional title change and new-session) are folded into
   notification records **on the Host** (`src/desktop-notifications.ts`:
   idempotent, capped at 200, acked/resolved records archived after 7 days,
-  persisted into the harness settings document). Toasts tell you something
+  persisted into the plugin Config entry's `inbox` volatile field — the settings
+  namespace is the profile entry id, `ui-session-monitor`). Toasts tell you something
   "happened"; the inbox keeps what you "haven't handled yet" across window
   hides and restarts.
 - **Prioritized**: P0 needs your action (approval / question / plan review /
@@ -226,7 +235,7 @@ than a session list:
 ```
 src/index.ts                  # Host half: turn/end reason tracking + executing-tool folding + inbox + routes
 src/desktop-snapshot.ts       # Desktop session snapshot folding (/sessions route; incl. goal folding)
-src/desktop-settings.ts       # Shared settings namespace + schema (/settings route)
+src/desktop-settings.ts       # Volatile Config fields (`settings` / `inbox`) + schema (/settings route)
 src/desktop-notifications.ts  # Notification inbox store (/notifications, ack, events routes)
 src/widget-page.html          # Standalone widget page (inbox + sessions tab, inlined into the host bundle)
 src/client/index.ts           # Browser apply + inject (settings mirror / jump consume / relay)
@@ -287,7 +296,9 @@ No configuration is needed after mounting:
 4. **Notifications** — when a session finishes a round, a toast appears
    (auto-dismiss or confirm-required per the settings). Click **跳转** to jump,
    **知道了** to dismiss.
-5. **Configure** — open Web settings → Widgets → Session monitor → **Configure**
-   to tune notifications (on/off, dismissal, seconds, sound, current-session
+5. **Configure** — open the harness **Plugins** page (`@dsh-plugins/dsh-widgets-plugin`
+   bundle → the `ui-session-monitor` row → **Configure**) or Web settings →
+   Widgets → Session monitor → **Configure** — both open this package's options
+   panel — to tune notifications (on/off, dismissal, seconds, sound, current-session
    scope), whether to show subagent sessions (off by default), and the list
    (busy-only, done marks).

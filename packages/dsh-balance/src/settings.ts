@@ -1,12 +1,20 @@
 /**
  * Balance settings vocabulary shared by the plugin body and the optional Web
- * settings route: the binding schema, the settings-section schema, and the
- * namespace identity.
+ * settings route: the binding schema and the default settings-namespace id.
+ *
+ * Harness 0.1.7 note: the balance settings section is no longer a separately
+ * registered `SettingsProvider` namespace — it IS the plugin's Config entry
+ * (see `Config` in ./index.ts, whose `bindings` field carries
+ * {@link bindingSchema}). The namespace a configuration surface sees is
+ * therefore the profile entry id the plugin was mounted under (our bundle uses
+ * `balance`), not a name the plugin registers; {@link BALANCE_SETTINGS_NS} is
+ * kept as the documented default and as the fallback for an install mounted
+ * without a loader entry id.
+ *
  * @module @dsh-plugins/balance/settings
  */
 
 import z from '@deepseek-ai/schemastery'
-import type { BalanceBindingConfig } from './types.ts'
 
 /** One deployment-configured balance binding (filled directly in cordis.patch.yml). */
 export const bindingSchema = z.object({
@@ -17,19 +25,5 @@ export const bindingSchema = z.object({
   baseURL: z.string(),
 })
 
-/** The stored shape of the `balance` settings section (mirrors `BalanceBindingConfig`). */
-export interface BalanceSettingsShape {
-  bindings: BalanceBindingConfig[]
-}
-
-/**
- * The `balance` settings-section schema (validates the stored user document).
- * Annotated explicitly: the inferred schemastery type references cosmokit
- * internals, which declaration emit cannot name portably (TS2742).
- */
-export const BalanceSettingsSchema: z<BalanceSettingsShape> = z.object({
-  bindings: z.array(bindingSchema).default([]),
-})
-
-/** Settings namespace owning the user-managed balance bindings. */
+/** Default settings namespace (profile entry id) owning the balance bindings. */
 export const BALANCE_SETTINGS_NS = 'balance'

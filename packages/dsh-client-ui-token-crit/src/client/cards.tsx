@@ -29,11 +29,12 @@ import type { TokenUsageProjection } from '@deepseek-ai/dsh-token-meter/client'
 // LocaleNamespaceMap merge the card types below depend on.
 import type {} from '@dsh-plugins/client-ui-card-container/client'
 import type { WidgetCardComponent } from '@dsh-plugins/client-ui-card-container/client'
+import { currentSessionId } from './session-selection.ts'
 import css from './cards.module.css'
 
 /** Select the current session's token usage — mirrors the TokenCritWidget. */
 function selectUsage(s: SessionListState): TokenUsageProjection | undefined {
-  const current = s.current
+  const current = currentSessionId(s)
   if (current === undefined) return undefined
   return s.byId[current]?.projectionValues?.tokenUsage
 }

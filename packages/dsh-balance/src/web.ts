@@ -95,9 +95,28 @@ export class BalanceWebBackend {
     return settings
   }
 
+  /**
+   * The settings namespace this plugin's bindings live in. Harness 0.1.7
+   * namespaces are profile plugin entry ids, so the plugin addresses its own
+   * Config entry rather than a name it registers; {@link BALANCE_SETTINGS_NS}
+   * is the fallback for a mount that carries no loader entry (tests, a host
+   * embedding the plugin without the profile loader).
+   *
+   * The id read here is the entry's RAW id (`options.id`) — the one
+   * `settings.describe()` reports — not `Entry.id`, which the loader prefixes
+   * with its owning entry's id (our bundle mounts this plugin as
+   * `@dsh-plugins/dsh-widgets-plugin/balance` in the entry tree while the
+   * settings namespace stays `balance`).
+   */
+  settingsNamespace(): string {
+    const id = (this.ctx.fiber as { entry?: { options?: { id?: string } } } | undefined)?.entry?.options?.id
+    return typeof id === 'string' && id.length > 0 ? id : BALANCE_SETTINGS_NS
+  }
+
   descriptor(): any {
-    const descriptor = this.settingsSeam().describe().find((row: { ns: string }) => row.ns === BALANCE_SETTINGS_NS)
-    if (descriptor === undefined) throw new Error('balance Settings namespace is not registered')
+    const ns = this.settingsNamespace()
+    const descriptor = this.settingsSeam().describe().find((row: { ns: string }) => row.ns === ns)
+    if (descriptor === undefined) throw new Error(`balance Settings namespace "${ns}" is not registered`)
     return descriptor
   }
 
@@ -147,6 +166,12 @@ export class BalanceWebBackend {
   async save(request: SaveRequest): Promise<unknown> {
     const settings = this.settingsSeam()
     if (!settings.writable) throw new Error('settings provider is read-only')
+    // Read the PREVIOUS section un-redacted: the "blank credential keeps the
+    // stored one" merge below needs the plaintext value. `descriptor()` calls
+    // `settings.describe()` without `{ redactSecrets: true }` for exactly this
+    // reason — never add that option here, or every save would silently wipe a
+    // stored key. The wire is protected by `redactBinding`, which strips
+    // `credential` from every response.
     const previous = this.descriptor().value
     const oldBindings = isRecord(previous) && Array.isArray(previous.bindings) ? previous.bindings : []
     const oldByProvider = new Map<string, Record<string, unknown>>()
@@ -172,7 +197,11 @@ export class BalanceWebBackend {
       }
       return rest
     })
-    await settings.replace(BALANCE_SETTINGS_NS, { bindings: merged }, request.expectedRevision)
+    // `update` merges into the entry's volatile form; `replace` would reset
+    // every volatile field to its composition base (they are the same thing
+    // while `bindings` is the only volatile field, but `update` stays correct
+    // if another is added).
+    await settings.update(this.settingsNamespace(), { bindings: merged }, request.expectedRevision)
     return this.snapshot()
   }
 
@@ -182,7 +211,9 @@ export class BalanceWebBackend {
         responseJson(res, 200, { ok: true, value: await this.snapshot() })
       } catch (error) {
         this.ctx.logger.warn('balance Settings snapshot failed: %s', publicMessage(error))
-        requestError(res, 503, 'settings-unavailable', 'Balance Settings are unavailable')
+        // Same-origin diagnostic, mirroring the POST path: the panel shows the
+        // reason instead of an opaque "unavailable".
+        requestError(res, 503, 'settings-unavailable', publicMessage(error))
       }
       return
     }
@@ -214,7 +245,16 @@ export function installBalanceWeb(ctx: Context, backend: BalanceWebBackend): voi
       const dispose = webCtx.webServer.register({
         kind: 'exact',
         path: SETTINGS_ROUTE,
-        handler: (req, res) => { void backend.handle(req, res) },
+        // The route surface is void, so `handle`'s promise must be owned here:
+        // its own catch blocks write a response and can reject (a client that
+        // hung up mid-flight, response headers already sent), and an unhandled
+        // rejection is fatal on modern Node. `handle` already answers every
+        // path it can, so this only records the residual failure.
+        handler: (req, res) => {
+          void backend.handle(req, res).catch((error: unknown) => {
+            webCtx.logger.warn(`balance: settings route failed after responding: ${publicMessage(error)}`)
+          })
+        },
       })
       return () => dispose()
     }, 'balance: settings web route')

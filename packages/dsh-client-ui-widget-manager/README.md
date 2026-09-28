@@ -15,6 +15,15 @@ lists this project's widgets and lets you **Add (enable)** or **Close
 - **Widget list**: the page live-projects the `shell.overlay` registration
   ledger and, combined with a built-in catalog, shows each widget's state —
   Enabled / Disabled / Not installed (with package name and description).
+- **This project's widgets only**: `shell.overlay` is shared, so the ledger also
+  carries *other* plugins' overlays (the harness keyboard-shortcut reference,
+  the session rename / archive dialogs, the workspace notice, the chat quota
+  notice, …). Those are filtered out — the page lists, shadows, and toggles only
+  the ids in the built-in catalog. Since the shadow mechanism works on any list
+  id, listing them would both mislabel them as unknown-source widgets and let one
+  click hide official UI. An id an older build had disabled is released on sight
+  (shadow dropped, mark removed from `localStorage`) so such a hidden overlay
+  comes back.
 - **Install guide**: a widget in the catalog that is not mounted shows an
   **Install guide** button instead of a disabled action. Clicking it opens a
   dialog with the concrete steps for this widget: the `dsh plugin --profile
@@ -36,8 +45,9 @@ lists this project's widgets and lets you **Add (enable)** or **Close
 - **Persistent state**: the disabled set is kept in browser `localStorage`
   and survives a reload; if a widget mounts after this manager, the overlay
   subscription shadows it the moment its entry appears.
-- **Live ledger**: any overlay entry outside the catalog is listed generically
-  too, so the page always mirrors reality.
+- **Live ledger**: the catalog decides what is listed; ledger mutations (a
+  widget mounting, unloading, or another plugin shadowing it) still drive each
+  row's live state.
 
 ## Structure
 

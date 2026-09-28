@@ -45,7 +45,7 @@ export type WidgetManagerLocaleKey =
 export const zh: Record<WidgetManagerLocaleKey, string> = {
   navLabel: '小组件管理',
   pageTitle: '小组件',
-  pageSubtitle: '本项目的小组件列表：添加（启用）会把挂件挂到页面上，停用（禁用）会把它从页面上移除。带配置的挂件可通过「配置」按钮在弹窗中单独设置。状态保存在本机浏览器，刷新后保持。',
+  pageSubtitle: '本项目的小组件列表：添加（启用）会把挂件挂到页面上，停用（禁用）会把它从页面上移除。带配置的挂件可通过「配置」按钮在弹窗中单独设置。状态保存在本机浏览器，刷新后保持。只列出本项目的挂件——harness 自带浮层由各自的插件管理，不在此处显示。',
   add: '添加',
   close: '停用',
   configure: '配置',
@@ -84,7 +84,7 @@ export const zh: Record<WidgetManagerLocaleKey, string> = {
 export const en: Record<WidgetManagerLocaleKey, string> = {
   navLabel: 'Widgets',
   pageTitle: 'Widgets',
-  pageSubtitle: 'The project widget list: Add (enable) mounts a widget onto the page, Close (disable) removes it. Widgets with configuration expose it through a "Configure" button in a separate dialog. State is kept in this browser and survives a reload.',
+  pageSubtitle: 'The project widget list: Add (enable) mounts a widget onto the page, Close (disable) removes it. Widgets with configuration expose it through a "Configure" button in a separate dialog. State is kept in this browser and survives a reload. This project\'s widgets only — harness overlays are managed by their own plugins and are not listed here.',
   add: 'Add',
   close: 'Disable',
   configure: 'Configure',

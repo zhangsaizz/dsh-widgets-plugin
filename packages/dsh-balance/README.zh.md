@@ -33,9 +33,13 @@
   | SiliconFlow | `GET /v1/user/info` | `siliconflow` | `SILICONFLOW_API_KEY` | CNY |
   | New API | `GET /api/user/self`（quota ÷ 500000 = USD） | `new-api` | `NEW_API_KEY` | USD |
 
-- **用户自管绑定** — `balance` 设置分区（`bindings[]`：`provider` + `vendor` +
-  `credentialRef` 或 `credential` + 可选 `baseURL`）注册进
-  `settings` 缝隙并在变更时实时对账；同源 Web 路由（`/_dsh/balance/settings`）
+- **用户自管绑定** — 由插件自身 Config 条目的 `bindings` **volatile** 字段承载
+  （`bindings[]`：`provider` + `vendor` + `credentialRef` 或 `credential` + 可选
+  `baseURL`）；settings 命名空间**就是**该 profile 条目的原始 id `balance`
+  （0.1.7 已删除 `ctx.settings.register`）。Loader 把提交原地写进运行中的 fiber
+  （`loader/volatile-update`）时插件重做注册；写入走
+  `ctx.settings.update(ns, { bindings })`（merge——`replace` 会重置该条目的其他
+  volatile 字段）。同源 Web 路由（`/_dsh/balance/settings`）
   提供脱敏 GET 快照与 POST 保存（留空凭据 = 保留原值；`credentialClear` 标记 =
   显式清除）。小组件管理「配置」弹窗里的供应商配置面板支持添加、就地编辑（提供商
   路由 / 厂商 / 凭据来源 / Base URL）与两步删除。这是为自托管或自定义
@@ -85,8 +89,10 @@ dsh plugin --profile <name> add @dsh-plugins/dsh-widgets-plugin
 打开会话后看板即以浮层出现。随包默认绑定无需任何配置——把对应 API Key 存入相应
 凭据引用即可（DeepSeek → `DEEPSEEK_API_KEY`、Moonshot → `MOONSHOT_API_KEY`、
 OpenRouter → `OPENROUTER_API_KEY`、SiliconFlow → `SILICONFLOW_API_KEY`、
-New API → `NEW_API_KEY`）。要查询额外或自托管路由，在 Web 设置 → 「小组件管理」
-→ 余额看板 → **配置**（弹窗）中添加绑定并存入令牌（提供商路由的下拉候选与
+New API → `NEW_API_KEY`）。要查询额外或自托管路由，在 harness 的 **Plugins 页**
+（`@dsh-plugins/dsh-widgets-plugin` bundle → `balance` 行 → **配置**）或 Web 设置 →
+「小组件管理」→ 余额看板 → **配置** 中添加绑定并存入令牌——两处打开的是同一个供应商
+配置面板（提供商路由的下拉候选与
 模型列表一致——只含有模型的提供商，也可直接输入自定义路由），下一次看板刷新即生效，无需重启。
 绑定支持就地编辑与两步删除；要清除已保存的 Key，编辑该绑定后点「清除已保存的 Key」
 并保存即可（留空 Key 则保留原值）。

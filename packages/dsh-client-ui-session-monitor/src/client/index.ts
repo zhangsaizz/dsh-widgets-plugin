@@ -7,7 +7,8 @@
  * pushes session-list and running-status updates reactively, so the list needs
  * no Host RPC. Only the turn-end REASON table (toast refinement) is polled
  * from the Host status route every few seconds. The jump-to-session verb
- * closes over `ctx.sessions.open`.
+ * closes over `ctx.uiWorkspace.openSession` (0.1.7 moved Session navigation
+ * out of the Session Controller into the Workspace UI service).
  *
  * @module @dsh-plugins/client-ui-session-monitor/client
  */
@@ -16,6 +17,12 @@ import type { Context as ClientContext } from '@deepseek-ai/cordis'
 import type { SessionId } from '@deepseek-ai/dsh-session/types'
 // Type-only: pulls the client session contract (`ctx.sessions`, ISessions).
 import type {} from '@deepseek-ai/dsh-api-session-controller/client'
+// Type-only: pulls the `ctx.uiWorkspace` Context merge — the 0.1.7 owner of
+// Session navigation (`openSession`).
+import type {} from '@deepseek-ai/dsh-client-ui-workspace/client'
+// Type-only: pulls the `ctx.jobs` Context merge — the 0.1.7 owner of per-session
+// background-job rosters (`sessions.jobsBySession` was removed).
+import type {} from '@deepseek-ai/dsh-api-job-controller/client'
 // Type-only: pulls the shell.overlay SlotMap merge from ui-layout.
 import type {} from '@deepseek-ai/dsh-client-ui-layout/client'
 // Type-only: pulls the `ctx.slots` (SlotRegistry) Context merge from ui-renderer.
@@ -33,6 +40,9 @@ import type { SessionMonitorInject } from './SessionMonitorWidget.tsx'
 import { SessionSettings } from './SessionSettings.tsx'
 import type { SessionSettingsInjected } from './SessionSettings.tsx'
 import { SessionMonitorCard } from './cards.tsx'
+import { MONITOR_ROW_CONFIG_KEY, SessionMonitorRowConfig } from './RowConfig.tsx'
+import { installJobsBridge, uninstallJobsBridge } from './jobs-bridge.ts'
+import { SETTINGS_REVISION_HEADER } from '../settings-revision.ts'
 import { en, zh } from './locales.ts'
 import type { SessionMonitorKey } from './locales.ts'
 
@@ -81,10 +91,11 @@ const SETTINGS_POLL_MS = 5000
 const BOOT_OPEN_PARAM = 'dsh-open'
 
 /**
- * Required services: the slot registry, the client sessions service (for
- * jump-to-session) and the locale face.
+ * Required services: the slot registry, the client sessions service, the
+ * Workspace UI service (jump-to-session: `ctx.uiWorkspace.openSession`) and the
+ * locale face.
  */
-export const inject = ['slots', 'sessions', 'locale']
+export const inject = ['slots', 'sessions', 'uiWorkspace', 'locale']
 
 /** Fetch the Host bridge route and unwrap the `{ ok, value }` envelope. */
 function bridgeFetch(input: string, init?: RequestInit): Promise<{ ok: boolean; value?: unknown }> {
@@ -110,16 +121,153 @@ function debounce(fn: () => void, ms: number): () => void {
 export function apply(ctx: ClientContext): void {
   ctx.effect(() => ctx.locale.register(NS, { zh, en }), 'session-monitor: dictionaries')
 
+  // Background-job rosters. 0.1.7 removed the runtime's global
+  // `sessions.jobsBySession` mirror: rosters now live on `ctx.jobs`, one
+  // reference-counted `job.list` stream per watched Session. Both card surfaces
+  // (the floating panel and the compact card) read the same bridge, which
+  // watches exactly the Sessions they list.
+  //
+  // `ctx.inject` rather than a declarative `inject` entry: the `dsh.client.inject`
+  // graph edge (package.json) is load/prefetch metadata and does NOT sequence
+  // `apply`, so reading `ctx.jobs` directly here would assume an ordering the
+  // framework never promised. Waiting through `inject` also degrades gracefully
+  // — an install without the job controller keeps the widget (minus job badges)
+  // instead of leaving the whole plugin inactive. The bridge re-subscribes when
+  // the service arrives, and the bridge keeps its own surface brand-free (plain
+  // ids), so the branded identity is restored here.
+  ctx.inject(['jobs'], (jobsCtx) => {
+    installJobsBridge(jobsCtx.jobs.state, (sessionId) => jobsCtx.jobs.watchRows(sessionId as SessionId))
+    // Retire the module-level bridge with the fiber that installed it, so an
+    // unloaded plugin stops pinning the (disposed) job model it subscribed to.
+    jobsCtx.effect(() => () => { uninstallJobsBridge() }, 'session-monitor: jobs bridge')
+  })
+
   // ── Settings mirror (web localStorage ⇄ Host store) ────────────────
-  const pushSettings = debounce(() => {
+  // Reads are the Host's truth mirrored into localStorage. Writes are DELTAS of
+  // this tab's own edits rather than whole-section replacements: the Host merges
+  // a patch key by key (`mergeLayers`), so asserting only the keys that actually
+  // changed lets a concurrent writer — another tab, or the desktop app — keep
+  // its own keys. Every settings response carries the entry revision, echoed
+  // back on the next write as an optimistic precondition: a writer whose base
+  // moved gets a conflict instead of silently clobbering, and the conflict path
+  // re-reads the fresh state and re-asserts our delta on top of it.
+  /** Last Host settings snapshot observed — the base our deltas are computed against. */
+  let hostBase: Record<string, unknown> | null = null
+  /** Revision {@link hostBase} was read at (the next write's precondition). */
+  let hostRevision: number | undefined
+
+  const readLocal = (): Record<string, unknown> | null => {
     const raw = window.localStorage.getItem(SETTINGS_KEY)
-    if (!raw) return
-    void bridgeFetch(SETTINGS_ROUTE, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: raw,
-    })
-  }, 300)
+    if (raw === null) return null
+    try {
+      const parsed: unknown = JSON.parse(raw)
+      return typeof parsed === 'object' && parsed !== null ? parsed as Record<string, unknown> : null
+    } catch {
+      return null
+    }
+  }
+
+  /** Keys where `local` differs from `base`; null when this tab asserts nothing. */
+  const deltaFrom = (
+    local: Record<string, unknown>,
+    base: Record<string, unknown>,
+  ): Record<string, unknown> | null => {
+    const patch: Record<string, unknown> = {}
+    for (const [key, value] of Object.entries(local)) {
+      if (JSON.stringify(value) !== JSON.stringify(base[key])) patch[key] = value
+    }
+    return Object.keys(patch).length === 0 ? null : patch
+  }
+
+  /** Adopt a Host snapshot: it becomes the new base and is mirrored locally. */
+  const adoptHost = (value: Record<string, unknown>, revision: number | undefined): void => {
+    hostBase = value
+    hostRevision = revision
+    const next = JSON.stringify(value)
+    if (next === window.localStorage.getItem(SETTINGS_KEY)) return
+    window.localStorage.setItem(SETTINGS_KEY, next)
+    // A change made elsewhere must reach the mounted widget live. The listener
+    // below then finds no local delta to assert, so this is not an echo loop.
+    try { window.dispatchEvent(new CustomEvent(SETTINGS_CHANGED_EVENT)) } catch { /* ignore */ }
+  }
+
+  /** GET the settings section together with its revision header. */
+  const fetchSettings = async (): Promise<{ value?: Record<string, unknown>; revision?: number }> => {
+    try {
+      const res = await fetch(SETTINGS_ROUTE, { cache: 'no-store' })
+      const body = await res.json() as { ok?: unknown; value?: unknown }
+      if (body.ok !== true || typeof body.value !== 'object' || body.value === null) return {}
+      const header = res.headers.get(SETTINGS_REVISION_HEADER)
+      const revision = header === null ? Number.NaN : Number(header)
+      return {
+        value: body.value as Record<string, unknown>,
+        ...(Number.isSafeInteger(revision) && revision >= 0 ? { revision } : {}),
+      }
+    } catch {
+      return {}
+    }
+  }
+
+  /** POST a settings patch; a conflict is reported apart from a plain failure. */
+  const postSettings = async (
+    patch: Record<string, unknown>,
+    expectedRevision: number | undefined,
+  ): Promise<{ ok: boolean; conflict: boolean; value?: Record<string, unknown>; revision?: number }> => {
+    try {
+      const res = await fetch(SETTINGS_ROUTE, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(expectedRevision === undefined ? {} : { [SETTINGS_REVISION_HEADER]: String(expectedRevision) }),
+        },
+        body: JSON.stringify(patch),
+      })
+      const body = await res.json() as { ok?: unknown; value?: unknown; code?: unknown }
+      const conflict = res.status === 409 || body.code === 'settings-conflict'
+      if (body.ok !== true || typeof body.value !== 'object' || body.value === null) {
+        return { ok: false, conflict }
+      }
+      const header = res.headers.get(SETTINGS_REVISION_HEADER)
+      const revision = header === null ? Number.NaN : Number(header)
+      return {
+        ok: true,
+        conflict: false,
+        value: body.value as Record<string, unknown>,
+        ...(Number.isSafeInteger(revision) && revision >= 0 ? { revision } : {}),
+      }
+    } catch {
+      return { ok: false, conflict: false }
+    }
+  }
+
+  const pushNow = async (): Promise<void> => {
+    const intent = readLocal()
+    if (intent === null) return
+    // No base yet (the first pull has not landed): assert the whole blob, which
+    // is the pre-0.1.7 behavior for that single bootstrap write.
+    const patch = hostBase === null ? intent : deltaFrom(intent, hostBase)
+    if (patch === null) return
+    let result = await postSettings(patch, hostRevision)
+    if (result.conflict) {
+      // Another writer moved the section between our read and our write: take
+      // their state as the new base, then assert only the keys that still differ,
+      // so this tab's edits land without reverting theirs.
+      const fresh = await fetchSettings()
+      if (fresh.value === undefined) return
+      adoptHost(fresh.value, fresh.revision)
+      const retry = deltaFrom(intent, fresh.value)
+      if (retry === null) return
+      result = await postSettings(retry, fresh.revision)
+    }
+    if (!result.ok) {
+      // `hostBase` stays put, so the next trigger recomputes the same delta and
+      // tries again; the polling loop leaves this tab's un-landed edits alone.
+      console.warn(`session-monitor: settings push not accepted (conflict=${String(result.conflict)}); will retry on the next change`)
+      return
+    }
+    if (result.value !== undefined) adoptHost(result.value, result.revision)
+  }
+  const pushSettings = debounce(() => { void pushNow() }, 300)
   const onLocalSettingsSaved = (): void => { pushSettings() }
   window.addEventListener(SETTINGS_CHANGED_EVENT, onLocalSettingsSaved)
   ctx.effect(() => () => {
@@ -128,17 +276,18 @@ export function apply(ctx: ClientContext): void {
 
   // Pull the Host store; apply to localStorage + notify only when it differs
   // (a change from the desktop side must reach the mounted widget live).
-  let lastServerSettings = ''
   const pullSettings = (): void => {
-    void bridgeFetch(SETTINGS_ROUTE).then((body) => {
-      if (!body.ok || body.value === undefined || typeof body.value !== 'object') return
-      const next = JSON.stringify(body.value)
-      if (next === lastServerSettings) return
-      lastServerSettings = next
-      if (next !== window.localStorage.getItem(SETTINGS_KEY)) {
-        window.localStorage.setItem(SETTINGS_KEY, next)
-        try { window.dispatchEvent(new CustomEvent(SETTINGS_CHANGED_EVENT)) } catch { /* ignore */ }
+    void fetchSettings().then((host) => {
+      if (host.value === undefined) return
+      const local = readLocal()
+      const pending = hostBase !== null && local !== null && deltaFrom(local, hostBase) !== null
+      if (pending) {
+        // This tab holds edits the Host has not accepted yet: mirror only the
+        // revision, never the value, or the pull would erase them.
+        hostRevision = host.revision ?? hostRevision
+        return
       }
+      adoptHost(host.value, host.revision)
     })
   }
   pullSettings()
@@ -192,7 +341,7 @@ export function apply(ctx: ClientContext): void {
         if (at > lastJumpHandledAt) {
           lastJumpHandledAt = at
           try {
-            ctx.sessions.open(value.sessionId as SessionId)
+            ctx.uiWorkspace.openSession(value.sessionId as SessionId)
             try { window.focus() } catch { /* ignore */ }
             void bridgeFetch(JUMP_ROUTE, {
               method: 'POST',
@@ -243,7 +392,7 @@ export function apply(ctx: ClientContext): void {
     const tryOpen = (): void => {
       attempts++
       try {
-        ctx.sessions.open(bootTarget as SessionId)
+        ctx.uiWorkspace.openSession(bootTarget as SessionId)
       } catch {
         if (attempts < 6) setTimeout(tryOpen, 800 * attempts)
       }
@@ -260,7 +409,7 @@ export function apply(ctx: ClientContext): void {
     label: () => t('title'),
     locale: NS,
     inject: (): SessionMonitorInject => ({
-      open: (sessionId) => { ctx.sessions.open(sessionId as SessionId) },
+      open: (sessionId) => { ctx.uiWorkspace.openSession(sessionId as SessionId) },
     }),
   }, SessionMonitorWidget))
 
@@ -284,4 +433,15 @@ export function apply(ctx: ClientContext): void {
     order: 0,
     inject: (): SessionSettingsInjected => ({ t }),
   }, SessionSettings))
+
+  // The same panel as the `ui-session-monitor` row's own configuration page on
+  // the harness **Plugins** page (0.1.7): `plugins.row.config` is keyed by
+  // `<bundle package>#<row id>`, so registering here puts a Configure control on
+  // our bundle's row. Registered only while that page declares the slot, so
+  // installs without the plugin manager skip it.
+  ctx.slots.inject('plugins.row.config', () => ctx.slots.register({
+    name: 'plugins.row.config',
+    key: MONITOR_ROW_CONFIG_KEY,
+    inject: (): SessionSettingsInjected => ({ t }),
+  }, SessionMonitorRowConfig))
 }

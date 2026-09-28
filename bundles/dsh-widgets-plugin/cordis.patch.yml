@@ -10,15 +10,19 @@
         requestTimeoutMs: 10000
         # New API is self-hosted; point the /api/user/self balance query at the instance.
         newApiBaseURL: http://localhost:3000
-        # Optional static bindings. The shipped providers ALREADY bind their
-        # default routes (deepseek-official / moonshot / openrouter /
+        # Optional user-managed bindings. The shipped providers ALREADY bind
+        # their default routes (deepseek-official / moonshot / openrouter /
         # siliconflow / new-api), so adding a binding for one of those routes
-        # would conflict ("route already bound") and either fail boot (static
-        # config) or be skipped with a warning (settings section). Add a
-        # binding only for a route NOT already covered — e.g. a self-hosted
-        # gateway under a custom provider route. Use `credentialRef`
-        # (env-var / credential-store name) OR `credential` (inline API key) —
-        # one of the two is enough.
+        # conflicts ("route already bound") and is skipped with a warning —
+        # never a boot failure. Add a binding only for a route NOT already
+        # covered — e.g. a self-hosted gateway under a custom provider route.
+        # Use `credentialRef` (env-var / credential-store name) OR `credential`
+        # (inline API key) — one of the two is enough.
+        #
+        # This field IS the plugin's settings section under harness 0.1.7
+        # (`bindings` is a volatile Config field): entries written here and
+        # entries saved from the Widgets manager's provider panel are the same
+        # document, which is why the panel can show and edit them in place.
         # bindings:
         #   - provider: my-gateway
         #     vendor: deepseek

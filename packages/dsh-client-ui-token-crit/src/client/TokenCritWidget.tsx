@@ -29,6 +29,7 @@ import type {} from '@deepseek-ai/dsh-client-ui-session/client'
 import type { SessionListState } from '@deepseek-ai/dsh-api-session-controller/client'
 import type { PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
 import type { TokenUsageProjection } from '@deepseek-ai/dsh-token-meter/client'
+import { currentSessionId } from './session-selection.ts'
 import { TokenCritFx, fmt } from './TokenCritFx'
 import css from './TokenCritWidget.module.css'
 
@@ -55,7 +56,7 @@ function clamp(v: number, lo: number, hi: number): number {
 }
 
 function selectUsage(s: SessionListState): TokenUsageProjection | undefined {
-  const current = s.current
+  const current = currentSessionId(s)
   if (current === undefined) return undefined
   return s.byId[current]?.projectionValues?.tokenUsage
 }

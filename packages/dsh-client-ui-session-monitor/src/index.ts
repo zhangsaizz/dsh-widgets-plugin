@@ -17,22 +17,27 @@
  * @module @dsh-plugins/client-ui-session-monitor
  */
 
-import type { Context } from '@deepseek-ai/cordis'
+import type { Context, Volatile } from '@deepseek-ai/cordis'
+import type { IncomingMessage, ServerResponse } from 'node:http'
+import z from '@deepseek-ai/schemastery'
 // Type-only: pulls the `webServer` service merge onto Context (dsh-host-webserver).
 import type {} from '@deepseek-ai/dsh-host-webserver'
-// Type-only: pulls the host `ctx.settings` (SettingsProvider) Context merge.
+// Type-only: pulls the host `ctx.settings` (SettingsForms) Context merge.
 import type {} from '@deepseek-ai/dsh-settings'
+// Type-only: pulls the Loader's `Fiber.entry` declaration (the 0.1.7 settings
+// namespace is the profile plugin entry id).
+import type {} from '@deepseek-ai/cordis-plugin-loader'
 import type { Session } from '@deepseek-ai/dsh-session'
 import { buildDesktopSnapshot, eventsOf, lastTitle } from './desktop-snapshot.ts'
 import { installTurnEndProjection } from './turn-end-projection.ts'
-import { MONITOR_SETTINGS_NS, MonitorSettingsSchema } from './desktop-settings.ts'
+import { MONITOR_SETTINGS_FIELD, MONITOR_SETTINGS_NS, MonitorSettingsSchema } from './desktop-settings.ts'
 import type { MonitorSettingsWire } from './desktop-settings.ts'
-import { INBOX_NS, InboxStoreSchema, NotificationStore } from './desktop-notifications.ts'
-import type { NotifyKind } from './desktop-notifications.ts'
+import { INBOX_FIELD, InboxStoreSchema, NotificationStore } from './desktop-notifications.ts'
+import type { InboxStore, NotifyKind } from './desktop-notifications.ts'
 // Inlined by the host bundle build (esbuild `text` loader) — the standalone
 // desktop widget page (see ./widget-page.html for the full doc comment).
 import pageHtml from './widget-page.html'
-import { readJsonBody, responseHtml, responseJson } from './http.ts'
+import { readJsonBody, requestHeader, responseHtml, responseJson, SETTINGS_REVISION_HEADER } from './http.ts'
 
 /** One remembered `turn/end` fact for a session. */
 export interface TurnEndRecord {
@@ -46,6 +51,96 @@ export interface TurnEndRecord {
    * authoritative "第 N 轮" number in completion notifications.
    */
   readonly round: number
+}
+
+/**
+ * Host-half config. In harness 0.1.7 a plugin's Config entry IS its settings
+ * namespace — `SettingsProvider.register` was removed — so the two sections
+ * this half used to register separately are the two volatile fields below. A
+ * volatile field resolves to a live reference, and `.default({})` on top of a
+ * schema whose fields all carry defaults makes that reference always hold a
+ * complete value; the Loader commits a configuration write in place instead of
+ * remounting the plugin.
+ */
+export const Config = z.object({
+  /** Shared widget options (web config panel ⇄ desktop widget). */
+  settings: MonitorSettingsSchema.default({}).volatile(),
+  /** Notification inbox: persists across webview/process restarts. */
+  inbox: InboxStoreSchema.default({}).volatile(),
+})
+
+/** Hand-written twin of {@link Config}'s resolved shape (declaration-emit safe:
+ *  the inferred schemastery type would name cosmokit internals, TS2742). */
+export interface Config {
+  /** Live reference to the shared widget options. */
+  readonly settings: Volatile<MonitorSettingsWire>
+  /** Live reference to the persisted notification inbox. */
+  readonly inbox: Volatile<InboxStore>
+}
+
+/** One volatile Config field viewed as a settings section (`get` + merge write). */
+interface ConfigSection<T> {
+  /** Current resolved section (schema defaults already applied). */
+  get(): T
+  /**
+   * Merge `section` into this field's stored value and persist it.
+   *
+   * Deliberately a MERGE, not a wholesale replacement: harness 0.1.7's
+   * `SettingsForms.update` deep-merges the patch, so keys absent from `section`
+   * keep their stored values (and arrays — `inbox.notes` — are still replaced
+   * wholesale, since `mergeLayers` only recurses into plain objects). Callers
+   * here always pass a complete section, so today's two call sites behave like a
+   * replace; a caller meaning to reset absent keys to their schema defaults must
+   * go through `SettingsForms.replace` instead.
+   * @param section - the values to write.
+   * @param expectedRevision - optional optimistic-concurrency precondition: the
+   *   entry revision the caller based `section` on. A mismatch rejects with the
+   *   harness's settings-conflict error instead of overwriting a concurrent
+   *   write. Only the externally-driven settings route passes one (see it), and
+   *   only when the CLIENT supplied it.
+   */
+  merge(section: Partial<T>, expectedRevision?: number): Promise<void>
+}
+
+/** The narrow `ctx.settings` (SettingsForms) face this half writes through. */
+interface SettingsFormsFace {
+  update(ns: string, patch: object, expectedRevision?: number): Promise<void>
+}
+
+/**
+ * The settings namespace this plugin was mounted under. Harness 0.1.7
+ * namespaces are profile plugin entry ids, so the plugin addresses its own
+ * Config entry; `fallback` covers a mount that carries no Loader entry.
+ *
+ * The id read here is the entry's RAW id (`options.id`) — the one
+ * `settings.describe()` reports — not `Entry.id`, which the loader prefixes
+ * with its owning entry's id (our bundle mounts this plugin as
+ * `@dsh-plugins/dsh-widgets-plugin/ui-session-monitor` in the entry tree while
+ * the settings namespace stays `ui-session-monitor`).
+ */
+function ownSettingsNamespace(ctx: Context, fallback: string): string {
+  const id = ctx.fiber.entry?.options?.id
+  return id !== undefined && id.length > 0 ? id : fallback
+}
+
+/**
+ * View one volatile Config field of this plugin's own entry as the settings
+ * section harness 0.1.5 registered. Writes merge the field into the entry's
+ * volatile form (`update`), so the plugin's other volatile sections keep their
+ * stored values — `replace` would reset them to the composition base.
+ */
+function configSection<T>(
+  settings: SettingsFormsFace,
+  ns: string,
+  key: string,
+  read: () => T,
+): ConfigSection<T> {
+  return {
+    get: () => read(),
+    merge: async (section: Partial<T>, expectedRevision?: number) => {
+      await settings.update(ns, { [key]: section }, expectedRevision)
+    },
+  }
 }
 
 /** Exact route the browser half polls for turn-end reasons. */
@@ -211,14 +306,42 @@ function clampSettingsWire(body: Record<string, unknown>): Record<string, unknow
 }
 
 /**
+ * Parse the optional optimistic-concurrency precondition on a settings write.
+ * @param req - the incoming request.
+ * @returns the client's expected revision, or undefined when absent/invalid
+ *   (an unparseable value is treated as "no precondition", not as "revision 0",
+ *   so a typo cannot silently turn every write into a conflict).
+ */
+function readExpectedRevision(req: IncomingMessage): number | undefined {
+  const raw = requestHeader(req, SETTINGS_REVISION_HEADER)
+  if (raw === undefined) return undefined
+  const value = Number(raw)
+  return Number.isSafeInteger(value) && value >= 0 ? value : undefined
+}
+
+/** Publish the settings revision on a response (see {@link SETTINGS_REVISION_HEADER}). */
+function setRevisionHeader(res: ServerResponse, revision: number | undefined): void {
+  if (revision === undefined) return
+  res.setHeader(SETTINGS_REVISION_HEADER, String(revision))
+}
+
+/** Whether a settings write was refused because the section moved under it. */
+function isSettingsConflict(error: unknown): boolean {
+  return typeof error === 'object' && error !== null
+    && (error as { code?: unknown }).code === 'SETTINGS_CONFLICT'
+}
+
+/**
  * Mount the monitoring half: record every `turn/end` reason, fold session
  * events into the notification inbox (turn ends, approvals, titles, subagent
  * completions), drop records for disposed sessions, and attach the optional
  * routes whenever a `webServer` service is present (skipped on non-web
  * profiles).
  * @param ctx - host context.
+ * @param config - resolved plugin config (see {@link Config}); its two volatile
+ *   fields are the shared-options and inbox settings sections.
  */
-export function apply(ctx: Context): void {
+export function apply(ctx: Context, config: Config): void {
   const store = new TurnEndStore()
   const inbox = new NotificationStore()
   // Register the framework-native `sessionMonitorTurnEnd` projection alongside
@@ -227,6 +350,18 @@ export function apply(ctx: Context): void {
   // clients read turn-end reasons off `SessionSummary.projectionValues`
   // instead of polling STATUS_ROUTE.
   installTurnEndProjection(ctx)
+  // The plugin ships its own configuration surfaces (the Widgets manager dialog
+  // + the desktop app, both over `/_dsh/session-monitor/settings`), so opt out of
+  // the harness's schema-generated form: both Config fields are volatile by
+  // design, which is what makes the entry form-eligible in 0.1.7, and a generated
+  // form would expose the raw notification `inbox` array. `configure` throws if
+  // called twice for one plugin instance — hence exactly one effect.
+  ctx.inject(['settings'], (settingsCtx) => {
+    settingsCtx.effect(
+      () => settingsCtx.settings.configure({ auto: false }, ctx.fiber),
+      'session-monitor: settings page policy',
+    )
+  })
   /** Open-turn depth per session (turn/start +1, turn/end −1) — drives the
    *  "subagent finished" edge (only the LAST turn end of a child notifies). */
   const turnDepth = new Map<string, number>()
@@ -420,28 +555,55 @@ export function apply(ctx: Context): void {
     webCtx.effect(() => {
       // Shared settings store (single source of truth for web + desktop; the
       // web half mirrors it into its localStorage, the desktop reads/writes it
-      // directly — see desktop-settings.ts).
-      const settingsScope = webCtx.settings.register(MONITOR_SETTINGS_NS, MonitorSettingsSchema)
-      // Notification inbox: persisted in its own settings section (survives
+      // directly — see desktop-settings.ts). Harness 0.1.7: these are two
+      // volatile fields of this plugin's own Config entry, addressed by the
+      // entry id the plugin was mounted under.
+      const ns = ownSettingsNamespace(ctx, MONITOR_SETTINGS_NS)
+      const settingsScope = configSection(webCtx.settings, ns, MONITOR_SETTINGS_FIELD, () => config.settings.get())
+      /**
+       * The entry's current revision, as the settings seam reports it: the
+       * precondition a client bases its next write on, returned on every
+       * settings response.
+       */
+      const settingsRevision = (): number | undefined =>
+        webCtx.settings.describe().find((row) => row.ns === ns)?.revision
+      // Notification inbox: persisted in its own section (survives
       // webview/process restarts; shared with any future web-side consumer).
-      const inboxScope = webCtx.settings.register(INBOX_NS, InboxStoreSchema)
+      const inboxScope = configSection(webCtx.settings, ns, INBOX_FIELD, () => config.inbox.get())
       const storedInbox = inboxScope.get()
       if (!inboxLoaded) {
         inbox.load(storedInbox.seq, storedInbox.notes)
         inboxLoaded = true
       }
       let persistTimer: ReturnType<typeof setTimeout> | undefined
-      const persistInbox = (): void => {
-        if (persistTimer !== undefined) return
-        persistTimer = setTimeout(() => {
+      /**
+       * Snapshot the inbox and persist it NOW (no debounce). No
+       * `expectedRevision` is passed: this section has a single writer — this
+       * half — and every write sends the complete `{seq, notes}` snapshot, so a
+       * revision guard could only turn an interleaved-but-newer write into a
+       * spurious conflict (the revision is per ENTRY, shared with the settings
+       * section the web panel writes through the route).
+       */
+      const flushInbox = (): Promise<void> => {
+        if (persistTimer !== undefined) {
+          clearTimeout(persistTimer)
           persistTimer = undefined
-          const payload = inbox.toJSON()
-          inboxScope.replace({ seq: payload.seq, notes: payload.notes }).catch((error) => {
-            webCtx.logger.warn(`session-monitor: inbox persist failed: ${String(error)}`)
-          })
-        }, 1000)
+        }
+        const payload = inbox.toJSON()
+        return inboxScope.merge({ seq: payload.seq, notes: payload.notes }).catch((error: unknown) => {
+          webCtx.logger.warn(`session-monitor: inbox persist failed: ${String(error)}`)
+        })
       }
-      inbox.attach(persistInbox)
+      // Terminal mutations (ack / resolve) land immediately so the ≤1s debounce
+      // window cannot swallow them; ordinary pushes stay coalesced.
+      inbox.attach((immediate) => {
+        if (immediate) {
+          void flushInbox()
+          return
+        }
+        if (persistTimer !== undefined) return
+        persistTimer = setTimeout(() => { void flushInbox() }, 1000)
+      })
       let pendingJump: PendingJump | null = null
       /** Last heartbeat from an open Harness web tab (the client half pings). */
       let lastWebPingAt: number | null = null
@@ -495,9 +657,16 @@ export function apply(ctx: Context): void {
             responseHtml(req, res, pageHtml)
           },
         }),
-        // Shared settings: GET the resolved section; POST replaces it. The web
-        // half pushes on every local save and pulls on boot + poll; the
+        // Shared settings: GET the resolved section; POST merges into it. The
+        // web half pushes on every local save and pulls on boot + poll; the
         // desktop widget reads/writes the same store.
+        //
+        // Optimistic concurrency (optional): GET returns the entry's revision in
+        // `X-DSH-Settings-Revision`, and a POST that carries that header asserts
+        // the section has not moved since — a stale writer gets 409
+        // `settings-conflict` instead of silently clobbering the other writer.
+        // A POST without the header keeps the historical last-write-wins
+        // behavior, which is what the desktop app relies on.
         webCtx.webServer.register({
           kind: 'exact',
           path: SETTINGS_ROUTE,
@@ -508,17 +677,27 @@ export function apply(ctx: Context): void {
                 responseJson(req, res, 400, { ok: false, error: 'invalid settings body' })
                 return
               }
+              const expected = readExpectedRevision(req)
               try {
-                await settingsScope.replace(clampSettingsWire(body) as Partial<MonitorSettingsWire>)
-                responseJson(req, res, 200, { ok: true, value: clampSettingsWire({ ...(settingsScope.get() as unknown as Record<string, unknown>) }) })
+                await settingsScope.merge(clampSettingsWire(body) as Partial<MonitorSettingsWire>, expected)
+                const value = clampSettingsWire({ ...(settingsScope.get() as unknown as Record<string, unknown>) })
+                setRevisionHeader(res, settingsRevision())
+                responseJson(req, res, 200, { ok: true, value })
               } catch (error) {
                 const message = error instanceof Error ? error.message : String(error)
+                const conflict = isSettingsConflict(error)
                 webCtx.logger.warn(`session-monitor: settings save failed: ${message}`)
-                responseJson(req, res, 400, { ok: false, error: message })
+                responseJson(req, res, conflict ? 409 : 400, {
+                  ok: false,
+                  error: message,
+                  ...(conflict ? { code: 'settings-conflict' } : {}),
+                })
               }
               return
             }
-            responseJson(req, res, 200, { ok: true, value: clampSettingsWire({ ...(settingsScope.get() as unknown as Record<string, unknown>) }) })
+            const value = clampSettingsWire({ ...(settingsScope.get() as unknown as Record<string, unknown>) })
+            setRevisionHeader(res, settingsRevision())
+            responseJson(req, res, 200, { ok: true, value })
           },
         }),
         // Jump queue: the desktop posts { sessionId } when the user clicks a
@@ -695,13 +874,14 @@ export function apply(ctx: Context): void {
         }),
       ]
       return () => {
-        if (persistTimer !== undefined) {
-          clearTimeout(persistTimer)
-          persistTimer = undefined
-        }
-        // Final flush so the last mutations survive a plugin stop.
-        const payload = inbox.toJSON()
-        void inboxScope.replace({ seq: payload.seq, notes: payload.notes }).catch(() => undefined)
+        // Final best-effort flush for whatever is still inside the debounce
+        // window. Terminal mutations (ack / resolve) no longer rely on it — they
+        // persist on their own (see the persistence hook above) — and it can
+        // still fail under harness 0.1.7: the Config write goes through
+        // configEditor.edit, which refuses to run once the owning fiber is no
+        // longer ACTIVE, and cordis flips the state before this disposer body
+        // resumes. `flushInbox` logs that instead of swallowing it.
+        void flushInbox()
         for (const dispose of disposers) dispose()
       }
     }, 'session-monitor: status/snapshot/widget/settings/jump/inbox routes')

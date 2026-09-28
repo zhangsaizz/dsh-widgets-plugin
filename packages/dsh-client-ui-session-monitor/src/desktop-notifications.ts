@@ -69,9 +69,17 @@ export interface InboxNotification {
   readonly resolved?: boolean
 }
 
-/** Settings namespace holding the persisted inbox (separate section from the
- *  shared monitor options, which stay in `session-monitor`). */
-export const INBOX_NS = 'session-monitor-inbox'
+/** Volatile Config field of the session-monitor plugin entry holding the
+ *  persisted inbox. Harness 0.1.7 has no separately registered settings
+ *  namespaces: the plugin's Config entry is the namespace, and this field is
+ *  the section inside it (see `Config` in ./index.ts — the key must match). */
+export const INBOX_FIELD = 'inbox'
+
+/**
+ * Inbox persistence hook. `immediate` marks a mutation that must not wait for
+ * the caller's debounce (see {@link NotificationStore.touch}).
+ */
+export type InboxPersist = (immediate: boolean) => void
 
 /** Cap on retained records; the oldest are dropped beyond this. */
 const MAX_NOTES = 200
@@ -101,11 +109,22 @@ export class NotificationStore {
   private notes: InboxNotification[] = []
   private seq = 0
   /** Persist hook (debounced by the caller); absent = in-memory only. */
-  private persist: (() => void) | null = null
+  private persist: InboxPersist | null = null
 
   /** Attach the persistence hook (called on every mutation). */
-  attach(persist: () => void): void {
+  attach(persist: InboxPersist): void {
     this.persist = persist
+  }
+
+  /**
+   * Notify the persistence hook.
+   * @param immediate - true for a TERMINAL mutation (an ack or a resolve): its
+   *   effect must not wait out the caller's debounce, because a reload inside
+   *   that window would silently undo it. Ordinary pushes stay coalesced — a
+   *   turn-end storm should not write once per record.
+   */
+  private touch(immediate = false): void {
+    this.persist?.(immediate)
   }
 
   /** Load a persisted store (validates and prunes on the way in). */
@@ -176,7 +195,7 @@ export class NotificationStore {
     this.notes.push(note)
     this.seq++
     this.prune()
-    this.persist?.()
+    this.touch()
     return note
   }
 
@@ -195,7 +214,7 @@ export class NotificationStore {
         changed = true
       }
     }
-    if (changed) this.persist?.()
+    if (changed) this.touch(true)
   }
 
   /**
@@ -231,7 +250,7 @@ export class NotificationStore {
       changed++
       return { ...note, ackedAt: now }
     })
-    if (changed > 0) this.persist?.()
+    if (changed > 0) this.touch(true)
     return changed
   }
 
@@ -290,10 +309,17 @@ export class NotificationStore {
   }
 }
 
+/** Stored shape of the persisted inbox section. */
+export interface InboxStore {
+  /** Monotonic store revision (number of records ever created). */
+  seq: number
+  notes: InboxNotification[]
+}
+
 /** Schema for the persisted inbox section (absent section resolves to empty).
  *  Optional fields carry non-positive defaults (this schemastery version has no
  *  `.optional()`); {@link NotificationStore.normalize} restores true absence. */
-export const InboxStoreSchema: z<{ seq: number; notes: InboxNotification[] }> = z.object({
+export const InboxStoreSchema: z<InboxStore> = z.object({
   seq: z.number().default(0),
   notes: z.array(z.object({
     id: z.string(),

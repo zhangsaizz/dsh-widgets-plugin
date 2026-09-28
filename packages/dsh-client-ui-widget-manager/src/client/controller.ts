@@ -1,6 +1,15 @@
 /**
  * Widget manager controller: the runtime enable/disable half.
  *
+ * The page lists **this project's widgets only**. `shell.overlay` is a shared
+ * list: harness UI registers its own entries into it (the keyboard-shortcut
+ * reference, the session rename / archive dialogs, the workspace notice, the
+ * chat quota notice, …). Since the shadow mechanism below works on ANY list id,
+ * projecting the whole ledger would both mislabel those overlays as
+ * "unknown-source widgets" and let one click hide official UI — so the
+ * projection is filtered to {@link WIDGET_CATALOG}, and any id an older build
+ * had shadowed is released on sight (see {@link isOwnWidgetId}).
+ *
  * "Close" (disable) a widget by registering a SHADOW entry into
  * `shell.overlay` with the same list `id` at a lower `priority` (-1 vs the
  * widgets' default 0). List-slot cells render their lowest-priority live
@@ -60,11 +69,30 @@ export function requestUndock(id: string): void {
   } catch { /* events unavailable */ }
 }
 
+/**
+ * Overlay ids this page manages and toggles: the catalog, and nothing else.
+ *
+ * `shell.overlay` also carries other plugins' overlays (harness UI), and the
+ * shadow-based disable applies to any id — so the projection must be filtered
+ * rather than listing the raw ledger.
+ */
+const OWN_WIDGET_IDS: ReadonlySet<string> = new Set(WIDGET_CATALOG.map((descriptor) => descriptor.id))
+
+/**
+ * Whether this manager owns (lists and toggles) one `shell.overlay` entry id.
+ * @param id - the ledger entry id.
+ * @returns true for this project's widgets.
+ */
+export function isOwnWidgetId(id: string): boolean {
+  return OWN_WIDGET_IDS.has(id)
+}
+
 /** One row of the widget list page. */
 export interface WidgetRow {
   /** The `shell.overlay` entry id (also the toggle key). */
   id: string
-  /** Shipping package name; undefined for widgets outside the catalog. */
+  /** Shipping package name. Always present on the catalog rows this page
+   *  lists; the type keeps it optional for the renderer's fallback branch. */
   packageName: string | undefined
   /** Composition row id used when mounting the plugin (from the catalog's
    *  `installRowId`, falling back to the overlay id); undefined for widgets
@@ -135,8 +163,14 @@ export class WidgetManagerController implements HostObservable<readonly WidgetRo
     const stopRf = stopRfChange()
     ctx.effect(() => stopRf, 'widget-manager: config-only toggle change listener')
     // Seed the session set from persistence, then apply shadows as widgets come online.
-    for (const id of readDisabled()) this.disabled.add(id)
+    // Ids outside the catalog are dropped (and the pruned set re-persisted):
+    // they are other plugins' overlays, which an older build of this page could
+    // have shadowed — leaving official UI hidden with no row left to restore it.
+    const persisted = readDisabled()
+    const own = persisted.filter(isOwnWidgetId)
+    for (const id of own) this.disabled.add(id)
     for (const id of this.disabled) this.reconcileShadow(id)
+    if (own.length !== persisted.length) writeDisabled(this.disabled)
     this.reconcileConfigs()
     this.reconcile()
   }
@@ -159,8 +193,13 @@ export class WidgetManagerController implements HostObservable<readonly WidgetRo
    *  flipping forever). Our own disabled set stays consistent with our own
    *  actions; third-party shadows still show up in the row's `enabled` state.
    *  Config-only widgets (no overlay entry) are toggled through their own
-   *  on/off store via a window event instead of an overlay shadow. */
+   *  on/off store via a window event instead of an overlay shadow.
+   *
+   *  Ids outside the catalog are refused outright: the page renders catalogue
+   *  rows only, and the shadow mechanism would otherwise happily hide another
+   *  plugin's overlay (see {@link isOwnWidgetId}). */
   toggle(id: string): void {
+    if (!isOwnWidgetId(id)) return
     if (id === RF_ID) {
       // Config-only widgets keep their own on/off store; we only REQUEST the
       // flip through a window event and let their `enabled-change` echo update
@@ -247,20 +286,37 @@ export class WidgetManagerController implements HostObservable<readonly WidgetRo
   }
 
   private reconcile(): void {
-    const widgetIds = new Set<string>()
+    // Live catalogue ids only: the ledger also carries other plugins' overlays,
+    // which this page never lists, toggles, or shadows. Filtering here keeps
+    // every downstream membership test (`rowOf`, the self-heal below) scoped to
+    // what we own instead of asking again per site.
+    const liveOwnIds = new Set<string>()
     for (const entry of this.ctx.slots.entries('shell.overlay')) {
-      if (entry.options.id !== undefined && !this.isShadowEntry(entry)) widgetIds.add(entry.options.id)
+      const id = entry.options.id
+      if (id !== undefined && isOwnWidgetId(id) && !this.isShadowEntry(entry)) liveOwnIds.add(id)
     }
-    // Self-heal uninstalled widgets: when a widget we have SHADOWED disappears
-    // from the ledger (its plugin unloaded), drop our shadow AND the disabled
-    // mark — a permanent shadow would silently hide any future plugin that
-    // reuses the id, and the stale row would offer no way out. Only ids we
-    // actually shadowed are cleaned: a disabled-but-never-mounted id keeps its
-    // preference so a slower widget mount still gets shadowed.
+    // Sweep ids this page no longer manages — other plugins' overlays, possibly
+    // shadowed by an older build that projected the whole ledger. Release the
+    // shadow and forget the mark so official UI is never left hidden by a page
+    // that no longer lists it.
     let cleaned = false
     for (const id of [...this.disabled]) {
+      if (!isOwnWidgetId(id)) {
+        const dispose = this.shadows.get(id)
+        this.shadows.delete(id)
+        this.disabled.delete(id)
+        dispose?.()
+        cleaned = true
+        continue
+      }
+      // Self-heal uninstalled widgets: when a widget we have SHADOWED disappears
+      // from the ledger (its plugin unloaded), drop our shadow AND the disabled
+      // mark — a permanent shadow would silently hide any future plugin that
+      // reuses the id, and the stale row would offer no way out. Only ids we
+      // actually shadowed are cleaned: a disabled-but-never-mounted id keeps its
+      // preference so a slower widget mount still gets shadowed.
       if (!this.shadows.has(id)) continue
-      if (widgetIds.has(id)) continue
+      if (liveOwnIds.has(id)) continue
       const dispose = this.shadows.get(id)!
       this.shadows.delete(id)
       this.disabled.delete(id)
@@ -273,11 +329,7 @@ export class WidgetManagerController implements HostObservable<readonly WidgetRo
 
     const rows: WidgetRow[] = []
     for (const descriptor of WIDGET_CATALOG) {
-      rows.push(this.rowOf(descriptor, widgetIds.has(descriptor.id)))
-    }
-    for (const id of widgetIds) {
-      if (rows.some((row) => row.id === id)) continue
-      rows.push({ id, packageName: undefined, installRowId: undefined, nameKey: undefined, descriptionKey: undefined, hasConfig: this.configIds.has(id), registered: true, enabled: !this.isShadowed(id), docked: this.isDocked(id), configOnly: false })
+      rows.push(this.rowOf(descriptor, liveOwnIds.has(descriptor.id)))
     }
     this.rows = rows
   }

@@ -21,7 +21,7 @@
 | 4 | 不支持厂商占位 ×5 | Host 插件 | `@dsh-plugins/balance` | Host | openai / anthropic / google / xai / mistral 的「无公开余额接口」占位 |
 | 5 | 余额设置 Web 后端 | Host Web 路由 | `@dsh-plugins/balance` | `/_dsh/balance/settings` | 设置页的 GET 快照（脱敏）与 POST 持久化 |
 | 6 | 余额看板挂件 `BalanceWidget` | Web 挂件 | `@dsh-plugins/balance` | `shell.overlay`（order 100） | 浮动余额看板：视口内拖动/角吸附/缩放/折叠过渡、滚动金额、趋势箭头、单/多账户视图；面板/胶囊/悬停提示为**液态玻璃**材质（与彩虹流光输入框同一配方） |
-| 7 | 余额供应商配置面板 `BalanceSettings` | Web 配置弹窗 | `@dsh-plugins/balance` | `widgets.config`（管理器「配置」弹窗） | 管理 `balance` 设置分区的用户绑定（provider/vendor/凭据/baseURL） |
+| 7 | 余额供应商配置面板 `BalanceSettings` | Web 配置弹窗 | `@dsh-plugins/balance` | `widgets.config`（管理器「配置」弹窗） | 管理插件自身 Config 条目（settings 命名空间 = profile 条目原始 id `balance`）的 `bindings` volatile 字段——用户绑定（provider/vendor/凭据/baseURL） |
 | 8 | `BalanceController` + `useBalance` | 客户端数据层 | `@dsh-plugins/balance` | 注入 hook | 跟随当前 session + model，固定 30s 轮询刷新，暴露 `refresh()` |
 | 9 | balance 视图 store | 客户端状态 | `@dsh-plugins/balance` | 注入 store | 缩放 / 吸附 / 折叠视图状态（`createBalanceViewStore`） |
 | 10 | 字典 NS `balance` | 客户端 i18n | `@dsh-plugins/balance` | client locale | zh / en 双语文案 |
@@ -80,10 +80,10 @@
   1. `new BalanceRuntime(ctx, { requestTimeoutMs })` —— 构造即经 `Service` 基类
      自注册 `ctx.balance`（绑定提供商路由，应答 `balance/query` + `balance/list` 两个
      Remote；凭据经 `ctx.credentials` 或环境变量解析；按路由折叠 trend/delta）。
-  2. 注册 `PROVIDERS`（5 厂商 + 5 占位）与 `bindings[]` 静态绑定；New API 实例地址由
+  2. 注册 `PROVIDERS`（5 厂商 + 5 占位）与 New API 实例；实例地址由
      `newApiBaseURL` 配置。
-  3. 注册 `balance` 设置分区（`BALANCE_SETTINGS_NS`，`bindingSchema`），监听变更实时
-     对账用户绑定。
+  3. 按 `Config.bindings`（volatile 字段，schema 为 `bindingSchema`）注册用户绑定，并在
+     `ctx.on('loader/volatile-update', …)` 时重读 `.get()` 重做注册。
   4. 挂 `/_dsh/balance/settings` Web 后端（`BalanceWebBackend`，GET 脱敏快照 /
      POST 乐观并发保存，`webServer` 缺席时跳过）。
   - 所有注册都是本 fiber 的 effect，卸载级联撤回。
@@ -97,6 +97,13 @@
     BalanceController }, refresh }`。
   - `widgets.config`，id `balance`，order **0** → `BalanceSettings`（供应商配置面板，
     注册进小组件管理声明的 `widgets.config` 子槽；管理器缺席时自动跳过）。
+  - `plugins.row.config`，key **`@dsh-plugins/dsh-widgets-plugin#balance`** →
+    `BalanceRowConfig`（harness 0.1.7 官方 **Plugins 页**：把同一个面板挂成该 bundle
+    行的「配置」页，`view: 'summary'` 渲染 `rowConfigSummary` 一行说明、`view: 'page'`
+    渲染面板本体。key = `<bundle 包名>#<行 id>`，两半都由本仓库 bundle 的 patch 固定；
+    key 用 type-only import 拉入 `@deepseek-ai/dsh-client-ui-plugin-manager` 的槽契约，
+    **运行时不 require 该包**。页面给的通用表单 `form` 有意不使用——本面板继续走自己的
+    `/_dsh/balance/settings` 路由，凭据脱敏与 revision 保护都在那里）。
   - `BalanceController`：以 `ctx.get('remote.balance')` 为源，跟随当前会话 + 模型，
     `REFRESH_INTERVAL_MS = 30_000` 固定轮询，暴露 `refresh()`。
   - **当前模型的来源**：`ctx.modelDirectories`（ui-model-selection 的
@@ -126,15 +133,19 @@
   看板显示「无公开余额接口」而非「未绑定」。
 
 - 配置（`Config`）：`requestTimeoutMs`（默认 10000）、`newApiBaseURL`（默认
-  `http://localhost:3000`）、`bindings[]`（`provider` + `vendor` + `credentialRef`
-  或 `credential` + 可选 `baseURL`）。
-- 设置区（`src/settings.ts`）：`BALANCE_SETTINGS_NS = 'balance'`（纯字面量，经
-  `SettingsNamespaceInput` 校验；`@deepseek-ai/dsh-settings` 仅 type-only import 拉入
-  `ctx.settings` 类型合并）；`BalanceSettingsSchema = { bindings[] }`；`bindingSchema`
-  （credential 带 `secret` role、credentialRef 带 `credential-ref` role）。
+  `http://localhost:3000`）、`bindings[]`（**volatile 字段**：`provider` + `vendor` +
+  `credentialRef` 或 `credential` + 可选 `baseURL`）。
+- 设置面（`src/settings.ts`）：只剩 `bindingSchema`（credential 带 `secret` role、
+  credentialRef 带 `credential-ref` role）与 `BALANCE_SETTINGS_NS = 'balance'`
+  （默认/回退的命名空间名；`@deepseek-ai/dsh-settings` 仅 type-only import 拉入
+  `ctx.settings` 类型合并）。0.1.7 里**插件自己的 `Config` 条目就是设置命名空间**
+  （`ctx.settings.register` 已删除），命名空间是 profile 条目的**原始 id**
+  （`entry.options.id`，本仓库即 `balance`），不是被父级前缀化的 `Entry.id`。
 - Web 后端（`src/web.ts`）：`SETTINGS_ROUTE = '/_dsh/balance/settings'`（`webServer`
   精确路由）——GET 返回脱敏快照，POST `save`（`expectedRevision` 乐观并发，留空
-  凭据 = 保留原值）。
+  凭据 = 保留原值）；写入按插件自己的原始 entry id 在 `settings.describe()` 里找条目，
+  经 `settings.update(id, { bindings })`（merge；`replace` 会把其他 volatile 字段
+  重置回 base）。
 - `src/invariant.ts`：包级 invariant 伴侣（`./invariant` 子路径，可选，bundle 不挂载）。
 - 类型面：`BalanceProvider`、`BalanceRuntime`、`BalanceProviderInfo`、
   `BalanceAccountData`、`BalanceAccount`、`BalanceQueryResult`、`BalanceListResult`、
@@ -142,10 +153,15 @@
   `BalanceRemote`、`BalanceViewState`、`BalanceWidgetProps`、`BalanceInject`、
   `BalanceSettingsInjected`、`BalanceKey`、`createBalanceViewStore`、`ModelDirectoriesLike`、
   `ModelDirectoriesProvider`（`./client` 类型面）。
-- 依赖：`zod`、`@deepseek-ai/schemastery`、`@deepseek-ai/dsh-settings`（deps）；
-  `@deepseek-ai/cordis`、`dsh-credentials`、`dsh-invariants`、`dsh-typert-protocol`、
+- 依赖：`zod`、`@deepseek-ai/schemastery`、`@deepseek-ai/dsh-settings`、
+  `@deepseek-ai/cosmokit`（deps：手写 `Config` 接口要用具名引用，见 AGENTS.md）；
+  `@deepseek-ai/cordis`、`@deepseek-ai/cordis-plugin-loader`（`loader/volatile-update`
+  事件 + `Fiber.entry`）、`dsh-credentials`、`dsh-invariants`、`dsh-typert-protocol`、
   `dsh-api-remotes`、`dsh-api-session-controller`、`dsh-client-store`、
-  `dsh-client-ui-renderer`、`dsh-client-locale`、`dsh-client-ui-layout`、
+  `dsh-client-ui-renderer`、`dsh-client-ui-session`（`mainView` 标签的类型合并）、
+  `dsh-client-locale`、`dsh-client-ui-layout`、
+  `dsh-client-ui-plugin-manager`（type-only：官方 Plugins 页的 `plugins.row.config`
+  槽契约；**运行时不 require**，故未进种子模块表也无妨）、
   `dsh-client-ui-slots`、`@dsh-plugins/client-ui-widget-manager`（type-only，peer）、
   `react`（peer）。
 - 构建：Host → `lib/index.js`（ESM，外部化，esbuild）；Client → `lib/client.js`
@@ -247,6 +263,15 @@
   此类组件同样提供**启用/停用**（经 window 事件桥 `dsh.rnglow.manager-toggle`
   控制其自身开关 store，与工具栏圆点双向同步——`dsh.rnglow.enabled-change`
   事件回传状态），以及「配置」按钮；不参与 overlay 影子机制。
+  **只投影本仓库目录内的 id**（`isOwnWidgetId`，`controller.ts`）：`shell.overlay` 是
+  共享槽，0.1.7 起官方自己也往里注册浮层（`shortcuts` = 快捷键速查、
+  `workspace.session-rename` / `workspace.session-archive` / `workspace.row-toast`、
+  `chat.quota-notice`、`schedule.delete-toast`、`account.platform-page`、
+  `desktop-onboarding`）。影子机制对任何 list id 都生效，所以整账本投影既会把官方浮层
+  标成「未知来源挂件」，也会让一次误点隐藏官方 UI。加载与每次 reconcile 都会**释放非目录
+  id**（撤影条 + 从 `localStorage` 的禁用集合里删掉），旧版本误停用的官方浮层因此自动恢复。
+  归属只能按目录判断：`StoredEntry.registrant` 是**可选、由注册方自填**的诊断标签（ui-slots
+  只用它拼「registered by …」错误提示，我方挂件注册时也不填），既不是包名也非必填。
 - **安装指引弹窗**：目录里存在但未挂载（`registered: false`）的小组件，行上显示
   「安装指引」按钮（原为禁用的「添加」），点击弹出三步指引——`dsh plugin
   --profile <name> add <package>` 装包命令、`- insert:` 挂载行片段（用
@@ -272,8 +297,9 @@
   error / max-tokens / interrupted，插入序 LRU 上限 100、TTL 5 分钟），
   `session/disposed` 清理；另维护**通知 inbox**（`src/desktop-notifications.ts`，
   `NotificationStore`：环形缓冲上限 200、已读/已解决 7 天归档，幂等键
-  `(sessionId, kind, round)`，持久化到 `session-monitor-inbox` settings 分区，
-  1s debounce 落盘 + 停顿时 flush）——事件源：`turn/end`（reason→kind，round 取
+  `(sessionId, kind, round)`，持久化到插件自身 Config 条目的 `inbox` volatile 字段，
+  普通变更 1s debounce 落盘，**ack/resolve 这类终止性变更立即落盘**，卸载时再做一次
+  尽力而为的 flush 兜底）——事件源：`turn/end`（reason→kind，round 取
   `event.data.turn`）、`approval/asked` / `approval/decided`（resolve）、
   `session/title`（P2 标题变更）、`session/created`（P2 新会话，子代理跳过）、
   子代理最后回合结束（turn 深度归零 → 父会话 `subagent` 通知）、**host 工具调用
@@ -317,11 +343,21 @@
     实时计数（与浏览器挂件「子×N」语义一致）；路由带 try/catch，失败回 500 +
     错误栈（便于排障）。全部路由均带宽松 CORS（`Access-Control-Allow-Origin: *`
     ——桌面壳的 `tauri://localhost` 启动探测页需要跨源探测）；
-  - `/_dsh/session-monitor/settings`（GET 快照 / POST 替换）：**共享设置存储**——
-    `src/desktop-settings.ts` 用 `MONITOR_SETTINGS_NS = 'session-monitor'` +
-    `MonitorSettingsSchema`（镜像客户端 `MonitorSettings` 全 12 字段，默认值与
-    网页版 `DEFAULT_SETTINGS` 一致）注册到 `ctx.settings`（持久化进 harness
-    settings 文档）。桌面挂件直读直写；网页客户端半镜像同步（见下）。
+  - `/_dsh/session-monitor/settings`（GET 快照 / POST 合并）：**共享设置存储**——
+    它是插件**自身 Config 条目的 `settings` volatile 字段**（`src/desktop-settings.ts`
+    导出 `MONITOR_SETTINGS_FIELD = 'settings'` + `MonitorSettingsSchema`，镜像客户端
+    `MonitorSettings` 全 12 字段，默认值与网页版 `DEFAULT_SETTINGS` 一致）。
+    命名空间是 profile 条目的原始 id（本仓库即 `ui-session-monitor`）；
+    `MONITOR_SETTINGS_NS = 'ui-session-monitor'` 是同值的默认/回退名（必须与 patch 里的
+    `- id:` 一致，写错只会响亮失败）。写入走 `ctx.settings.update(ns, { settings })`
+    （merge，不动同条目的 `inbox` 字段），持久化进 profile patch。桌面挂件直读直写；
+    网页客户端半镜像同步（见下）。
+    **乐观并发（可选）**：GET 在 `X-DSH-Settings-Revision` 头里返回该条目当前 revision，
+    POST 带上同一个头即声明「我基于这个版本」，落后就返回 `409 settings-conflict`
+    （错误体 `code: 'settings-conflict'`）而不是覆盖别人的写入；不带该头的 POST 保持
+    历史的 last-write-wins（桌面端依赖这一行为）。网页半只在**自己改动的键**上断言
+    （delta POST），冲突时重取最新状态再把 delta 叠上去，因此多标签/桌面并发时双方的
+    改动都能保留。
   - `/_dsh/session-monitor/jump`（GET / POST）：**桌面→网页跳转队列**——单槽
     `{ sessionId, at, consumed }`、30s TTL；POST `{sessionId}` 入队、POST
     `{consume:true}` 标记已消费、POST `{ping:true}` Web 端存活心跳（返回
@@ -363,21 +399,24 @@
     notes } }`）：**通知 inbox 全量快照**——记录 `{ id, sessionId, kind, title,
     round?, at, ackedAt?, resolved? }`（v1 全量 + 客户端签名 diff，不做增量）。
   - `/_dsh/session-monitor/notifications/ack`（POST `{ ids }` / `{ sessionId }` /
-    `{ all: true }` → `{ ok, count }`）：**已读确认**，持久化到 inbox 分区。
+    `{ all: true }` → `{ ok, count }`）：**已读确认**，持久化到同一条目的 `inbox` volatile 字段。
   - `/_dsh/session-monitor/events`（POST `{ sessionId, kind: 'question' |
     'plan-review' | 'new-session', state: 'open' | 'closed', title? }`）：
     **网页端 relay（幂等备份）**——question/plan-review 已由 host 经工具调用检测
     （见上），此端点供网页半在 `pendingInteraction` 出现/消失边沿冗余上报；
     host 幂等落库（open 时已有未决记录则 no-op，closed 时 resolve）。
-- Client 半（`src/client/index.ts`）：`inject = ['slots', 'sessions', 'locale']`，注册
+- Client 半（`src/client/index.ts`）：`inject = ['slots', 'sessions', 'uiWorkspace', 'locale']`，注册
   `shell.overlay`，id `session-monitor`，order **90** → `SessionMonitorWidget`；再注册
   `widgets.config`，id `session-monitor`，order 0 → `SessionSettings`（配置弹窗，
-  管理器缺席时自动跳过）。**桌面桥（服务端中转）**：① 设置镜像——本地 save
+  管理器缺席时自动跳过）；再注册 `plugins.row.config`，key
+  **`@dsh-plugins/dsh-widgets-plugin#ui-session-monitor`** → `SessionMonitorRowConfig`
+  （官方 Plugins 页上该行的配置页，同一个面板；理由同 balance 一节）。**桌面桥（服务端中转）**：① 设置镜像——本地 save
   （`dsh.smon.settings-changed` 事件）debounce 300ms POST
   `/_dsh/session-monitor/settings`，启动 + 5s 轮询 GET，与 localStorage 有差异才
   写入 + 重发事件（网页挂件/配置面板仍只读 localStorage，零改动）；
   ② jump 消费——1s 轮询 `/_dsh/session-monitor/jump`，见未消费的
-  `{sessionId, at, consumed:false}`（at 大于上次处理）就 `ctx.sessions.open` +
+  `{sessionId, at, consumed:false}`（at 大于上次处理）就 `ctx.uiWorkspace.openSession`
+  （Workspace UI 服务，需要 `uiWorkspace` 在 inject 列表里）+
   `window.focus()` + POST `{consume:true}`，未知会话抛错则不消费（桌面回退）；
   ③ 启动 URL `?dsh-open=<id>` 深链按 0.8s×N 重试选中该会话；
   ④ **interaction relay（幂等备份）**——`SessionMonitorWidget` 在 `pendingInteraction`
@@ -386,9 +425,23 @@
   `ask_user_question` / `exit_plan_mode` 工具调用自行检测这两类 P0（纯桌面可见），
   relay 只是冗余兜底（`pushInteraction` 幂等，不重复入账；`approval` 由 host 审批
   日志直接覆盖，不 relay）。
-- 数据来源：标准 `useSessions` 全局 prop（`SessionListState`：`ids` / `byId` /
-  `current`）——**无 Host RPC、无轮询**，运行时经 `host/session-status` 帧实时推送
-  `running` 状态。
+- 数据来源：标准 `useSessions` 全局 prop（`SessionListState` 的 `ids` / `byId`）；
+  **当前选中会话由列表行的 `mainView` 引用计数派生**（`SessionListState.current` 已删除，
+  见 `src/client/session-selection.ts` 的 `currentSessionId()`）——**无 Host RPC、无轮询**，
+  运行时经 `host/session-status` 帧实时推送 `running` 状态；等待用户状态统一读
+  `useSessionStatus`（`Map<SessionId, { running, pendingInteraction, completionUnread }>`，
+  kind 取 `status.pendingInteraction?.kind`）。
+- **每会话后台任务**：不再依赖 runtime 的全局镜像（`SessionListState.jobsBySession`
+  已删除），改由 `ctx.jobs`（`@deepseek-ai/dsh-api-job-controller/client`）提供——
+  `ctx.jobs.state` 是只含「有观察者」会话的 roster 可观察源，`ctx.jobs.watchRows(id)`
+  按会话引用计数开一条 `job.list` 流（返回释放函数）；本包在
+  `src/client/jobs-bridge.ts` 封装成 `useWatchedJobRows(select)` + 纯策略
+  `jobWatchTargets()`（可单测），浮窗与紧凑卡片共用同一个 bridge。
+  **观察范围收敛**：0.1.5 的全局镜像是 O(1)，而 0.1.7 每个会话一条流，所以只观察
+  running、roster 里已持有在跑/停止中任务、以及当前会话——空闲且从未报过任务的会话
+  不观察（它也不可能产生任务）；会话停下后只要还有在跑任务（跨轮次的后台任务）就继续
+  观察，任务全部落定后才释放。服务用 `ctx.inject(['jobs'], …)` 迟到安装（`dsh.client.inject`
+  只排预取、不保证 apply 顺序），bridge 在被替换时重建订阅与全部 watch。
 - 会话列表：过滤 blank（从未开跑的 New Session）行与**子代理会话（默认过滤，
   `showSubagents` 开关可重新显示）**；运行中置顶（呼吸绿点）+ 本轮完成（黄点，
   访问后清除）+ 空闲（灰点）排序；每行显示 `displayTitle`、子代理（仅开启时）/
@@ -407,8 +460,8 @@
   session-monitor/status`（**无条件轮询**——同一响应同时喂养 turn/end reason 与
   进度显示的 `tools`/`rounds`，关掉两类通知后进度标签仍刷新）拿到 Host 的
   `turn/end` reason 后由 `flushPending`
-  生成 toast（右上堆叠，新的在最上），带「跳转」（`ctx.sessions.open(id)`，inject
-  面注入）与「知道了」按钮；Host 缺席（路由 404）或 reason 超时（12s）退回基础
+  生成 toast（右上堆叠，新的在最上），带「跳转」（`ctx.uiWorkspace.openSession(id)`，
+  inject 面注入，需要 `uiWorkspace` 服务）与「知道了」按钮；Host 缺席（路由 404）或 reason 超时（12s）退回基础
   kind。**toast 按状态配色**（CSS 变量 `--toast-accent` 驱动左侧色条与标题色）：
   `done`（琥珀 ✓ 正常完成）/ `interaction`（蓝 ✋ 等待输入）/ `subagent`（紫 ⇄）/
   `error`（红 ✕）/ `aborted`（灰 ■）/ `blocked`（橙 ⚠）/ `max-tokens`（橙 ⇥）/
@@ -420,7 +473,7 @@
   `tag` = `dsh-smon:<id>` 同会话替换不堆叠，`onclick` 跳转会话 + focus 窗口）；
   权限在配置弹窗勾选时经 `requestPermission()` 请求，denied 时提示去站点设置。
   浏览器通知与挂件 toast 互相独立，且都受子代理/当前会话过滤。
-- **点击跳转**：行点击 / toast「跳转」→ `ctx.sessions.open(id)`，应用立即切会话。
+- **点击跳转**：行点击 / toast「跳转」→ `ctx.uiWorkspace.openSession(id)`（Workspace UI 服务，需注入 `uiWorkspace`），应用立即切会话。
 - **任务进度显示**：有任务在执行的会话（`running` / 有运行中子代理 / 有运行中后台
   任务）在行标题下方显示**细动画不确定进度条**（无百分比信号，扫光动效表示执行中）
   + 一行小字标签：运行中 → 「第 N 轮 · 正在执行 <工具>」（工具名 = Host `tools`
@@ -463,9 +516,16 @@
   `SessionMonitorKey`、`MonitorSettings` + `DEFAULT_SETTINGS` / `loadSettings` /
   `saveSettings`（`./client` 类型面）。
 - 依赖：`@dsh-plugins/client-ui-widget-manager`（type-only，peer）；`zod`（deps，投影
-  状态/线协议 schema）；`@deepseek-ai/cordis`、
-  `dsh-api-session-controller`、`dsh-client-ui-renderer`、`dsh-client-ui-session`、
+  状态/线协议 schema）、`@deepseek-ai/cosmokit`（deps：手写 `Config` 接口的具名引用）；
+  `@deepseek-ai/cordis`、`@deepseek-ai/cordis-plugin-loader`（`loader/volatile-update`
+  事件 + `Fiber.entry`）、
+  `dsh-api-session-controller`、`dsh-api-job-controller`（`ctx.jobs` /
+  `watchRows`，inject + peer）、`dsh-client-ui-renderer`、`dsh-client-ui-session`、
+  `dsh-client-ui-workspace`（`ctx.uiWorkspace.openSession`，inject + peer）、
+  `dsh-client-ui-plugin-manager`（type-only：官方 Plugins 页的 `plugins.row.config`
+  槽契约；运行时不 require）、
   `dsh-client-ui-layout`、`dsh-client-ui-slots`、`dsh-client-locale`、
+  `dsh-settings`（`ctx.settings` 的 `SettingsForms` 类型合并，peer）、
   `dsh-session-projection`（Host 半投影注册表 + 类型面，peer——**可选组合**：
   缺席时 `installTurnEndProjection` 不注册，仅保留路由路径）、
   `dsh-session`（Host 半 `session/event` 类型，peer）、`react`（peer）。
@@ -651,7 +711,7 @@
     localStorage/BroadcastChannel（WebView2 vs 浏览器各是独立存储分区），所以
     挂件页行点击先 POST `/_dsh/session-monitor/jump` `{sessionId}`（Host 单槽、
     30s TTL）——已开着的 Harness 标签页由插件客户端半 1s 轮询取到后
-    `ctx.sessions.open` 原位切会话 + `window.focus()` + POST `{consume:true}`
+    `ctx.uiWorkspace.openSession` 原位切会话 + `window.focus()` + POST `{consume:true}`
     （**不新开窗口**）；桌面端 400ms×8 轮询 GET 直到 `consumed`，否则回退到
     自定义命令 `open_in_browser`（`opener` crate）打开系统默认浏览器，URL 带
     `?dsh-open=<id>` 开机深链。**ACL 要点（踩过）**：Tauri 2
@@ -716,9 +776,13 @@ graph LR
 | 依赖 | 被谁需要 |
 |---|---|
 | `@deepseek-ai/cordis` | 全部 6 个可运行包 |
+| `@deepseek-ai/cordis-plugin-loader` | balance、client-ui-session-monitor（peer：`loader/volatile-update` 事件 + `Fiber.entry`，用于 settings 命名空间与 volatile 重注册） |
+| `@deepseek-ai/cosmokit` | balance、client-ui-session-monitor（deps：手写 `Config` 接口需要具名引用，避免 TS2742） |
+| `@deepseek-ai/dsh-api-job-controller` | client-ui-session-monitor（client：`ctx.jobs` roster + `ctx.jobs.watchRows(id)` 引用计数流，取代已删除的 `SessionListState.jobsBySession`） |
+| `@deepseek-ai/dsh-client-ui-workspace` | client-ui-session-monitor（client：`ctx.uiWorkspace.openSession(target)`，取代已删除的 `ctx.sessions.open`） |
 | `@deepseek-ai/dsh-invariants` | balance（invariant 伴侣） |
 | `@deepseek-ai/dsh-credentials` / `dsh-typert-protocol` | balance |
-| `@deepseek-ai/dsh-settings` | balance（设置区 + Web 后端） |
+| `@deepseek-ai/dsh-settings` | balance、client-ui-session-monitor（`ctx.settings` 的 `SettingsForms` 类型合并 + Web 设置后端） |
 | `@deepseek-ai/dsh-api-remotes` | balance（client） |
 | `@deepseek-ai/dsh-client-ui-renderer` | 全部 6 个客户端包（`ctx.slots` 的 Context 合并，承接退役的 `dsh-client-runtime`） |
 | `@deepseek-ai/dsh-client-store` | balance（`defineStore` / `createSnapshotStore` 等 store API） |
@@ -726,7 +790,7 @@ graph LR
 | `@deepseek-ai/dsh-session-projection` | client-ui-session-monitor（Host 半：`ctx.sessionProjections` 注册 `sessionMonitorTurnEnd` 投影单元 + 投影表类型面；**可选组合**，缺席时该注册跳过） |
 | `zod` | balance（typert 生成产物）、client-ui-session-monitor（投影 state/wire schema，deps） |
 | `@deepseek-ai/dsh-api-session-controller` | balance、client-ui-token-crit、client-ui-session-monitor（`ISessions` / `SessionListState` / `SessionSummary`） |
-| `@deepseek-ai/dsh-client-ui-session` | client-ui-token-crit、client-ui-session-monitor、client-ui-rainbow-flow（会话作用域标准 prop） |
+| `@deepseek-ai/dsh-client-ui-session` | balance（`mainView` 标签的类型合并）、client-ui-token-crit、client-ui-session-monitor、client-ui-rainbow-flow（会话作用域标准 prop） |
 | `@deepseek-ai/dsh-client-ui-chat` | client-ui-rainbow-flow（`useChat` 实时会话快照） |
 | `@deepseek-ai/dsh-client-ui-model-selection` | balance（**可选**：当前模型经 `ctx.get('modelDirectories')` 延迟读取，不在 inject / peer 里；缺席时看板显示「未选择模型」） |
 | `@deepseek-ai/dsh-client-ui-layout` | balance、client-ui-token-crit、client-ui-session-monitor、client-ui-card-container、client-ui-widget-manager（`shell.overlay` 类型合并） |
@@ -734,6 +798,7 @@ graph LR
 | `@deepseek-ai/dsh-client-locale` | balance、client-ui-session-monitor、client-ui-card-container、client-ui-widget-manager |
 | `@deepseek-ai/dsh-session` | client-ui-session-monitor（Host 半 `session/event` 类型） |
 | `@deepseek-ai/dsh-client-ui-settings` | client-ui-widget-manager（`settings.section`） |
+| `@deepseek-ai/dsh-client-ui-plugin-manager` | balance、client-ui-session-monitor（type-only：官方 Plugins 页的 `plugins.row.config` 槽契约，把各自配置面板挂到 bundle 行的「配置」页；注册 key 为 `<bundle 包名>#<行 id>`） |
 | `@deepseek-ai/dsh-client-ui-slots` | balance、client-ui-token-crit、client-ui-session-monitor、client-ui-card-container、client-ui-rainbow-flow、client-ui-widget-manager |
 | `react` | balance、client-ui-token-crit、client-ui-session-monitor、client-ui-card-container、client-ui-rainbow-flow、client-ui-widget-manager |
 
@@ -791,8 +856,8 @@ Host 半用 esbuild，浏览器半用 **Vite library mode**（与官方 deepseek
 | `webServer` | `/_dsh/session-monitor/status` | — | client-ui-session-monitor | turn/end 结束原因 + 执行中工具（`tools`）+ 累计轮次（`rounds`）（浏览器半 + 桌面挂件轮询） |
 | `webServer` | `/_dsh/session-monitor/sessions` | — | client-ui-session-monitor | 桌面快照 JSON（`buildDesktopSnapshot` + `tools`/`rounds`，桌面挂件轮询） |
 | `webServer` | `/_dsh/session-monitor/widget` | — | client-ui-session-monitor | 独立挂件页 HTML（桌面壳加载；esbuild `text` loader 内联进 Host bundle） |
-| `webServer` | `/_dsh/session-monitor/settings` | — | client-ui-session-monitor | 共享设置存储（`session-monitor` settings 命名空间，桌面直读直写 + 网页客户端半镜像） |
-| `webServer` | `/_dsh/session-monitor/notifications` | — | client-ui-session-monitor | 通知 inbox 全量快照（`NotificationStore`，持久化到 `session-monitor-inbox` 分区） |
+| `webServer` | `/_dsh/session-monitor/settings` | — | client-ui-session-monitor | 共享设置存储（插件 Config 条目的 `settings` volatile 字段，命名空间 = profile 条目原始 id `ui-session-monitor`；GET 带 `X-DSH-Settings-Revision`，POST 可带同头做 CAS，冲突 409 `settings-conflict`；桌面直读直写 + 网页客户端半按 delta 镜像） |
+| `webServer` | `/_dsh/session-monitor/notifications` | — | client-ui-session-monitor | 通知 inbox 全量快照（`NotificationStore`，持久化到同一条目的 `inbox` volatile 字段；ack/resolve 立即落盘） |
 | `webServer` | `/_dsh/session-monitor/notifications/ack` | — | client-ui-session-monitor | inbox 已读确认（`{ ids }` / `{ sessionId }` / `{ all }`） |
 | `webServer` | `/_dsh/session-monitor/events` | — | client-ui-session-monitor | 网页半 interaction relay（question / plan-review open/closed） |
 | `webServer` | `/_dsh/session-monitor/jump` | — | client-ui-session-monitor | 桌面→网页跳转队列（POST 入队/消费/存活心跳，GET 查状态，30s TTL） |
@@ -812,6 +877,13 @@ Host 半用 esbuild，浏览器半用 **Vite library mode**（与官方 deepseek
 - [ ] 若新增带配置的小组件：把配置面板注册进管理器声明的 `widgets.config` 槽
   （`ctx.slots.inject('widgets.config', …)`，条目 id = 挂件 id），管理页即自动显示
   「配置」按钮并在弹窗中渲染
+- [ ] **必做**：在管理器目录（`widget-manager/src/client/widgets.ts` + 其 `locales.ts`
+  键）登记该挂件——管理页只投影目录内的 id，未登记的挂件在页面上**完全不出现**
+  （不列出、不能启用/停用，见 `WIDGET-DEVELOPMENT.md` §2.2）
+- [ ] 若要让配置面板也出现在 harness 官方 **Plugins 页**的行上：额外注册
+  `plugins.row.config`（key `<bundle 包名>#<行 id>`，`view: 'summary' | 'page'`），
+  type-only 依赖 `@deepseek-ai/dsh-client-ui-plugin-manager`（peer，**不进
+  `dsh.client.inject`**——那是硬到达依赖，我们运行期不 require 它）
 - [ ] 若要在卡片容器里提供自己的紧凑卡片：按 `WIDGET-DEVELOPMENT.md` §2.5 的
   标准适配器规范注册 `widgets.card`（条目 id = `shell.overlay` id、priority
   默认 0），并在 peerDependencies 加 `@dsh-plugins/client-ui-card-container`
@@ -851,6 +923,6 @@ Host 半用 esbuild，浏览器半用 **Vite library mode**（与官方 deepseek
 | 项 | 值 |
 |---|---|
 | 包版本 | 0.1.0（7 包一致） |
-| 官方 API 基线 | `@deepseek-ai/*` 0.1.5-rc.2（`dsh-client-runtime` 已退役：`ctx.slots` 改由 `dsh-client-ui-renderer` 提供、store API 在 `dsh-client-store`，见 AGENTS.md「关键现状与坑」） |
+| 官方 API 基线 | `@deepseek-ai/*` 0.1.7-rc.2（peer 范围 `^0.1.7-rc.2`；`@deepseek-ai/cordis` `^4.0.4`、`@deepseek-ai/schemastery` `^3.18.4`）。`dsh-client-runtime` 已退役：`ctx.slots` 改由 `dsh-client-ui-renderer` 提供、store API 在 `dsh-client-store`，见 AGENTS.md「关键现状与坑」 |
 | 语言约定 | 根文档中文；包 README 双语对 + `README.i18n.yaml` hash 凭据 |
 | CI | install → build → pack → git diff 干净（ci.yml）；`v*` tag 发布（publish.yml） |

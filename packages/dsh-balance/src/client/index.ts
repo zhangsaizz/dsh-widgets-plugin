@@ -46,6 +46,7 @@ import { BalanceCard } from './BalanceCard.tsx'
 import type { BalanceCardInject } from './BalanceCard.tsx'
 import { BalanceSettings } from './BalanceSettings.tsx'
 import type { BalanceSettingsInjected } from './BalanceSettings.tsx'
+import { BALANCE_ROW_CONFIG_KEY, BalanceRowConfig } from './RowConfig.tsx'
 import { createBalanceViewStore } from './store.ts'
 import { en, zh } from './locales.ts'
 import type { BalanceKey } from './locales.ts'
@@ -150,4 +151,15 @@ export async function apply(ctx: ClientContext): Promise<void> {
     order: 0,
     inject: (): BalanceSettingsInjected => ({ t }),
   }, BalanceSettings))
+
+  // The same panel as the `balance` row's own configuration page on the harness
+  // **Plugins** page (0.1.7): `plugins.row.config` is keyed by
+  // `<bundle package>#<row id>`, so registering here puts a Configure control on
+  // our bundle's row. Registered only while that page declares the slot, so
+  // installs without the plugin manager skip it.
+  ctx.slots.inject('plugins.row.config', () => ctx.slots.register({
+    name: 'plugins.row.config',
+    key: BALANCE_ROW_CONFIG_KEY,
+    inject: (): BalanceSettingsInjected => ({ t }),
+  }, BalanceRowConfig))
 }

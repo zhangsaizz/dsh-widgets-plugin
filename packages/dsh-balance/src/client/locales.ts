@@ -60,6 +60,7 @@ export type BalanceKey =
   | 'providerReadonlyHint'
   | 'providerHint'
   | 'noMatch'
+  | 'rowConfigSummary'
 
 /** Simplified Chinese dictionary. */
 export const zh: Record<BalanceKey, string> = {
@@ -118,6 +119,7 @@ export const zh: Record<BalanceKey, string> = {
   providerReadonlyHint: '提供商路由是绑定的标识，如需更换请删除后重新添加',
   providerHint: '候选中只显示模型列表里的提供商，也可直接输入其他路由',
   noMatch: '无匹配的路由',
+  rowConfigSummary: '为你绑定的提供商路由查询余额——凭据、厂商与自建网关地址',
 }
 
 /** English dictionary. */
@@ -177,4 +179,5 @@ export const en: Record<BalanceKey, string> = {
   providerReadonlyHint: 'The provider route identifies this binding — delete and re-add to change it',
   providerHint: 'Only providers in the model list are shown; you can also type any route',
   noMatch: 'No matching routes',
+  rowConfigSummary: 'Balance lookups for the provider routes you bind — credentials, vendors, and endpoint overrides',
 }

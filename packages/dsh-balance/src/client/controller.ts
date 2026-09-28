@@ -15,6 +15,7 @@ import type { SnapshotStore } from '@deepseek-ai/dsh-client-store'
 import { createSnapshotStore } from '@deepseek-ai/dsh-client-store'
 import type { HostObservable } from '@deepseek-ai/dsh-client-ui-slots'
 import type { RemoteResult } from '@deepseek-ai/dsh-typert-protocol'
+import { currentSessionId } from './session-selection.ts'
 import type { BalanceListEntry, BalanceListResult, BalanceQueryResult } from '../types.ts'
 
 /** The narrow generated-Remote face this controller reads. */
@@ -126,7 +127,7 @@ export class BalanceController implements HostObservable<BalanceViewState> {
 
   /** Follow the current-selection feed and (re)bind the reactive model source. */
   private onSessionChange(): void {
-    const current = this.sessions.list.getSnapshot().current
+    const current = currentSessionId(this.sessions.list.getSnapshot())
     // The subscription fires on ANY list mutation; rebinding the model store
     // and re-reconciling only matters when the CURRENT session actually moved
     // — but never skip the constructor's first call (initial 'no session' must
@@ -176,7 +177,7 @@ export class BalanceController implements HostObservable<BalanceViewState> {
   /** Resolve the authoritative selection, then query and publish the answer. */
   private async reconcile(): Promise<void> {
     const generation = ++this.generation
-    const sessionId = this.sessions.list.getSnapshot().current
+    const sessionId = currentSessionId(this.sessions.list.getSnapshot())
     if (sessionId === undefined) {
       this.publish({ phase: 'no-session', provider: null, model: null, result: null, accounts: null })
       return

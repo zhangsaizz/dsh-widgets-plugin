@@ -118,11 +118,11 @@ export function ClockWidget({ t }: ClockWidgetProps) {
   },
   "files": ["lib"],
   "peerDependencies": {
-    "@deepseek-ai/cordis": "^4.0.2",
-    "@deepseek-ai/dsh-client-ui-renderer": "^0.1.5-rc.2",
-    "@deepseek-ai/dsh-client-ui-layout": "^0.1.5-rc.2",
-    "@deepseek-ai/dsh-client-ui-slots": "^0.1.5-rc.2",
-    "@deepseek-ai/dsh-client-locale": "^0.1.5-rc.2",
+    "@deepseek-ai/cordis": "^4.0.4",
+    "@deepseek-ai/dsh-client-ui-renderer": "^0.1.7-rc.2",
+    "@deepseek-ai/dsh-client-ui-layout": "^0.1.7-rc.2",
+    "@deepseek-ai/dsh-client-ui-slots": "^0.1.7-rc.2",
+    "@deepseek-ai/dsh-client-locale": "^0.1.7-rc.2",
     "react": "^18.2.0"
   }
 }
@@ -183,10 +183,17 @@ export function ClockWidget({ t }: ClockWidgetProps) {
 - 影子随面板插件 fiber 卸载级联清理；关闭状态持久化在浏览器
   `localStorage`（`dsh-plugins.widget-manager.disabled`），刷新后保持。
 
-### 2.2 更好的展示：登记目录（可选但推荐）
+### 2.2 必须登记目录（登记后才被列出与管理）
 
-不登记也能被管理（显示为通用行：原始 id + 包名）。要让列表显示友好名称/描述，
-在面板包的 `src/client/widgets.ts` 目录里登记，并在 `locales.ts`（NS `widgets`）补两个键：
+**登记是必须的**：面板只投影目录里的 id（`controller.ts` 的 `WIDGET_CATALOG` /
+`isOwnWidgetId`）。只注册 `shell.overlay` 而不登记的挂件在管理页**完全不出现**——既看不到
+也无法启用/停用。之所以不再列出「目录外的台账条目」：`shell.overlay` 是共享槽，harness 自己
+也往里注册浮层（快捷键速查、会话重命名/归档对话框、工作区提示、额度提醒等），而影子机制
+对任何 list id 都生效，列出它们既会把官方浮层误标成挂件，也会让一次误点隐藏官方 UI。
+
+登记方式：在面板包的 `src/client/widgets.ts` 目录里加一条，并在 `locales.ts`（NS `widgets`）
+补两个键（行 id 用挂件的 `shell.overlay` id；`installRowId` 用于 bundle 挂载行 id 与 overlay id
+不一致的情况）：
 
 ```ts
 // packages/dsh-client-ui-widget-manager/src/client/widgets.ts
@@ -411,7 +418,10 @@ export const en: Record<ClockKey, string> = { title: 'Clock', secondsLabel: 'Sho
 - [ ] 若要在卡片容器里显示自己的紧凑卡片：按第 2.5 节注册 `widgets.card`
       （id = `shell.overlay` id、priority 默认 0），并在 peerDependencies 加
       `@dsh-plugins/client-ui-card-container`（type-only）
-- [ ] 目录登记（`widgets.ts` + `locales.ts` 键）+ `COMPONENTS.md` 各表更新
+- [ ] **目录登记（必做）**：`widgets.ts` + `locales.ts` 键（未登记则管理页不列出）
+      + `COMPONENTS.md` 各表更新
+- [ ] 可选：`plugins.row.config` 接入官方 Plugins 页（key `<bundle 包名>#<行 id>`；
+      peer 声明 `@deepseek-ai/dsh-client-ui-plugin-manager`，**不进 `dsh.client.inject`**）
 - [ ] 双语 README + `README.i18n.yaml` hash 已更新
 - [ ] bundle 分发：`cordis.patch.yml` 插入行 + bundle 依赖
 - [ ] 若改动 `@dsh-plugins/balance` 的 Remote 线协议：重新生成 `lib/typert.*`（typert codegen）

@@ -21,6 +21,8 @@ packages/dsh-balance/lib/*
 # --- local dsh tooling ---
 .dsh-vision-toolkit/
 .agents/
+.npm-cache/
+.pnpm-cache/
 
 # --- gif recording workdir (record-browser-gif skill) ---
 .playwright-mcp/

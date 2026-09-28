@@ -52,8 +52,23 @@ export interface MonitorSettingsWire {
   readonly autoAckOnOpen: boolean
 }
 
-/** Settings namespace owning the shared session-monitor options. */
-export const MONITOR_SETTINGS_NS = 'session-monitor'
+/** Default settings namespace for the shared session-monitor options.
+ *
+ *  Harness 0.1.7 settings namespaces ARE profile plugin entry ids, so this must
+ *  match the id our bundle mounts the plugin under (`- id: ui-session-monitor` in
+ *  `bundles/dsh-widgets-plugin/cordis.patch.yml`); the live value is read off the
+ *  Loader entry (`ctx.fiber.entry.options.id`) and this constant is only the
+ *  fallback for a mount that carries no entry.
+ *
+ *  0.1.5 instead registered a namespace literally named `session-monitor` (and a
+ *  second one named `session-monitor-inbox`), which is why the removed
+ *  `settings.yaml` sections do NOT match this entry — see the legacy-import note
+ *  in src/index.ts. */
+export const MONITOR_SETTINGS_NS = 'ui-session-monitor'
+
+/** Volatile Config field of the plugin entry carrying the shared options.
+ *  Must match the field key in `Config` (./index.ts). */
+export const MONITOR_SETTINGS_FIELD = 'settings'
 
 /** Schema for the shared settings section. Defaults mirror the client
  *  `DEFAULT_SETTINGS` so an absent section resolves identically on both sides. */

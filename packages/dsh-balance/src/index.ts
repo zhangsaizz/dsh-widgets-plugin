@@ -9,14 +9,16 @@
  * @module @dsh-plugins/balance
  */
 
-import type { Context } from '@deepseek-ai/cordis'
+import type { Context, Volatile } from '@deepseek-ai/cordis'
 import z from '@deepseek-ai/schemastery'
-// Type-only: pulls the host `ctx.settings` (SettingsProvider) Context merge.
+// Type-only: pulls the host `ctx.settings` (SettingsForms) Context merge and
+// the Loader's `loader/volatile-update` event + `Fiber.entry` declarations.
 import type {} from '@deepseek-ai/dsh-settings'
+import type {} from '@deepseek-ai/cordis-plugin-loader'
 import { BalanceRuntime } from './runtime.ts'
 import type { BalanceBindingConfig } from './types.ts'
 import { BalanceWebBackend, installBalanceWeb } from './web.ts'
-import { BALANCE_SETTINGS_NS, BalanceSettingsSchema, bindingSchema } from './settings.ts'
+import { bindingSchema } from './settings.ts'
 import {
   DeepSeekBalanceProvider,
   MoonshotBalanceProvider,
@@ -50,43 +52,80 @@ export const name = 'balance'
 /** Services required before providers, the settings section and the Web route can register. */
 export const inject = ['settings']
 
-/** Deployment config: request policy, New API origin, and static bindings. */
-export interface Config {
+/**
+ * Deployment config: request policy, New API origin, and user-managed
+ * bindings.
+ *
+ * In harness 0.1.7 this Config entry IS the plugin's settings section:
+ * `SettingsProvider.register` was removed, every settings namespace is a
+ * profile plugin entry's Config, and a `volatile` field is the live-editable
+ * part — a configuration surface reads it through `ctx.settings.describe()` and
+ * writes it through `ctx.settings.update()` (see ./web.ts), the Loader commits
+ * the new value into the running fiber in place instead of remounting the
+ * plugin, and it announces the commit with `loader/volatile-update`.
+ *
+ * A volatile field's resolved value is a live reference, hence `Volatile` here:
+ * {@link apply} reads it through `.get()`.
+ */
+export const Config = z.object({
   /** Per-query fetch deadline in milliseconds (default 10000). */
-  readonly requestTimeoutMs?: number
-  /** New API instance base URL (default http://localhost:3000). */
-  readonly newApiBaseURL?: string
-  /** Static user-managed bindings applied at boot — fill credentials directly here. */
-  bindings?: BalanceBindingConfig[]
-}
-
-export const Config: z<Config> = z.object({
   requestTimeoutMs: z.number().min(Number.MIN_VALUE).max(Number.MAX_SAFE_INTEGER).default(10000),
+  /** New API instance base URL (default http://localhost:3000). */
   newApiBaseURL: z.string().default('http://localhost:3000'),
-  bindings: z.array(bindingSchema).default([]),
+  /**
+   * User-managed bindings: static deployment entries written in
+   * `cordis.patch.yml` AND the document the provider settings panel edits
+   * through `/_dsh/balance/settings`. Adding a binding for a route the shipped
+   * providers already cover still conflicts ("route already bound"); see the
+   * bundle's patch comments.
+   */
+  bindings: z.array(bindingSchema).default([]).volatile(),
 })
 
-/** Read the user-managed bindings out of a schema-validated settings section. */
-function readBindings(section: unknown): BalanceBindingConfig[] {
-  const raw = (section as { bindings?: unknown } | null)?.bindings
-  if (!Array.isArray(raw)) return []
+/** Hand-written twin of {@link Config}'s resolved shape (declaration-emit safe:
+ *  the inferred schemastery type would name cosmokit internals, TS2742). */
+export interface Config {
+  /** Per-query fetch deadline in milliseconds. */
+  readonly requestTimeoutMs: number
+  /** New API instance base URL. */
+  readonly newApiBaseURL: string
+  /** Live reference to the user-managed bindings. */
+  readonly bindings: Volatile<BindingEntry[]>
+}
+
+/** One schema-validated element of the `bindings` config field. */
+export interface BindingEntry {
+  /** LLM provider route this binding answers balance queries for. */
+  readonly provider: string
+  /** Balance vendor type (deepseek, moonshot, openrouter, siliconflow, new-api). */
+  readonly vendor: string
+  /** Credential reference resolved per query. */
+  readonly credentialRef?: string
+  /** Inline credential value; overrides {@link credentialRef} when present. */
+  readonly credential?: string
+  /** Optional vendor endpoint override (self-hosted instances). */
+  readonly baseURL?: string
+}
+
+/**
+ * Project schema-validated Config entries onto the domain binding type: blank
+ * the optional slots, drop entries that carry no credential source at all (an
+ * incomplete entry is a user-document problem, not a plugin failure), and keep
+ * `credential` / `baseURL` only when actually set.
+ */
+function readBindings(entries: readonly BindingEntry[]): BalanceBindingConfig[] {
   const bindings: BalanceBindingConfig[] = []
-  for (const entry of raw) {
-    if (typeof entry !== 'object' || entry === null) continue
-    const record = entry as Record<string, unknown>
-    const provider = record['provider']
-    const vendor = record['vendor']
-    const credentialRef = typeof record['credentialRef'] === 'string' ? record['credentialRef'] : ''
-    const credential = typeof record['credential'] === 'string' ? record['credential'] : ''
-    if (typeof provider !== 'string' || provider.length === 0) continue
-    if (typeof vendor !== 'string' || vendor.length === 0) continue
+  for (const entry of entries) {
+    if (entry.provider.length === 0 || entry.vendor.length === 0) continue
+    const credentialRef = entry.credentialRef ?? ''
+    const credential = entry.credential ?? ''
     if (credentialRef.length === 0 && credential.length === 0) continue
     bindings.push({
-      provider,
-      vendor,
+      provider: entry.provider,
+      vendor: entry.vendor,
       credentialRef,
       ...(credential.length === 0 ? {} : { credential }),
-      ...(typeof record['baseURL'] === 'string' ? { baseURL: record['baseURL'] } : {}),
+      ...(entry.baseURL === undefined || entry.baseURL.length === 0 ? {} : { baseURL: entry.baseURL }),
     })
   }
   return bindings
@@ -112,36 +151,47 @@ function createVendorProvider(binding: BalanceBindingConfig): import('./provider
 
 /**
  * Mount the balance line: construct the runtime (self-registers `ctx.balance`
- * through the Service base constructor), register every shipped vendor plus
- * the static `bindings`, then watch the `balance` settings section for
- * user-managed bindings and attach the same-origin settings Web route. Every
- * registration is an effect on this fiber, so unloading the plugin withdraws
- * all route bindings and the Web route in one cascade.
+ * through the Service base constructor), register every shipped vendor, then
+ * register the Config's user-managed `bindings` and re-register them whenever
+ * the Loader commits a live edit, and finally attach the same-origin settings
+ * Web route. Every registration is an effect on this fiber, so unloading the
+ * plugin withdraws all route bindings and the Web route in one cascade.
  * @param ctx - host context.
- * @param config - validated deployment tunables.
+ * @param config - resolved deployment config (see {@link Config}).
  */
-export function apply(ctx: Context, config: Config = {}): void {
+export function apply(ctx: Context, config: Config): void {
+  // 0. The plugin ships its own configuration surface (the Widgets manager's
+  //    provider panel, backed by /_dsh/balance/settings), so opt out of the
+  //    harness's schema-generated form for this entry. `bindings` being volatile
+  //    is what makes the entry form-eligible in 0.1.7, and `configure` throws if
+  //    called twice for one plugin instance — hence exactly one effect. Read
+  //    through `ctx.get` so a bare mount without the settings service (tests, a
+  //    host embedding the plugin) still applies.
+  const settings = ctx.get('settings')
+  if (settings !== undefined) {
+    ctx.effect(() => settings.configure({ auto: false }), 'balance: settings page policy')
+  }
+
   // 1. Capability seam: constructing the runtime registers `ctx.balance`.
   new BalanceRuntime(ctx, { requestTimeoutMs: config.requestTimeoutMs })
 
-  // 2. Shipped vendor providers, then static deployment bindings.
+  // 2. Shipped vendor providers (they already own their default routes), then
+  //    the New API instance for the self-hosted route.
   for (const provider of PROVIDERS) ctx.balance.register(provider)
-  ctx.balance.register(new NewApiBalanceProvider(
-    config.newApiBaseURL === undefined ? {} : { baseURL: config.newApiBaseURL },
-  ))
-  for (const binding of config.bindings ?? []) {
-    ctx.balance.register(createVendorProvider(binding))
-  }
+  ctx.balance.register(new NewApiBalanceProvider({ baseURL: config.newApiBaseURL }))
 
-  // 3. Settings-section bindings (reconcile on change) + same-origin Web route.
-  const settings = ctx.get('settings')
-  if (settings === undefined) return
-  const scope = settings.register(BALANCE_SETTINGS_NS, BalanceSettingsSchema)
+  // 3. User-managed bindings — the plugin's settings section. `bindings` is a
+  //    volatile Config field (see Config): a configuration surface writes it
+  //    through ctx.settings.update (./web.ts), the Loader commits the value
+  //    into this fiber in place, and `loader/volatile-update` is emitted here,
+  //    which is what drives the re-registration. A route already bound by a
+  //    shipped provider conflicts ("route already bound"): the offending entry
+  //    is skipped with one warning instead of failing the plugin.
   const disposers = new Map<string, () => void>()
-  const reconcile = (section: unknown): void => {
+  const reconcile = (entries: readonly BindingEntry[]): void => {
     for (const dispose of disposers.values()) dispose()
     disposers.clear()
-    for (const binding of readBindings(section)) {
+    for (const binding of readBindings(entries)) {
       try {
         disposers.set(binding.provider, ctx.balance.register(createVendorProvider(binding)))
       } catch (error) {
@@ -152,10 +202,10 @@ export function apply(ctx: Context, config: Config = {}): void {
       }
     }
   }
-  const stopWatch = scope.watch((next) => { reconcile(next) })
-  reconcile(scope.get())
+  const currentBindings = (): readonly BindingEntry[] => config.bindings.get()
+  reconcile(currentBindings())
+  ctx.on('loader/volatile-update', () => { reconcile(currentBindings()) })
   ctx.effect(() => () => {
-    stopWatch()
     for (const dispose of disposers.values()) dispose()
     disposers.clear()
   }, 'balance: settings bindings')

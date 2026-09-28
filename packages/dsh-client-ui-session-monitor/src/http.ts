@@ -7,8 +7,13 @@
  * @module @dsh-plugins/client-ui-session-monitor/http
  */
 
+import { SETTINGS_REVISION_HEADER } from './settings-revision.ts'
+
 /** Cap on the JSON body the settings/jump routes accept. */
 const MAX_BODY_BYTES = 64 * 1024
+
+/** Response/request header carrying the settings section's revision. */
+export { SETTINGS_REVISION_HEADER } from './settings-revision.ts'
 
 /**
  * CORS is intentionally permissive on these routes — but only for trusted
@@ -27,11 +32,22 @@ const MAX_BODY_BYTES = 64 * 1024
 const CORS_HEADERS: Readonly<Record<string, string>> = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
-  'Access-Control-Allow-Headers': 'Content-Type',
+  // The settings routes carry an optional optimistic-concurrency revision in
+  // this header; allowing it keeps the protocol usable from the cross-origin
+  // desktop shell too (same-origin callers never preflight).
+  'Access-Control-Allow-Headers': `Content-Type, ${SETTINGS_REVISION_HEADER}`,
+  // Lets a cross-origin reader (the Tauri origin) see the revision we return.
+  'Access-Control-Expose-Headers': SETTINGS_REVISION_HEADER,
 }
 
-function requestHeader(req: import('node:http').IncomingMessage, name: string): string | undefined {
-  const raw = req.headers[name]
+/**
+ * Read one request header (string-valued only; Node lowercases header names).
+ * @param req - the incoming request.
+ * @param name - header name, any case.
+ * @returns the header value, or undefined when absent / repeated.
+ */
+export function requestHeader(req: import('node:http').IncomingMessage, name: string): string | undefined {
+  const raw = req.headers[name.toLowerCase()]
   return typeof raw === 'string' ? raw : undefined
 }
 

@@ -19,18 +19,18 @@ import { useState } from 'react'
 import type { ReactNode } from 'react'
 import type { TranslateNS } from '@deepseek-ai/dsh-client-ui-slots'
 import {
-  IconApiOutline14,
-  IconBrowseOutline16,
-  IconChecklistOutline14,
-  IconCodeOutline16,
-  IconDataOutline16,
-  IconEditOutline16,
-  IconGlobeOutline14,
-  IconListPenOutline16,
-  IconQuestionOutline14,
-  IconSearchOutline16,
-  IconSparkle16,
-  IconThinkOutline14,
+  IconApiOutlineRegular,
+  IconBrowseOutlineRegular,
+  IconChecklistOutlineRegular,
+  IconCodeOutlineRegular,
+  IconDataOutlineRegular,
+  IconEditOutlineRegular,
+  IconGlobeOutlineRegular,
+  IconListPenOutlineRegular,
+  IconQuestionOutlineRegular,
+  IconSearchOutlineRegular,
+  IconSparkleRegular,
+  IconThinkOutlineRegular,
 } from '@deepseek-ai/dsh-client-ui-primitives'
 import styles from './SettingsPanel.module.css'
 import {
@@ -56,18 +56,18 @@ export interface RainbowFlowSettingsInjected {
  *  tinted by its row's configured colour (a live link between the glyph and
  *  the command class it stands for). */
 const TOOL_ICON: Readonly<Record<ToolCategory, (size: number) => ReactNode>> = {
-  shell: (size) => <IconApiOutline14 size={size} />,
-  read: (size) => <IconBrowseOutline16 size={size} />,
-  search: (size) => <IconSearchOutline16 size={size} />,
-  write: (size) => <IconListPenOutline16 size={size} />,
-  edit: (size) => <IconEditOutline16 size={size} />,
-  code: (size) => <IconCodeOutline16 size={size} />,
-  web: (size) => <IconGlobeOutline14 size={size} />,
-  ask: (size) => <IconQuestionOutline14 size={size} />,
-  plan: (size) => <IconChecklistOutline14 size={size} />,
-  memory: (size) => <IconDataOutline16 size={size} />,
-  think: (size) => <IconThinkOutline14 size={size} />,
-  other: (size) => <IconSparkle16 size={size} />,
+  shell: (size) => <IconApiOutlineRegular size={size} />,
+  read: (size) => <IconBrowseOutlineRegular size={size} />,
+  search: (size) => <IconSearchOutlineRegular size={size} />,
+  write: (size) => <IconListPenOutlineRegular size={size} />,
+  edit: (size) => <IconEditOutlineRegular size={size} />,
+  code: (size) => <IconCodeOutlineRegular size={size} />,
+  web: (size) => <IconGlobeOutlineRegular size={size} />,
+  ask: (size) => <IconQuestionOutlineRegular size={size} />,
+  plan: (size) => <IconChecklistOutlineRegular size={size} />,
+  memory: (size) => <IconDataOutlineRegular size={size} />,
+  think: (size) => <IconThinkOutlineRegular size={size} />,
+  other: (size) => <IconSparkleRegular size={size} />,
 }
 
 /** Bilingual category name for a colour row (resolved from the document lang). */
