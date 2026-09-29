@@ -41,9 +41,9 @@
 | 24 | 彩虹流光 `RainbowFlowGlow` | Web 输入框装饰 | `@dsh-plugins/client-ui-rainbow-flow` | `conversation.input.left`（order 99） | **整个输入框通透玻璃 + 呼吸彩虹光晕（无边框）**：开关开启时输入卡变**通透玻璃**面板（**两段白色玻璃渐变**（淡光穿过玻璃）+ 卡片 `::before` **轻磨砂层 `blur(5px) saturate(1.35)`**——轻模糊让背后内容清晰、强增饱和让背后色彩透出发光；**上下边缘各一条 1px 细反光线**（box-shadow inset，顶部亮 0.40 / 底部柔 0.26）让玻璃边缘有存在感、无大片高光弧，`--rf-glass-*` token 主题感知亮/暗两套调色板，伪元素方案避免破坏 fixed Tooltip）——**无可见环带/边框**，唯一边缘装饰是 **一圈贴合卡片圆角的彩虹柔光**（**16 方向 box-shadow + `mix-blend-mode: screen` 加色混合**——每方向一个纯彩虹色相（间隔 22.5°、完整色轮：红→橙→黄→绿→青→蓝→紫→粉，两两之间有中间色），小偏移 7px + 宽 blur 34px 让每个色相与左右相邻色都重叠成**平滑连续彩虹渐变（完全无分段）**（普通堆叠会混成单色脏团）；box-shadow 天然在**元素外侧**（卡片内部完全干净、输入框从不被染色）且**跟随 `border-radius`**（光晕沿卡片圆角弯折，mask 挖环做不到会切直角）；**发光层精确对齐卡片边缘**（`.glow` inset 5px = flow 外扩量，border-radius 22px = 卡片圆角 27−5，阴影峰值正好落在卡片边缘上）；**所有阴影 spread 0**（正 spread 会在边缘切出全强度核心 = 可见的「内部轮廓」亮线；spread 0 让 blur 承担全部衰减、峰值在边缘向内外双向渐变）+ **柔和 inset 内发光**（读起来像**卡片本身发光**）；screen 混合让颜色在深色页面上保持亮丽鲜明（普通混合会塌成暗影）；亮色主题回退 normal 混合 + 低 alpha），**像呼吸一样脉动**：rAF 循环积分呼吸相位，每帧只写两层（暖彩虹 `.glow` + 冷蓝紫 `.glowCool`）的 **opacity（0.18↔0.38 纯明暗呼吸）**——**刻意不用 scale**（缩放会让发光层边缘脱离未缩放的卡片、峰值时重新露出内部轮廓；光晕层始终钉在卡片边缘，2.1 倍亮度落差表现「光随呼吸扩张」）——合成器友好（静态 box-shadow 层只栅格化一次，**无重栅格化**），呼吸频率由 token 速率驱动（5s↔1s，指数缓动平滑过渡、相位不跳）；**另加 CSS `hue-rotate` 色相缓慢流动**（48s/圈：8 方向位置不变、每个色相漂移成下一个——红→橙→黄→…→粉→红，几何不动；`prefers-reduced-motion` 冻结）；**心情感知色调 = 双层交叉淡化**（思考/工具调用时 mood 因子缓动到 1，opacity 从暖层移到冷层——纯 opacity 动画）；**不支持 `mix-blend-mode: screen` 的浏览器回退普通混合**（变暗但完整） |
 | 25 | 彩虹流光开关 `RainbowFlowToggle` | Web 输入框控制 | `@dsh-plugins/client-ui-rainbow-flow` | `conversation.input.left`（order 100） | 输入框工具行左端液态玻璃质感彩虹小圆点开关（半透明渐变 + blur + 高光，开/关持久化 localStorage），右上角状态点随会话运行变绿 |
 | 26 | 发送/停止按钮美化 `RainbowFlowSend` | Web 输入框控制 | `@dsh-plugins/client-ui-rainbow-flow` | `conversation.input.right`（order 150） | 对输入框主操作发送/停止按钮做**液态玻璃**图标美化 + 动态效果：`conversation.input.right` 探针把按钮有效状态镜像到输入卡 `data-rf-send`，全局样式表给按钮做半透明玻璃面板（白色渐变 + backdrop blur + 顶部高光）透出柔和彩虹 + 细玻璃描边——空闲有草稿时呼吸光晕、运行中彩虹旋转 + 扩散雷达脉冲环；与开关共用开关状态、禁用态不生效、`prefers-reduced-motion` 冻结动画；选择器锚定 `[data-composer-card]` + `_primary` 后缀，harness 升级后仍生效 |
-| 27 | 彩虹流光配置面板 `RainbowFlowSettings` | Web 配置弹窗 | `@dsh-plugins/client-ui-rainbow-flow` | `widgets.config`（管理器「配置」弹窗） | 可调**透明度**（40/70/100%）、**速度灵敏度**（0.5×/1×/1.5×）、**思考冷色调开关**、**命令按类别上色开关**（`commandColor`，默认开）、**最新行动彩虹扫字开关**（`commandSweep`，默认开）；另含**命令文字颜色**——**每类命令**（shell/read/search/write/edit/code/web/ask/plan/memory/think/other）一个取色器 + 单行恢复默认，写入 `--rf-tool-*` CSS 变量经 store 持久化到 localStorage（`dsh.rnglow.settings`），已挂载的光环与已上色的命令卡实时生效 |
+| 27 | 彩虹流光配置面板 `RainbowFlowSettings` | Web 配置弹窗 | `@dsh-plugins/client-ui-rainbow-flow` | `widgets.config`（管理器「配置」弹窗） | 可调**透明度**（40/70/100%）、**速度灵敏度**（0.5×/1×/1.5×）、**思考冷色调开关**、**命令按类别上色开关**（`commandColor`，默认开）、**最新行动彩虹扫字开关**（`commandSweep`，默认开）；另含**命令文字颜色**——**每类命令**（shell/read/search/write/edit/code/web/ask/plan/task/memory/think/other）一个取色器 + 单行恢复默认，写入 `--rf-tool-*` CSS 变量经 store 持久化到 localStorage（`dsh.rnglow.settings`），已挂载的光环与已上色的命令卡实时生效 |
 | 28 | 彩虹流光设置 store `settings.ts` | 客户端状态 | `@dsh-plugins/client-ui-rainbow-flow` | 注入 store | 透明度/速度/冷色调/命令按类别上色（`commandColor`）/最新行动彩虹扫字（`commandSweep`）/命令颜色（`toolColors`，每类一色）的读取/保存/订阅（uSES），与配置面板和光环共享；**启用/停用经 window 事件桥与管理页双向同步**（`dsh.rnglow.manager-toggle` / `enabled-change`，与工具栏圆点同一开关 store）；另含**心情感知色调 = 双层交叉淡化**（思考/工具调用时 mood 因子缓动到 1，暖层→冷层 opacity 纯动画）、**reduced-motion 单帧静态**、**IntersectionObserver 视口外停 rAF**、**零重栅格化**（静态 box-shadow 层只栅格化一次） |
-| 29 | 彩虹流光命令卡上色 `toolAccent` | Web 输入框装饰（会话记录命令卡） | `@dsh-plugins/client-ui-rainbow-flow` | 非插槽（`MutationObserver` + `[data-tool]`/`[data-variant="bash"]`/`[data-variant="think"]` 装饰） | 会话记录里模型每个**工具调用（命令）卡片**按工具名启发式分类（shell/read/search/write/edit/code/web/ask/plan/memory/other，另 **「Think」思考推理行** `data-variant="think"` 归入 `think` 淡紫类别）：卡片左侧亮起**对应颜色边条**，**相关文字也按类别上色**——**标题用主题感知渐变**（`background-clip: text`）、**前导图标**类别色、**摘要**柔和色调、**读/写/编辑类文件的路径链接（`_fileLink`）**用纯类别色（悬停显示类别名）；读卡片稳定 `data-tool` 属性（**shell 卡是例外**：它由专用卡片组件渲染，只带 `data-variant="bash"`、没有 `data-tool`，故按变体归入 `shell`）→ `classify.ts` 分类 → `data-rf-tool-cat` 属性 + `ToolAccent.css` 上色；**不重渲染卡片、不改产品 DOM**，harness 升级后仍生效（文字按 CSS-module 本地名后缀 `_title`/`_leading`/`_summary` 选中，同发送按钮 `_primary`），未知工具归入"命令"默认色；斜杠命令卡（`conversation.chat.commandview` 的 `GenericCommandCard`，`data-variant="others"`、无 `data-tool`）**不在**上色范围；**每类颜色可按用户配置自定义**（把设置里的 `toolColors` 写成 `<html>` 内联 `--rf-tool-*`，覆盖样式表 `:root` 默认，实时生效）；**最新行动（命令/思考）被彩虹扫过（正文除外）**（会话里**最新的一条**——工具卡、shell 卡或 `data-variant="think"` 思考行，`setLatest` 在 `ROW_SELECTOR` 并集里取最晚标 `data-rf-latest`——其 `_title`/`_summary`/`_fileLink` 被**流动的彩虹渐变**（`background-clip: text`）扫过每个字符，输出正文不参与；**跟随最新行动持续**（read/edit 等秒完的命令也亮，不依赖 running），直到**其后出现正文回复**（flow-item 结构精确判定，不误判 composer）才熄灭）——纯 CSS、不重渲染 DOM、`prefers-reduced-motion` 冻结；**受 `commandSweep` 开关控制**，经本模块写成 `<html>` 的 `data-rf-sweep='on'|'off'` 门控）；命令上色本身**受 `commandColor` 开关控制**（关掉时本模块停止打标签并清除已有 `data-rf-tool-cat`/`title`，命令卡恢复原厂外观；两者均独立于输入框光晕开关） |
+| 29 | 彩虹流光命令卡上色 `toolAccent` | Web 输入框装饰（会话记录命令卡） | `@dsh-plugins/client-ui-rainbow-flow` | 非插槽（`MutationObserver` + `[data-tool]`/`[data-variant="bash"]`/`[data-variant="think"]` 装饰） | 会话记录里模型每个**工具调用（命令）卡片**按工具名启发式分类（shell/read/search/write/edit/code/web/ask/plan/task/memory/other，另 **「Think」思考推理行** `data-variant="think"` 归入 `think` 淡紫类别）：卡片左侧亮起**对应颜色边条**，**相关文字也按类别上色**——**标题用主题感知渐变**（`background-clip: text`）、**前导图标**类别色、**摘要**柔和色调、**读/写/编辑类文件的路径链接（`_fileLink`）**用纯类别色（悬停显示类别名）；读卡片稳定 `data-tool` 属性（**shell 卡是例外**：它由专用卡片组件渲染，只带 `data-variant="bash"`、没有 `data-tool`，故按变体归入 `shell`）→ `classify.ts` 分类 → `data-rf-tool-cat` 属性 + `ToolAccent.css` 上色；**不重渲染卡片、不改产品 DOM**，harness 升级后仍生效（文字按 CSS-module 本地名后缀 `_title`/`_leading`/`_summary` 选中，同发送按钮 `_primary`），未知工具归入"命令"默认色（**读取/规划/编辑**三个家族的边界用 `(_|$)` 而非 `\b`，因此 `read_image`/`str_replace_editor` 会落到本家族；**任务类**（`todo_write`/目标/`schedule_*`/`team_task_*`/`job_*`/`workflow`/`ralph`）统一归入新增的 **task（任务）** 类别，不再落默认色；智能体/团队协作类如 `subagent`/`send_message`/`wait_agent`、以及 `present`/`skill`/`lsp` 按设计仍为默认色。**可见性前提**：行是否可见由工作详情模式决定——`compact`/`standard`（0.1.7 默认）收起每一轮的过程分组，需**展开分组**才可见；`detailed`（0.2.0 默认）只收起已结束轮次，运行中可见；`verbose` 从不折叠。装饰器从不给隐藏行上色）；斜杠命令卡（`conversation.chat.commandview` 的 `GenericCommandCard`，`data-variant="others"`、无 `data-tool`）**不在**上色范围；**每类颜色可按用户配置自定义**（把设置里的 `toolColors` 写成 `<html>` 内联 `--rf-tool-*`，覆盖样式表 `:root` 默认，实时生效）；**折叠父行也上色**（命令行被过程分组收起后 harness 显示两条父行之一：分组标题行 / 已结束轮次的整轮控制行；二者都不是命令行，故 `applyFoldAccents` 分别盖 `data-rf-group-cat` / `data-rf-turn-cat` + 内联 `--rf-tool-accent`，取「其隐藏的最新子命令」类别，图标/文字继承该色；关掉上色开关即移除；最新行动被折叠隐藏时扫字转标该父行 `data-rf-latest-fold`，并与行标记同规则地在正文回复出现后熄灭；不给更旧的可见行打标）；**最新行动（命令/思考）被彩虹扫过（正文除外）**（会话里**最新的一条**——工具卡、shell 卡或 `data-variant="think"` 思考行，`setLatest` 在 `ROW_SELECTOR` 并集里取最晚标 `data-rf-latest`——其 `_title`/`_summary`/`_fileLink` 被**流动的彩虹渐变**（`background-clip: text`）扫过每个字符，输出正文不参与；**跟随最新行动持续**（read/edit 等秒完的命令也亮，不依赖 running），直到**其后出现正文回复**（只按 flow-item 结构判定，0.1.7 下沿嵌套 `[data-chat-flow]` 层级向上找整组之后的正文；被过程折叠策略 `hidden` 的隐藏行不标、隐藏正文不算，不误判 composer）才熄灭）——纯 CSS、不重渲染 DOM、`prefers-reduced-motion` 冻结；**受 `commandSweep` 开关控制**，经本模块写成 `<html>` 的 `data-rf-sweep='on'|'off'` 门控）；命令上色本身**受 `commandColor` 开关控制**（关掉时本模块停止打标签并清除已有 `data-rf-tool-cat`/`title`，命令卡恢复原厂外观；两者均独立于输入框光晕开关） |
 
 > 1–10 全部由 `@dsh-plugins/balance` 一个包、一个插件行承载（原 `balance` 缝隙 +
 > `balance-vendors` + `client-ui-balance` 三个包已合并）。
@@ -601,7 +601,7 @@
     `RainbowFlowSettings`（`src/client/SettingsPanel.tsx`）：小组件管理页「配置」
     弹窗——**透明度**（40/70/100%）、**速度灵敏度**（0.5×/1×/1.5×）、**思考
     冷色调开关**、**命令按类别上色开关**（`commandColor`，默认开）、**最新行动彩虹扫字开关**（`commandSweep`，默认开），外加**命令文字颜色**（**每类命令** shell/read/search/write/
-    edit/code/web/ask/plan/memory/think/other 一个取色器 + 单行恢复默认；标签
+    edit/code/web/ask/plan/task/memory/think/other 一个取色器 + 单行恢复默认；标签
     复用 `classify.ts` 的 `CATEGORY_LABELS` 双语，按文档语言取；取色即写入
     `toolColors`）（旧的「云缕数量」旋钮随粒子流效果一起移除：光晕是连续的一整
     圈，没有缕数可调）；读写 `src/client/settings.ts`
@@ -638,16 +638,27 @@
     自带；**shell 卡例外**——它由专用卡片组件（`tool.call.toolview` 的 `bash`
     键）渲染，只带 `data-variant="bash"`、没有 `data-tool`，故按变体直接归入
     `shell` 类别）→ `classifyTool()` 按工具名启发式分类（shell/read/search/write/edit/
-    code/web/ask/plan/memory/other，首条正则命中即定，含 bash/pwsh/read_file/
-    apply_patch/web_search/ask_user_question 等常见工具名）→ 一个
-    `MutationObserver`（`childList` + `attributes[data-tool,data-variant]`，仅写
-    `data-rf-tool-cat`/`title` 这两个不被观察的属性，无自触发）把类别写回卡片，
+    code/web/ask/plan/task/memory/other，首条正则命中即定，含 bash/pwsh/read_file/
+    apply_patch/web_search/ask_user_question 等常见工具名；**读取/编辑**家族用
+    `(_|$)` 连接感知边界（`read_image`/`str_replace_editor` 因此落对类别），**任务类**
+    （`todo_write`/目标/`schedule_*`/`team_task_*`/`job_*`/`workflow`/`ralph`）归入
+    独立的 **task（任务）** 类别；其余 `\b` 锚点有意保留精确名匹配，避免把
+    `run_code`（会被 shell 规则抢走）/`wait_agent`/`list_subagent_models`/
+    `load_workspace_dependencies` 等误映射）→ 一个
+    `MutationObserver`（`childList` + `attributes[data-tool,data-variant,hidden]`，仅写
+    `data-rf-tool-cat`/`title` 这两个不被观察的属性，无自触发）把类别写回卡片
+    （**可见性前提**：行是否上屏由工作详情模式决定——`compact`/`standard` 的
+    `stepGrouping: 'collapsed'` 收起每一轮的过程分组，`[data-step-process-body]` 带
+    `hidden="until-found"`，需展开才可见；`detailed`（0.2.0 默认）为 `'history'`，只在轮次
+    结束后折叠；`verbose` 为 `'none'` 从不折叠。插件不给隐藏行上色、不与折叠策略对抗），
     再由 `ToolAccent.css` 给卡片上色：左侧亮一条**对应颜色的边条**，**相关
     文字也按类别上色**——**标题用主题感知渐变**（`background-clip: text`，
     `--rf-tool-accent` → 主题感知亮端，`@supports` 同时要求 `background-clip`
     与 `color-mix`，否则标题回退纯类别色）、**前导图标**类别色（`currentColor`）、
     **摘要行**用类别色与 `--dsw-alias-label-tertiary` 的 `color-mix` 柔和色调
-    （保持次级可读；`_errorSummary` 大写成 `_Summary` 故不误染错误红）；
+    （保持次级可读；`:not([class*='_errorSummary'])` 排除错误红，0.1.7 新增的
+    `_stoppedSummary`（中断/警告色）同样排除，`[class*='_summary']` 还会子串命中
+    `_summarySuffix`（diff 统计等尾随文字），故一并排除）；
     **读/写/编辑类工具的文件路径**是 `_fileLink` 可点击链接（不是 `_summary`），
     用**纯类别色**渲染并 `text-decoration-color: currentColor` 保下划线（不用渐变，
     以免 `background-clip: text` 吃掉下划线）；文字
@@ -657,8 +668,13 @@
     产品 DOM**，harness 升级后仍生效；未知工具归入"命令"默认色。observer 除
     `[data-tool]` 外还识出 **「Think」思考推理行**（`data-variant="think"`，模型
     的 reasoning 块、非工具卡），归类为新增的 **`think`**（淡紫 `--rf-tool-think`
-    `#c084fc`）并同款上色。全套 12 色**一色一家族、明显可区分**（暖色系 绿/黄/橙/棕，
-     冷色系 蓝→青→靛→紫→淡紫 逐一错开，红色专属 ask，仅 other 为灰）；**每类颜色可按用户配置自定义**（经 `settings.ts` 的 `toolColors` → 本模块写成 `<html>` 内联 `--rf-tool-*`，覆盖样式表 `:root` 默认并实时生效，配置面板「命令文字颜色」编辑）；**最新行动（命令/思考）被彩虹扫过（正文除外）**（会话里**最新的一条**——命令卡或 `data-variant="think"` 思考行，`setLatest` 在 `[data-tool]` 与 `[data-variant="think"]` 的并集取最晚标 `data-rf-latest`——其 `_title`/`_summary`/`_fileLink` 被 `ToolAccent.css` 的**流动彩虹渐变**（`background-clip: text`）扫过每个字符，输出正文不参与；**跟随最新行动持续**（read/edit 等秒完的命令也亮），直到**其后出现正文回复**（flow-item 结构精确判定）才熄灭）——纯 CSS、不重渲染 DOM、`prefers-reduced-motion` 冻结为静态彩虹；**受 `commandSweep` 开关控制**（本模块把设置写成 `<html>` 的 `data-rf-sweep='on'|'off'` 门控；`setLatest` **每次从 DOM 确定性重算** `[data-tool]`/`[data-variant="think"]` 并集里最晚一行来标 `data-rf-latest`，并据 flow-item 结构判定其后方是否出现正文回复（无 sticky 状态，无 `textContent` 误判）——扫字选择器只用并集标出的 `data-rf-latest`，故**独立于 `commandColor` 上色开关**）。命令上色本身**受 `commandColor` 开关控制**（关掉时本模块停止打标签并清除已有 `data-rf-tool-cat`/`title`，命令卡恢复原厂外观）。
+    `#c084fc`）并同款上色；另由 `applyFoldAccents` 给**两条折叠父行**（过程分组座位 / 整轮控制行）
+    盖上其**最新子命令**的类别（`data-rf-group-cat` / `data-rf-turn-cat` + 内联 `--rf-tool-accent`，
+    每帧重算；`ToolAccent.css` 对这些行只设 `color`、绝不使用 `background-clip`，标题文字因此不会被
+    刷成透明；最新行动被折叠隐藏时，扫字改标该父行 `data-rf-latest-fold`（与行标记同规则：正文回复出现即熄灭），扫字规则只作用其
+    `_label` 真实文本 span 并排除 TextShimmer 装饰副本）。
+    全套 13 色**一色一家族、明显可区分**（暖色系 绿/黄/橙/棕，
+     冷色系 蓝→青→靛→紫→淡紫 逐一错开，红色专属 ask，青绿专属 task（任务类），仅 other 为灰）；**每类颜色可按用户配置自定义**（经 `settings.ts` 的 `toolColors` → 本模块写成 `<html>` 内联 `--rf-tool-*`，覆盖样式表 `:root` 默认并实时生效，配置面板「命令文字颜色」编辑）；**最新行动（命令/思考）被彩虹扫过（正文除外）**（会话里**最新的一条**——命令卡或 `data-variant="think"` 思考行，`setLatest` 在 `[data-tool]` 与 `[data-variant="think"]` 的并集取最晚**未被折叠隐藏**的一行标 `data-rf-latest`（0.1.7 过程分组的折叠内容默认带 `hidden="until-found"`，标到隐藏行等于看不见；若最新可见行之后还有被折叠的更新行动则不标）——其 `_title`/`_summary`/`_fileLink` 被 `ToolAccent.css` 的**流动彩虹渐变**（`background-clip: text`）扫过每个字符，输出正文不参与；**跟随最新行动持续**（read/edit 等秒完的命令也亮），直到**其后出现正文回复**（只按 flow-item 结构判定，并**沿嵌套的 `[data-chat-flow]` 层级逐层向上找**——0.1.7 把命令卡嵌进过程分组，正文在整组之后的更外层；隐藏的 flow item 不算正文）才熄灭）——纯 CSS、不重渲染 DOM、`prefers-reduced-motion` 冻结为静态彩虹；**受 `commandSweep` 开关控制**（本模块把设置写成 `<html>` 的 `data-rf-sweep='on'|'off'` 门控；`setLatest` **每次从 DOM 确定性重算** `[data-tool]`/`[data-variant="think"]` 并集里最晚一行来标 `data-rf-latest`，并据 flow-item 结构（跨嵌套 `[data-chat-flow]` 层级）判定其后方是否出现正文回复（无 sticky 状态，无 `textContent` 误判）——扫字选择器只用并集标出的 `data-rf-latest`，故**独立于 `commandColor` 上色开关**）。命令上色本身**受 `commandColor` 开关控制**（关掉时本模块停止打标签并清除已有 `data-rf-tool-cat`/`title`，命令卡恢复原厂外观）。
 - **呼吸节奏随 token 速率**：光环组件内 500ms 采样 `useChat((c) => c.legacy.partial)`
   （流式输出内容）文本长度增量 → 估算每秒输出 token 数（约 2 字符/token，EMA 平滑）
   → 映射呼吸周期 5s（慢）↔ 1s（快）——静止时是舒缓的深呼吸、峰值输出时是

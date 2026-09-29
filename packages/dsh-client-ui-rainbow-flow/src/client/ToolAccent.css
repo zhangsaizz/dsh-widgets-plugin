@@ -6,7 +6,7 @@
  * `data-variant="bash"` (no `data-tool`). The assistant's reasoning block is a
  * "Think" row whose root carries `data-variant="think"`. This plain (non-module)
  * stylesheet tints all of them by category — shell, read,
- * search, write, edit, code, web, ask, plan, memory, think — so different
+ * search, write, edit, code, web, ask, plan, task, memory, think — so different
  * commands (and thinking) read differently at a glance. Each row gets a
  * **category-coloured left edge** AND its **related text** (the row title such
  * as "Bash"/"Read"/"Think", the leading icon, and the summary line) picks up
@@ -22,15 +22,21 @@
  * attribute is only ever stamped on the decorated rows, so it is a
  * safe, stable anchor that covers every kind without depending on hashed
  * classes or the `data-tool`/`data-variant` values. Slash-command cards are not
- * rows of this family and keep the shipped look.
+ * rows of this family and keep the shipped look. The **folded parent line** of a
+ * collapsed process group (`[data-rf-group-cat]`, see below) is painted the same
+ * way, by the newest command behind it.
  *
  * Selector strategy: the row's own class is a CSS-module hash, so it is
  * deliberately avoided. Its title/leading/summary use CSS-module classes
  * whose local-name SUFFIX is stable across builds (`_title` / `_leading` /
  * `_summary`) even though the hash prefix changes — the exact technique the
- * shipped `SendButton.css` uses with `_primary`. An error state's summary span
- * carries BOTH `_summary` and `_errorSummary`, so the `_summary` rule excludes
- * `_errorSummary` to leave the red error accent untouched.
+ * shipped `SendButton.css` uses with `_primary`. Three shipped summary
+ * variants must keep their own colour and are therefore excluded from the
+ * category tint: an error summary carries BOTH `_summary` and `_errorSummary`,
+ * the 0.1.7 "stopped" (interrupted) state adds `_stoppedSummary` next to
+ * `_summary`, and `_summarySuffix` (the trailing diff-stat / lines text) merely
+ * CONTAINS `_summary` as a substring. Without those exclusions the accent would
+ * paint over the shipped error/warn tones and the secondary suffix text.
  *
  * Colours are mid-brightness saturated hues that stay legible on both themes.
  */
@@ -51,6 +57,7 @@
   --rf-tool-web: #d946ef;    /* fuchsia */
   --rf-tool-ask: #ef4444;    /* red     */
   --rf-tool-plan: #4f46e5;   /* indigo  */
+  --rf-tool-task: #14b8a6;   /* teal    */
   --rf-tool-memory: #b45309; /* brown   */
   --rf-tool-think: #c084fc;  /* lavender/purple */
   --rf-tool-other: #9ca3af;  /* grey    */
@@ -109,6 +116,11 @@
   --rf-tool-accent: var(--rf-tool-plan);
 }
 
+[data-rf-tool-cat='task'] {
+  border-left-color: var(--rf-tool-task);
+  --rf-tool-accent: var(--rf-tool-task);
+}
+
 [data-rf-tool-cat='memory'] {
   border-left-color: var(--rf-tool-memory);
   --rf-tool-accent: var(--rf-tool-memory);
@@ -123,13 +135,19 @@
    - the leading icon (SVG, so solid `currentColor`);
    - the row title (a soft theme-aware gradient, drawn via background-clip);
    - the summary line (a muted category tint, so it stays secondary text).
-   An error summary span carries BOTH `_summary` and `_errorSummary`, so the
-   `:not([class*='_errorSummary'])` keeps the red error accent intact. */
+   The shipped summary variants keep their own tone: `_errorSummary` (red error
+   accent), `_stoppedSummary` (0.1.7 interrupted/warn tone) and `_summarySuffix`
+   (the trailing diff-stat text, which only contains `_summary` as a substring)
+   are excluded. The two newer exclusions are wrapped in `:where()` so they add
+   ZERO specificity: without it this rule would reach (0,5,0), tie the shipped
+   `.o3BgMG_row:hover .o3BgMG_summary:not(…)` hover-brightening rule and win the
+   tie (the plugin's stylesheet is injected after the harness's), silently
+   killing the hover state. Keep `:where()` here. */
 [data-rf-tool-cat] [class*='_leading'] {
   color: var(--rf-tool-accent);
 }
 
-[data-rf-tool-cat] [class*='_summary']:not([class*='_errorSummary']) {
+[data-rf-tool-cat] [class*='_summary']:not([class*='_errorSummary']):where(:not([class*='_stoppedSummary'])):where(:not([class*='_summarySuffix'])) {
   color: color-mix(in srgb, var(--rf-tool-accent) 55%, var(--dsw-alias-label-tertiary, #9aa1aa));
 }
 
@@ -145,6 +163,49 @@
 [data-rf-tool-cat] [class*='_fileLink']:hover {
   color: var(--rf-tool-accent);
   text-decoration-color: currentcolor;
+}
+
+/* Folded parent lines — what a collapsed turn shows instead of its command
+   rows. The harness folds `compact`/`standard` turns (and settled `detailed`
+   turns) and there are two such lines: the **process-group header** (a
+   `[data-chat-group-key]` seat whose button carries `data-process-activity` and
+   the "loaded a file, searched the code" summary) and the **whole-Turn control**
+   (`[data-turn-process]`, "worked for 12s" — the line that stays visible once a
+   settled turn hides the seat itself). Neither is a row, so the row rules cannot
+   reach them; `toolAccent.ts` stamps each with the category of the NEWEST row it
+   hides (`data-rf-group-cat` / `data-rf-turn-cat`) plus the matching
+   `--rf-tool-accent` inline, and the line's own `color` is tinted here.
+
+   The line's own `color` is tinted at (0,2,0) — deliberately ABOVE the shipped
+   base class (0,1,0) so the tint never depends on which `<style>` tag the shell
+   injected first. That tie-break is why the shipped hover brightening is
+   restated explicitly below: without it the tint would outrank `.title:hover`
+   (also 0,2,0) and hover feedback would silently disappear. The LEADING box of
+   the group header does NOT inherit the line colour in 0.1.7 (`.leading` sets its
+   own `color: var(--dsw-alias-label-tertiary)`), and the whole-Turn control's
+   chevron sets `--dsw-alias-label-caption`, so each icon needs its own rule too.
+
+   Deliberately no `background-clip`/`-webkit-text-fill-color` here: a
+   transparent fill on the line itself would blank it instead of painting a
+   gradient (the sweep below paints the text span instead). */
+[data-rf-group-cat] [data-process-activity],
+[data-rf-turn-cat][data-turn-process] {
+  color: var(--rf-tool-accent, var(--rf-tool-other));
+}
+
+/* Restated hover/focus brightening (0,3,0). `--dsw-alias-label-primary` is the
+   brightest label token and is exactly what 0.1.7's shipped `.title:hover` used;
+   0.2.0's shipped hover stops at label-secondary, so this reads one step
+   brighter there — a deliberate, version-consistent hover state. The turn
+   control needs no restatement: its shipped hover is already (0,3,0). */
+[data-rf-group-cat] [data-process-activity]:hover,
+[data-rf-group-cat] [data-process-activity]:focus-visible {
+  color: var(--dsw-alias-label-primary, var(--dsw-alias-label-secondary));
+}
+
+[data-rf-group-cat] [data-process-activity] [class*='_leading'],
+[data-rf-turn-cat][data-turn-process] [class*='_chevron'] {
+  color: var(--rf-tool-accent, var(--rf-tool-other));
 }
 
 /* Title: the category colour as a solid fallback, upgraded to a gradient where
@@ -187,17 +248,59 @@
    plain-text answer) appears after it, so the effect follows the most recent
    action (instant commands like read/edit still show it) until the model
    writes its answer. The output BODY (the stdout/results, a separate element) is
-   deliberately NOT targeted, so only the header is swept. Independent of the
+   deliberately NOT targeted, so only the header is swept. Rows hidden by the
+   0.1.7 process disclosure (a folded group) are never marked — `toolAccent.ts`
+   skips them, since a marker on an invisible row would sweep nothing; the sweep
+   moves onto the folded parent line instead (`data-rf-latest-fold`, see below).
+   Independent of the
    category-colour stamp AND of `commandColor` — gated only by
    `html[data-rf-sweep='on']`, which `mountToolAccent` mirrors from
    `settings.commandSweep`. */
 @supports ((-webkit-background-clip: text) or (background-clip: text)) {
   html[data-rf-sweep='on'] [data-rf-latest] [class*='_title'],
-  html[data-rf-sweep='on'] [data-rf-latest] [class*='_summary']:not([class*='_errorSummary']),
+  html[data-rf-sweep='on'] [data-rf-latest] [class*='_summary']:not([class*='_errorSummary']):where(:not([class*='_stoppedSummary'])):where(:not([class*='_summarySuffix'])),
   html[data-rf-sweep='on'] [data-rf-latest] [class*='_fileLink'] {
     background-image: linear-gradient(90deg,
       #ff6b6b, #ffb36b, #ffe66d, #7ee08a, #6fb9ff, #b48aff, #ee88ff, #ff6b6b);
     background-size: 200% auto;
+    /* MUST be `repeat`: the harness's own shimmer rule sets `no-repeat` on the
+       same span (`TextShimmer.root[data-text-shimmer]`, i.e. an ACTIVE row title
+       / summary), and with a 200%-wide image the 200% end of the sweep animation
+       would slide it completely off the box — leaving transparent text and no
+       background at all (the text visibly disappears at the end of each cycle).
+       The gradient's first and last stops are the same colour, so tiling is
+       seamless. */
+    background-repeat: repeat;
+    background-position: 0% center;
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+    -webkit-text-fill-color: transparent;
+    animation: rf-text-rainbow-sweep 2.4s linear infinite;
+  }
+}
+
+/* Folded parent line sweep: when the newest action is folded away,
+   `toolAccent.ts` moves the marker onto the line that hides it
+   (`data-rf-latest-fold` — a group seat, or the whole-Turn control once a
+   settled turn hides the seat). Unlike the row rules this targets the line's one
+   text span, whose text is its OWN content. `:not([data-shimmer-text])` excludes
+   the `TextShimmer` decoration copy that 0.2.0 renders for the animated
+   highlight — that guard is inert on 0.1.7, whose single-span TextShimmer has no
+   such copy, so this selector is deliberately version-tolerant. If the browser
+   lacks `background-clip: text` the whole block is skipped and the fold line
+   keeps the solid accent colour set above. */
+@supports ((-webkit-background-clip: text) or (background-clip: text)) {
+  html[data-rf-sweep='on'] [data-rf-latest-fold][data-chat-group-key] [data-process-activity] [class*='_label']:not([data-shimmer-text]),
+  html[data-rf-sweep='on'] [data-rf-latest-fold][data-turn-process] [class*='_label']:not([data-shimmer-text]) {
+    background-image: linear-gradient(90deg,
+      #ff6b6b, #ffb36b, #ffe66d, #7ee08a, #6fb9ff, #b48aff, #ee88ff, #ff6b6b);
+    background-size: 200% auto;
+    /* `repeat` for the same reason as the row sweep above: the harness shimmer
+       rule (`.root[data-text-shimmer]`) puts `no-repeat` on this very span, and
+       `no-repeat` + the sweep's 200% end position would slide the gradient off
+       the box, blanking the line instead of painting it. */
+    background-repeat: repeat;
     background-position: 0% center;
     -webkit-background-clip: text;
     background-clip: text;
@@ -221,8 +324,10 @@
    stays legible, but nothing animates (the sweep is motion-dependent). */
 @media (prefers-reduced-motion: reduce) {
   html[data-rf-sweep='on'] [data-rf-latest] [class*='_title'],
-  html[data-rf-sweep='on'] [data-rf-latest] [class*='_summary']:not([class*='_errorSummary']),
-  html[data-rf-sweep='on'] [data-rf-latest] [class*='_fileLink'] {
+  html[data-rf-sweep='on'] [data-rf-latest] [class*='_summary']:not([class*='_errorSummary']):where(:not([class*='_stoppedSummary'])):where(:not([class*='_summarySuffix'])),
+  html[data-rf-sweep='on'] [data-rf-latest] [class*='_fileLink'],
+  html[data-rf-sweep='on'] [data-rf-latest-fold][data-chat-group-key] [data-process-activity] [class*='_label']:not([data-shimmer-text]),
+  html[data-rf-sweep='on'] [data-rf-latest-fold][data-turn-process] [class*='_label']:not([data-shimmer-text]) {
     animation: none;
   }
 }

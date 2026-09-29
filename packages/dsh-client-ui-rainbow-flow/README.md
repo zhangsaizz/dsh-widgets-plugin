@@ -108,7 +108,7 @@ send/stop button with dynamic effects.
   on/off, and the **command text colours** — its section header carries the
   master **colour command cards by category** toggle, and below it a
   per-category swatch for each command class (shell, read, search, write,
-  edit, code, web, ask, plan, memory, think, other), each row showing the
+  edit, code, web, ask, plan, task, memory, think, other), each row showing the
   web-native tool name (bash, read_file, apply_patch, …) beside the harness's
   own command-card icon, both tinted live by that row's colour, plus a
   per-row reset; when the master toggle is off the palette dims to a holding
@@ -143,7 +143,7 @@ send/stop button with dynamic effects.
   it survives harness upgrades.
 - **Command cards coloured by type**: each model **tool call (command) card**
   in the transcript is **heuristically classified by its tool name** into a
-  category — **shell, read, search, write, edit, code, web, ask, plan,
+  category — **shell, read, search, write, edit, code, web, ask, plan, task,
   memory** — each with its **own colour**: the card gets a **coloured left
   edge**, and its **related text is coloured by category too** — the **row
   title** (e.g. Bash/Read/Write) drawn as a **theme-aware gradient**
@@ -165,9 +165,48 @@ send/stop button with dynamic effects.
   matched on the CSS-module local-name suffix `_title`/`_leading`/`_summary`,
   the same trick `SendButton.css` uses with `_primary`; the title falls back to
   a solid category colour where `background-clip: text` or `color-mix` is
-  unsupported); an unknown tool falls back to the neutral "Tool" colour.
+  unsupported); an unknown tool falls back to the neutral "Tool" colour. The
+  read / plan / edit rule families are **join-aware**, so the 0.1.7 wire names
+  of those families land on their family instead of that fallback: `read_image`
+  → read, `str_replace_editor` → edit. **Task objects have their own colour**:
+  the todo list (`todo_write`), goals (`create_goal` / `get_goal` /
+  `update_goal`), reminders (`schedule_*`), team tasks (`team_task_*`),
+  background jobs (`job_list` / `job_output` / `job_kill`) and the workflow
+  runners (`workflow`, `ralph`) all share the **task** category, so a task row
+  never falls back to the neutral "Tool" colour. Tools outside the palette's
+  families (the agent/team messaging tools — `subagent`, `spawn_teammate`,
+  `wait_agent`, `send_message`, `interrupt_agent`, `list_agents` — plus
+  `present`, `skill`, `lsp`, `list_subagent_models` /
+  `load_workspace_dependencies`, deliberately left on their exact-name `\b`
+  anchors so unrelated names are not re-mapped) keep the neutral "Tool" colour
+  by design.
+  **Visibility prerequisite**: whether those rows are on screen — and therefore
+  whether the colours and the sweep can be seen at all — depends on the
+  harness's work-details mode (`transcriptView`). `compact` and `standard`
+  (the 0.1.7 default) collapse **every** turn's process group, so a turn's rows
+  appear only once its group is **expanded**; `detailed` (the 0.2.0 default)
+  collapses only **settled** turns, so rows are visible while a turn runs and
+  fold away after the answer lands; `verbose` never folds. The decorator itself
+  never colours hidden rows — a collapsed group is simply not painted, and its
+  rows become coloured the moment it is expanded.
   **The colours are user-customisable per category** in the config panel (see
   Configurable; written to `--rf-tool-*` variables and applied live).
+  **The folded parent lines are coloured too**: when a turn's rows are folded
+  away, the harness shows one of two parent lines instead of the command cards —
+  the **process-group header** ("loaded a file, searched the code", with its
+  activity icon) while that group is visible, or the **whole-Turn control**
+  ("worked for 12s" / stopped / failed) once a settled turn hides the group
+  itself. Neither is a row, so the decorator stamps each line with the category
+  of the **newest** command it hides (plus the matching accent variable), and the
+  line's icon and text inherit that colour — the collapsed line reads the same
+  colour as the command behind it, and goes neutral again when `colour command
+  cards by category` is switched off. While the newest action is folded away the
+  **rainbow sweep follows onto that line too** (only its own text span is
+  painted, so the effect is never simply lost) and retires by the **same rule as
+  the rows**: once the 正文 reply that follows the folded command appears, the
+  line stops sweeping — it keeps sweeping only while that action is still
+  unanswered. No older visible row is ever marked: the sweep never claims an
+  outdated action is the latest.
   **The latest action's title/summary is swept by a rainbow (not its body)**:
   the newest row in the transcript — a tool command card or a **"Think"**
   reasoning row — has its title / summary / file name painted with a **flowing
@@ -175,8 +214,17 @@ send/stop button with dynamic effects.
   character; the output **body is deliberately not targeted**. It **follows the
   latest action and persists** there (instant commands like read/edit still show
   it — it's not gated on `running`), until a **正文 reply appears after it**
-  (detected precisely from the flow-item structure, so the composer isn't
-  mistaken for it) — then it clears. Recomputed deterministically from the DOM,
+  — detected from the flow-item structure only (no `textContent`
+  over-matching), so the composer isn't mistaken for it. Because 0.1.7 nests the
+  command rows inside a **process group** and emits the reply as a flow item
+  after the whole group, the search **climbs the nested `[data-chat-flow]`
+  lists** instead of stopping at the row's own item, and rows hidden by the
+  process disclosure (a **folded group body**) are skipped: the marker follows
+  the newest action only while it is visible, so a collapsed group is never
+  swept through an invisible row — and if a **newer** action is folded away, the
+  sweep stays off instead of marking an older row (the sweep must not claim an
+  outdated action is the latest).
+  Recomputed deterministically from the DOM,
   pure CSS with no DOM re-render, freezes to a static rainbow under
   `prefers-reduced-motion`, and can be turned off via the config panel's
   **latest-action rainbow sweep** switch. The command colouring is itself

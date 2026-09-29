@@ -48,7 +48,8 @@ const HEX_COLOR = /^#[0-9a-fA-F]{6}$/
  * `ToolAccent.css` (which is the pre-JS paint + the documented look; this is
  * the JS source of truth once the plugin mounts). One colour per hue family,
  * warm set green/yellow/orange/brown, cool set blue→cyan→indigo→violet→
- * lavender, red reserved for "ask", neutral grey for "other".
+ * lavender, red reserved for "ask", teal for "task" (the todo/goal/reminder/
+ * background-job/workflow objects), neutral grey for "other".
  */
 export const DEFAULT_TOOL_COLORS: ToolColors = {
   shell: '#22c55e',  /* green   */
@@ -60,6 +61,7 @@ export const DEFAULT_TOOL_COLORS: ToolColors = {
   web: '#d946ef',    /* fuchsia */
   ask: '#ef4444',    /* red     */
   plan: '#4f46e5',   /* indigo  */
+  task: '#14b8a6',   /* teal    */
   memory: '#b45309', /* brown   */
   think: '#c084fc',  /* lavender/purple */
   other: '#9ca3af',  /* grey    */
