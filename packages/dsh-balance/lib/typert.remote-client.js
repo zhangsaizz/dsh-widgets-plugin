@@ -5,6 +5,9 @@
 // @deepseek-ai/dsh-typert-protocol TypertCodec). Regenerate with
 // @deepseek-ai/dsh-typert-generator (0.1.7-rc.2) once that tool is wired into
 // the build; do not hand-edit further.
+// 0.1.7 → 0.2.0: the generator's output shape is UNCHANGED (the emitter blob is
+// identical across the two tags), so this artifact stays wire-correct on
+// 0.2.0-rc.2 and needs no regeneration for that baseline change.
 import { z } from 'zod'
 
 let _deepseek_ai_dsh_balance_balance_list_result$schema$value

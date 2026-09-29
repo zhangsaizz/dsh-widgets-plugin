@@ -180,22 +180,24 @@ pack → git diff 干净」。
 
 ## 关键现状与坑
 
-- **官方 API 基线**：`@deepseek-ai/*` 依赖为 `^0.1.7-rc.2`（npm `latest` / `next`
-  dist-tag 的当前指向；root devDeps `dsh-host-webserver` / `dsh-settings` 为精确
-  `0.1.7-rc.2`，`@deepseek-ai/schemastery` 为 `^3.18.4`，`@deepseek-ai/cordis` 为
-  `^4.0.4`）。改依赖时注意：pnpm 11.7 的 `autoInstallPeers` 对预发布 peer 会推导出非预发布
-  范围 `>=0.1.7 <0.2.0-0`，导致 `ERR_PNPM_NO_MATCHING_VERSION`（如 `dsh-sandbox`）。
+- **官方 API 基线**：`@deepseek-ai/*` 依赖为 `^0.2.0-rc.2`（npm **`next`** dist-tag 的当前
+  指向；root devDeps `dsh-host-webserver` / `dsh-settings` 为精确 `0.2.0-rc.2`，
+  `@deepseek-ai/schemastery` 为 `^3.18.4`，`@deepseek-ai/cordis` 为 `^4.0.4`，
+  `@deepseek-ai/cordis-plugin-loader` 为 `^1.0.5`）。**不要用 `latest`**：库包的 `latest`
+  长期停在 `0.0.1-rc.1` 一类陈旧版本，`latest` 只有主包 `@deepseek-ai/dsh` 是对的；
+  逐个 `npm view <pkg> dist-tags` 确认，或一律精确钉 `0.2.0-rc.2`。
+  改依赖时注意：pnpm 11.7 的 `autoInstallPeers` 对预发布 peer 会推导出非预发布
+  范围 `>=0.2.0 <0.3.0-0`，导致 `ERR_PNPM_NO_MATCHING_VERSION`（如 `dsh-sandbox`）。
   **修复不是加 overrides**，而是让 `pnpm install` 把 fresh rc 版本自动写回
-  `pnpm-workspace.yaml` 的 `minimumReleaseAgeExclude`（0.1.5 → 0.1.7 升级时该列表已整体
-  改成 `0.1.7-rc.2`）。（`alpha` dist-tag 另有更高的 `0.1.7-alpha.*` 预发布，未采纳：
-  种子模块表与 API 面可能变动，见下一条。）
+  `pnpm-workspace.yaml` 的 `minimumReleaseAgeExclude`（0.1.7 → 0.2.0 升级后该列表已整体
+  改成 `0.2.0-rc.2`，并由 `pnpm install` 追加新进图的 17 个包）。
   **升版只改 specifier 会留下「半新」依赖图**：`pnpm install` 会复用 lockfile 里仍满足
   新范围的旧解析，于是直接依赖跳到新 rc、而 `autoInstallPeers` 补进来的传递依赖
   （`dsh-agent` / `dsh-tools` / `dsh-fs` / `dsh-scope` …）留在旧 rc，新 rc 那批 peer 要求
-  `^0.1.7-rc.2` 就全部落空（`pnpm peers check` 会列一长串 unmet peer）。修法是删掉
-  `pnpm-lock.yaml` 与 `node_modules/` 重新解析一次（store 已预热时只要几秒），之后
-  `pnpm peers check` 应是 `No peer dependency issues found`。`@deepseek-ai/cordis` 也必须
-  跟着抬到 `^4.0.4`——0.1.7-rc.2 的包 peer 全部要求 `~4.0.4`。
+  `^0.2.0-rc.2` 就全部落空（`pnpm peers check` 会列一长串 unmet peer）。修法是删掉
+  `pnpm-lock.yaml` 与 `node_modules/` 重新解析一次（store 已预热时只要十几秒），之后
+  `pnpm peers check` 应是 `No peer dependency issues found`。`@deepseek-ai/cordis` 保持
+  `^4.0.4`（0.1.7 与 0.2.0 的 vendor 树逐字节相同）。
 - **`dsh-client-runtime` 已退役**：`@deepseek-ai/dsh-client-runtime` 最后发布的版本是
   `0.1.1-rc.2`，`0.1.5-rc.1` 起不再存在、也不再是浏览器模块；它原来的能力面已拆分——
   `ctx.slots`（SlotRegistry）的 Context 合并改由 `@deepseek-ai/dsh-client-ui-renderer`
@@ -256,11 +258,65 @@ pack → git diff 干净」。
     `dsh-client-ui-slots` / `dsh-client-ui-primitives` / `dsh-client-ui-dockkit`）；
     6 个客户端 bundle 的 `require()` 实测仍全部落在这张表内，ModuleLoader 的
     `window.__ModuleLoader__.load({ id, factory })` 装载契约也未变。
-- **本机 dsh 必须 ≥ 0.1.7**：浏览器端 bundle 的 `require()` 只认两种来源——壳的**种子
-  模块表**（staticModules，写在 `dsh-web-frontend` 里）和引导图里的插件行。0.1.7 的种子表是
-  `react` / `react/jsx-runtime` / `react-dom` / `react-dom/client` / `@deepseek-ai/cordis`
-  / `@deepseek-ai/dsh-client-store` / `@deepseek-ai/dsh-client-ui-slots`
-  / `@deepseek-ai/dsh-client-ui-primitives` / `@deepseek-ai/dsh-client-ui-dockkit`；
+- **0.1.7 → 0.2.0 的 API 迁移**（本仓库已完成的改造，**当前基线**）：
+  逐包 `git diff dsh-v0.1.7-rc.2 dsh-v0.2.0-rc.2` 核对后的结论是「**Host 侧与线协议零改动**」，
+  迁移主要落在依赖 specifier 与少量**客户端 DOM/插槽行为**上。
+  - **Host / wire 面逐字节未变**，无需改代码：`dsh-settings`（`SettingsForms` 的
+    `describe` / `update` / `replace` / `mutate` / `configure`、命名空间 = `entry.options.id`）、
+    `cordis-plugin-loader`（`loader/volatile-update` 的 payload 仍是「变更路径数组」）、
+    `dsh-host-webserver`（仍是 `ctx.webServer.register({kind:'exact',path,handler})`，
+    handler 自持响应生命周期，无导出 helper）、`dsh-credentials`（`credentialRef`）、
+    `dsh-invariants`（`InvariantInstaller`）、`dsh-session-projection`
+    （`ProjectionDefinition` + `stateVersion` 必填）、
+    `dsh-typert-protocol` / `-registry` / `-generator`（strict codec 仍要求
+    `create: () => schema` 惰性工厂，**生成器输出形状未变**，所以
+    `packages/dsh-balance/lib/typert.*` 无需重生成）。
+  - **客户端壳的种子模块表未变**（0.2.0 的 `staticModules` 与 0.1.7 同一张表），
+    `window.__ModuleLoader__.load({ id, factory })` 装载契约与
+    `plugins/??<pkg>/client.js&rev=…` 聚合形式也未变；6 个 bundle 的外部 `require()`
+    仍只有 `react` / `react/jsx-runtime` / `dsh-client-store` /
+    `dsh-client-ui-slots` / `dsh-client-ui-primitives`。
+  - **变了、且与本仓库相关的客户端面**（改这些面时按 0.2.0 写法）：
+    - `TextShimmer` 重写：props 由 `{children: string; active: boolean}` 变为
+      `{children: ReactNode; active?: boolean}`，根属性由 `data-text-shimmer` 改为
+      `data-shimmer`，且 `active` 时会额外渲染一棵 `aria-hidden`/`inert` 的**装饰副本**
+      （其文本节点带 `data-shimmer-text`）。彩虹流光的上色/扫字 CSS 因此按
+      `[class*='_title'|'_summary'|'_leading'|'_fileLink']` 后缀选择、并用
+      `background-repeat: repeat` 抵消壳自己的 `no-repeat`（见 `ToolAccent.css` 注释）。
+    - 命令卡/工具行/思考行的 DOM 结构微调：`DisclosureRow` 不再接受
+      `rowClassName` / `chevronClassName`（行/箭头类名收进组件内部），标题与内容被包进同一个
+      `TextShimmer`；`TurnProcessNodeView` 的时长改为「标签 + `_durationNumber` 片段」。
+      折叠父行仍是 `[data-chat-group-key]` 座位与 `[data-turn-process]` 整轮控制行。
+    - 工作详情模式默认值由 `standard` 变成 **`detailed`**（`DEFAULT_TRANSCRIPT_VIEW_MODE`），
+      web 端默认只折叠**已结束**的轮次；`compact`/`standard` 仍需展开分组才看到命令行。
+    - `ui-workspace` 的 `forkSession` 返回 `Promise<SessionId>`，且行标题
+      `displayTitle` 语义改为「持久标题，没有则为空」（不再回退 basename / session id）。
+      本仓库的会话列表用的是 `SessionSummary.displayTitle`（Controller 侧**仍有**回退），
+      所以 `|| row.id` 的写法继续有效。
+    - `ui-chat` 的 locale key 有删除/改名（`duration.seconds|minutes|hours` →
+      `duration.secondUnit|minuteUnit|hourUnit`、`message.turnProcess.deepDivingFor` →
+      `chat.deepDivingFor`）；本仓库只用自建 NS（`balance`/`session-monitor`/
+      `rainbow-flow`/`card-container`），不受影响。
+    - `ui-plugin-manager` 的 `plugins.row.config` 契约与 `PluginConfigViewProps`
+      逐字节未变（余额的「配置」入口照旧）；新增的只是 `refreshStatus` 等**管理器内部**
+      状态字段与一个 `shell.overlay` 常驻提示位。
+    - agent-loop 在失败步骤上现在会补发 `tool/result`（`TOOL_NOT_STARTED` /
+      `TOOL_OUTCOME_UNKNOWN`）；会话监控的 `openTools` 折叠按 `callId` 关闭，
+      `turn-end-projection` 是纯 fold（非 `turn/end` 事件原样返回），都已兼容。
+  - **实测验收（0.2.0-rc.2，隔离 `DSH_HOME` + 自建 profile）**：6 行全部激活，
+    浏览器控制台零 error / 零 uncaught；overlay 里能查到
+    `[data-widget-id="balance" | "token-crit" | "session-monitor"]`，`<html>` 上有
+    彩虹流光的 `data-rf-sweep="on"`；`/_dsh/balance/settings`、
+    `/_dsh/session-monitor/{status,sessions,settings,notifications,widget}` 全部 200；
+    经 `/_dsh/balance/settings` POST 写 volatile `bindings` 后 revision 0→1、
+    凭据被脱敏、`--dump-config` 里能看到已提交进运行 fiber 的值，陈旧 revision 被
+    正确拒为 `SETTINGS_CONFLICT`。
+- **本机 dsh 必须 ≥ 0.2.0-rc.2**：浏览器端 bundle 的 `require()` 只认两种来源——壳的**种子
+  模块表**（staticModules，写在 `dsh-web-frontend` 里）和引导图里的插件行。0.1.7 与
+  0.2.0 的种子表**是同一张**：`react` / `react/jsx-runtime` / `react-dom` /
+  `react-dom/client` / `@deepseek-ai/cordis` / `@deepseek-ai/dsh-client-store`
+  / `@deepseek-ai/dsh-client-ui-slots` / `@deepseek-ai/dsh-client-ui-primitives`
+  / `@deepseek-ai/dsh-client-ui-dockkit`；
   0.1.1 的种子表**没有 `dsh-client-store`**，于是 balance 客户端 bundle 的第一行
   `require("@deepseek-ai/dsh-client-store")` 直接抛
   `client-modules: require(...) missed the module table`（GUI 卡片显示
@@ -268,11 +324,15 @@ pack → git diff 干净」。
   6 个 bundle 运行时的外部 require 只有 `react` / `react/jsx-runtime` /
   `dsh-client-store` / `dsh-client-ui-slots` / `dsh-client-ui-primitives`，全部在上述种子表
   内，所以**无需** `dsh.client.external` 声明。升级方式：`npm install -g
-  @deepseek-ai/dsh@0.1.7-rc.2`（该前缀通常在 `C:\Program Files\nodejs\node_global`，
-  需管理员 shell），或免管理员用 `npx -y @deepseek-ai/dsh@0.1.7-rc.2 web --port 8080`。
-  自检：`dsh --version` ≥ 0.1.7；`dsh <profile> --dump-config` 里应能看到 6 条
-  `@dsh-plugins/*` 行；浏览器 `GET /plugins/@dsh-plugins/balance/client.js` 应返回 200
-  而不是 404（0.1.7 的聚合形式是 `plugins/??<pkg>/client.js&rev=…`）。
+  @deepseek-ai/dsh@0.2.0-rc.2`（该前缀通常在 `C:\Program Files\nodejs\node_global`，
+  需管理员 shell），或免管理员用 `npx -y @deepseek-ai/dsh@0.2.0-rc.2 <profile> --port 9021`
+  （**别用 7993–8606 一段的端口**：Windows 的 Hyper-V 预留段会让 `webServer` 以
+  `EACCES` 启动失败，实测 8099 必失败）。
+  自检：`dsh --version` ≥ 0.2.0-rc.2；`dsh <profile> --dump-config` 里应能看到 6 条
+  `@dsh-plugins/*` 行；`GET /` 会先返回 401 `dsh web authentication required`，控制台会
+  打印带 `?token=…` 的完整 URL（**用它再取一次**才是应用页）；取到后
+  `plugins/??<pkg>/client.js&rev=…`（聚合形式 0.1.7 起未变）应返回 200 而不是 404，
+  随后可用 `/_dsh/session-monitor/status` 是否 200 判断宿主半是否挂上。
   注意 0.1.5 把 `healProfilesModuleFallback` 从 `prepareProfile` 移进了同步不执行的
   `composeProfile`（`--dump-config` 不会 heal），所以 `$DSH_HOME/profiles/node_modules`
   的链接只有在真正 `dsh web` 启动时才重指到启动它的那份安装。
@@ -301,6 +361,13 @@ pack → git diff 干净」。
    展开态、拖拽位置、当前分组回到默认；失败不回滚，插件列表可重试）。**Host 半改动仍需
    重启 `dsh web`**（`dsh-hmr` 默认 `root: []`，且 `ignored` 含 `**/node_modules`，junction
    安装的插件源码不在监听范围内）。
+  5. **`lib/` 是 gitignore 的：拉取 src 更新后要完整跑一遍 `pnpm build`，client 阶段别中断**。
+   浏览器半加载的就是本地产出的 `lib/client.js`；若上次构建只写完 host `lib/index.js` +
+   `lib/types` 而 client 阶段失败/中断，GUI 会停在 `Failed to load plugins` +
+   `<包名>: pending (waiting for service: <服务>)`——旧 bundle 声明了当前壳已不提供的客户端
+   服务（0.1.5 → 0.1.7 迁移后实测 `settingsScope`：0.1.7 的客户端壳没有这个服务，cordis
+   于是把该行留在 pending）。排查：`lib/client.js` 的 mtime 早于 `src/client/index.ts`；
+   修复：`pnpm build` 后刷新页面（引导期就没激活的条目不会被 `rebuilt` 帧自动重试）。
 - **会话监控桌面壳**：`desktop/dsh-session-desktop/` 是 **Tauri 2（Rust）应用，不是
   npm 发布包、不在 pnpm workspace 内**（仅用 npm 装 `@tauri-apps/cli`）。桌面
   （WebView2）与网页（浏览器）不共享 localStorage/BroadcastChannel，所以配置与跳转都

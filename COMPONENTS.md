@@ -946,6 +946,6 @@ Host 半用 esbuild，浏览器半用 **Vite library mode**（与官方 deepseek
 | 项 | 值 |
 |---|---|
 | 包版本 | 0.1.0（7 包一致） |
-| 官方 API 基线 | `@deepseek-ai/*` 0.1.7-rc.2（peer 范围 `^0.1.7-rc.2`；`@deepseek-ai/cordis` `^4.0.4`、`@deepseek-ai/schemastery` `^3.18.4`）。`dsh-client-runtime` 已退役：`ctx.slots` 改由 `dsh-client-ui-renderer` 提供、store API 在 `dsh-client-store`，见 AGENTS.md「关键现状与坑」 |
+| 官方 API 基线 | `@deepseek-ai/*` **0.2.0-rc.2**（npm `next` dist-tag；peer 范围 `^0.2.0-rc.2`，`@deepseek-ai/cordis` `^4.0.4`、`@deepseek-ai/schemastery` `^3.18.4`、`@deepseek-ai/cordis-plugin-loader` `^1.0.5`）。0.1.7 → 0.2.0 的 Host/线协议面逐字节未变，迁移只有依赖 specifier + 少量客户端 DOM/插槽行为，详见 AGENTS.md「关键现状与坑」的「0.1.7 → 0.2.0 的 API 迁移」。`dsh-client-runtime` 已退役：`ctx.slots` 改由 `dsh-client-ui-renderer` 提供、store API 在 `dsh-client-store` |
 | 语言约定 | 根文档中文；包 README 双语对 + `README.i18n.yaml` hash 凭据 |
 | CI | install → build → pack → git diff 干净（ci.yml）；`v*` tag 发布（publish.yml） |

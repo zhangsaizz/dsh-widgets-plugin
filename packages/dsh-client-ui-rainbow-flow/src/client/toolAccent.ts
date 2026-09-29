@@ -48,7 +48,8 @@
  * change. Only the header text is swept — never the output body, so it works
  * whether or not colouring is on.
  *
- * 0.1.7 shape (what the two older assumptions missed): rows now live inside a
+ * 0.1.7+ shape (unchanged in 0.2.0, which is why every hook below still holds —
+ * what the two older assumptions missed): rows now live inside a
  * **process group** — `[data-step-process]` → `[data-step-process-body]` →
  * `[data-step-process-content][data-chat-flow]` — whose members are the
  * tool/Think rows, while the 正文 reply is emitted as a flow item AFTER the
@@ -364,8 +365,9 @@ export function mountToolAccent(): () => void {
    *      shapes put the reply at that level (a Think row and its reply as
    *      siblings); (b) the row's own flow item (`data-chat-flow-kind`) is
    *      followed by the reply flow item;
-   *  (c) 0.1.7 only — the row sits inside a process group, so the reply lives
-   *      one or more flow-list levels OUT, after the whole group. The search
+   *  (c) 0.1.7+ (0.2.0 unchanged) — the row sits inside a process group, so the
+   *      reply lives one or more flow-list levels OUT, after the whole group. The
+   *      search
    *      therefore scans the following flow items at every `[data-chat-flow]`
    *      level, innermost first, and ascends. Only flow items are inspected (a
    *      container only counts when it is a flow item or a group seat), so the

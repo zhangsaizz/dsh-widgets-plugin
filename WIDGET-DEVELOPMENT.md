@@ -119,10 +119,10 @@ export function ClockWidget({ t }: ClockWidgetProps) {
   "files": ["lib"],
   "peerDependencies": {
     "@deepseek-ai/cordis": "^4.0.4",
-    "@deepseek-ai/dsh-client-ui-renderer": "^0.1.7-rc.2",
-    "@deepseek-ai/dsh-client-ui-layout": "^0.1.7-rc.2",
-    "@deepseek-ai/dsh-client-ui-slots": "^0.1.7-rc.2",
-    "@deepseek-ai/dsh-client-locale": "^0.1.7-rc.2",
+    "@deepseek-ai/dsh-client-ui-renderer": "^0.2.0-rc.2",
+    "@deepseek-ai/dsh-client-ui-layout": "^0.2.0-rc.2",
+    "@deepseek-ai/dsh-client-ui-slots": "^0.2.0-rc.2",
+    "@deepseek-ai/dsh-client-locale": "^0.2.0-rc.2",
     "react": "^18.2.0"
   }
 }

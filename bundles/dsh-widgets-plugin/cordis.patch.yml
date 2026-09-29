@@ -19,7 +19,7 @@
         # Use `credentialRef` (env-var / credential-store name) OR `credential`
         # (inline API key) — one of the two is enough.
         #
-        # This field IS the plugin's settings section under harness 0.1.7
+        # This field IS the plugin's settings section under harness 0.1.7+
         # (`bindings` is a volatile Config field): entries written here and
         # entries saved from the Widgets manager's provider panel are the same
         # document, which is why the panel can show and edit them in place.
