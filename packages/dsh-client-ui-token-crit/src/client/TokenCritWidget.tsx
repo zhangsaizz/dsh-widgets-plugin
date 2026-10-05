@@ -30,6 +30,7 @@ import type { SessionListState } from '@deepseek-ai/dsh-api-session-controller/c
 import type { PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
 import type { TokenUsageProjection } from '@deepseek-ai/dsh-token-meter/client'
 import { currentSessionId } from './session-selection.ts'
+import { overlayTopInset } from './overlay-inset.ts'
 import { TokenCritFx, fmt } from './TokenCritFx'
 import css from './TokenCritWidget.module.css'
 
@@ -79,12 +80,14 @@ function loadScale(): number {
   }
 }
 
-/** Keep the widget's top-left inside the viewport (with a small margin). */
+/** Keep the widget's top-left inside the viewport (with a small margin, and
+ *  below the desktop shell's window chrome). */
 function clampToViewport(x: number, y: number, w: number, h: number): { x: number; y: number } {
   const m = 6
+  const top = overlayTopInset(m)
   return {
     x: Math.round(clamp(x, m, Math.max(m, window.innerWidth - w - m))),
-    y: Math.round(clamp(y, m, Math.max(m, window.innerHeight - h - m))),
+    y: Math.round(clamp(y, top, Math.max(top, window.innerHeight - h - m))),
   }
 }
 
@@ -95,9 +98,10 @@ function clampToViewport(x: number, y: number, w: number, h: number): { x: numbe
  */
 function computePanelPos(rect: DOMRect, panelW: number, panelH: number): { x: number; y: number } {
   const m = 8
+  const top = overlayTopInset(m)
   return {
     x: Math.round(clamp(Math.round(rect.left), m, Math.max(m, window.innerWidth - panelW - m))),
-    y: Math.round(clamp(Math.round(rect.bottom + 10), m, Math.max(m, window.innerHeight - panelH - m))),
+    y: Math.round(clamp(Math.round(rect.bottom + 10), top, Math.max(top, window.innerHeight - panelH - m))),
   }
 }
 
@@ -848,7 +852,10 @@ export function TokenCritWidget(props: PropsRuntime<'shell.overlay'>) {
   }
   if (pos) {
     anchorStyle.left = pos.x
-    anchorStyle.top = pos.y
+    // Floor the first painted frame too: the mount effect clamps after paint,
+    // and an unclamped frame inside the Windows caption's drag strip would let
+    // a click there move the window instead of the badge.
+    anchorStyle.top = Math.max(pos.y, overlayTopInset(0))
   } else {
     anchorStyle.right = 18
     anchorStyle.bottom = 130

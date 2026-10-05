@@ -198,3 +198,34 @@ for (const entry of CLIENT_PACKAGES) {
   }
   console.log('exports completeness: ok')
 }
+
+// Desktop window-chrome inset: the four floating-widget packages each carry
+// their own copy of `overlay-inset.ts` (they publish independently, so a shared
+// fifth package is not an option), and the copies must stay byte-identical from
+// the `cachedKey` declaration onward — a copy edited alone would silently keep
+// the wrong inset in one widget. Only the module docblock may differ.
+{
+  const copies = [
+    'packages/dsh-balance',
+    'packages/dsh-client-ui-token-crit',
+    'packages/dsh-client-ui-session-monitor',
+    'packages/dsh-client-ui-card-container',
+  ].map((pkg) => ({ pkg, file: join(root, pkg, 'src/client/overlay-inset.ts') }))
+  const bodies = copies.map(({ pkg, file }) => {
+    const text = readFileSync(file, 'utf8').replaceAll('\r\n', '\n')
+    const start = text.indexOf('let cachedKey')
+    if (start < 0) {
+      console.error(`ERROR: ${pkg}/src/client/overlay-inset.ts has no cachedKey declaration`)
+      process.exit(1)
+    }
+    return { pkg, body: text.slice(start) }
+  })
+  const drifted = bodies.slice(1).filter((entry) => entry.body !== bodies[0].body)
+  if (drifted.length > 0) {
+    console.error('ERROR: the overlay-inset.ts copies drifted apart — keep the implementation identical:')
+    console.error(`  reference: ${bodies[0].pkg}`)
+    for (const entry of drifted) console.error(`  differs:   ${entry.pkg}`)
+    process.exit(1)
+  }
+  console.log(`desktop overlay inset: ${bodies.length} copies in sync`)
+}

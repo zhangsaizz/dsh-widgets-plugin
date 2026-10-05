@@ -18,6 +18,7 @@ import {
   DEFAULT_SETTINGS, POS_KEY, SCALE_KEY, SETTINGS_CHANGED_EVENT, loadSettings, saveSettings,
 } from './settings.ts'
 import type { MonitorSettings } from './settings.ts'
+import { inOfficialDesktop } from './desktop-shell.ts'
 import css from './SessionSettings.module.css'
 
 /** Injected face: just the locale seat. */
@@ -75,6 +76,9 @@ function launchDesktopApp(): void {
 
 export function SessionSettings({ t }: SessionSettingsInjected) {
   const [settings, setSettings] = useState<MonitorSettings>(loadSettings)
+  /** The official Electron desktop hosts this page, so the Tauri companion
+   *  switch below has nothing to launch. */
+  const officialDesktop = inOfficialDesktop()
   const [perm, setPerm] = useState<'default' | 'granted' | 'denied' | 'unsupported'>(
     () => typeof Notification !== 'undefined' ? Notification.permission : 'unsupported',
   )
@@ -218,18 +222,26 @@ export function SessionSettings({ t }: SessionSettingsInjected) {
       </Section>
 
       <Section title={t('sectionDesktop')}>
-        <Row label={t('desktopMonitorLabel')} hint={t('desktopMonitorDesc')}>
-          <input
-            type="checkbox"
-            checked={settings.desktopMonitor}
-            onChange={(e) => {
-              update({ desktopMonitor: e.target.checked })
-              // Turning monitoring ON also launches / surfaces the desktop app
-              // (Tauri shell) via the dsh-smon:// protocol.
-              if (e.target.checked) launchDesktopApp()
-            }}
-          />
-        </Row>
+        {officialDesktop
+          // The official Electron desktop IS the host of this panel: there is
+          // no second process for `dsh-smon://` to launch or surface, so the
+          // Tauri companion switch is replaced by what actually applies there
+          // (the system-notification switch above).
+          ? <div className={css.desktopHint}>{t('desktopNativeHint')}</div>
+          : (
+            <Row label={t('desktopMonitorLabel')} hint={t('desktopMonitorDesc')}>
+              <input
+                type="checkbox"
+                checked={settings.desktopMonitor}
+                onChange={(e) => {
+                  update({ desktopMonitor: e.target.checked })
+                  // Turning monitoring ON also launches / surfaces the desktop app
+                  // (Tauri shell) via the dsh-smon:// protocol.
+                  if (e.target.checked) launchDesktopApp()
+                }}
+              />
+            </Row>
+            )}
         <Row label={t('ackOnJumpLabel')} hint={t('ackOnJumpDesc')}>
           <input type="checkbox" checked={settings.ackOnJump} onChange={(e) => update({ ackOnJump: e.target.checked })} />
         </Row>

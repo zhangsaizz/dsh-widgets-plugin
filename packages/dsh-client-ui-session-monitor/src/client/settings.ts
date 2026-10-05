@@ -8,6 +8,8 @@
  * @module @dsh-plugins/client-ui-session-monitor/client/settings
  */
 
+import { overlayTopInset } from './overlay-inset.ts'
+
 /** Every user-tunable option of the session monitor. */
 export interface MonitorSettings {
   /** Show a toast when a session finishes a round. */
@@ -261,12 +263,14 @@ export function saveDone(doneIds: ReadonlySet<string>): void {
   } catch { /* storage unavailable */ }
 }
 
-/** Keep a fixed element fully inside the viewport with a small margin. */
+/** Keep a fixed element fully inside the viewport with a small margin — and
+ *  below the desktop shell's window chrome on the top edge. */
 export function clampToViewport(x: number, y: number, w: number, h: number): { x: number; y: number } {
   const m = 6
+  const top = overlayTopInset(m)
   return {
     x: Math.round(Math.min(Math.max(x, m), Math.max(m, window.innerWidth - w - m))),
-    y: Math.round(Math.min(Math.max(y, m), Math.max(m, window.innerHeight - h - m))),
+    y: Math.round(Math.min(Math.max(y, top), Math.max(top, window.innerHeight - h - m))),
   }
 }
 

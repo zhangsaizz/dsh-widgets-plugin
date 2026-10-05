@@ -13,9 +13,11 @@
 | 卡片容器 | `@dsh-plugins/client-ui-card-container` | 浮动的卡片容器面板；开启后把其他小组件拖进一个整齐、等间距的卡片网格集中摆放（浮窗自动收起，可拖拽排序 / 移出）；面板为液态玻璃材质 |
 | 彩虹流光 | `@dsh-plugins/client-ui-rainbow-flow` | 输入框装饰（非浮窗）：会话运行时输入框四周环绕一圈柔和的彩虹光晕，像呼吸一样明暗脉动（内部透明不遮输入），呼吸节奏随每秒输出 token 数动态变化，工具行带开/关开关 |
 
-除了上面五个浏览器内小组件，还有一个配套的 **Windows 桌面悬浮窗应用**
-（`desktop/dsh-session-desktop/`，Tauri 2，非 npm 包）：把「会话监控」做成无边框、
-半透明、置顶的小窗悬浮在桌面上，完成一轮时弹桌面提醒（详见文末「桌面悬浮窗」）。
+除了上面五个浏览器内小组件，还有两种「桌面端」形态：**官方 DeepSeek Harness 桌面端**
+（Electron，跑的就是同一份 Web 应用与同一套插件，装法见「安装 → 方式三」，适配细节见
+AGENTS.md「DSH 桌面端（Electron）」），以及本仓库自带的 **Windows 桌面悬浮窗应用**
+（`desktop/dsh-session-desktop/`，Tauri 2，非 npm 包）——后者在官方桌面端之外单独提供一块
+常驻置顶小窗（详见文末「桌面悬浮窗」）。
 
 ## 预览
 
@@ -54,7 +56,7 @@
 | `@dsh-plugins/client-ui-rainbow-flow` | 彩虹流光（浏览器端，纯 UI）：会话运行时输入框四周的呼吸彩虹光晕（`conversation.input.left`），明暗脉动节奏随输出 token 速率变化，工具行带开/关开关 |
 | `@dsh-plugins/client-ui-widget-manager` | 小组件管理设置页（浏览器端）：列出小组件并支持「添加 / 关闭」，为带配置的挂件提供「配置」弹窗 |
 | `@dsh-plugins/dsh-widgets-plugin` | 可安装 bundle：一层挂载以上全部插件 |
-| `desktop/dsh-session-desktop/` | Windows 桌面悬浮窗应用（Tauri 2，**非 npm 包**）：无边框/透明/置顶小窗加载会话监控独立挂件页，托盘唤回，点击行直达已打开的 Harness 标签页（未开才回退浏览器） |
+| `desktop/dsh-session-desktop/` | Windows 桌面悬浮窗应用（Tauri 2，**非 npm 包**，**可选**）：无边框/透明/置顶小窗加载会话监控独立挂件页，托盘唤回，点击行直达已打开的 Harness 标签页（未开才回退浏览器）。官方 Electron 桌面端里看板就在主窗口内，不需要该壳 |
 
 > 完整的组件管理列表（组件明细、插槽注册、构建产物、依赖关系、维护清单）见
 > [COMPONENTS.md](COMPONENTS.md)。
@@ -103,8 +105,9 @@ pnpm -r publish --no-git-checks   # 等价于 npm run publish:all
 
 ## 安装
 
-两种安装方式：**发布安装**（推荐——装的是预构建产物，安装端零构建授权）与**本地开发
-安装**（`link:` 直连本仓库，适合改代码调试）。手动 patch 见文末「安装（手动）」。
+三种安装方式：**发布安装**（推荐——装的是预构建产物，安装端零构建授权）、**本地开发
+安装**（`link:` 直连本仓库，适合改代码调试）与**官方桌面端（Electron）安装**（同一份
+bundle，profile 固定为 `desktop`）。手动 patch 见文末「安装（手动）」。
 
 ### 方式一：发布安装（推荐）
 
@@ -123,8 +126,8 @@ dsh --profile <name>
 ```
 
 bundle 的 `cordis.patch.yml` 会插入 `balance`、`ui-token-crit`、`ui-session-monitor`、
-`ui-card-container`、`ui-widget-manager` 五行，一次挂载全部组件。发布物自带构建产物
-（`lib/`），安装端无需构建授权。
+`ui-card-container`、`ui-rainbow-flow`、`ui-widget-manager` 六行，一次挂载全部组件。
+发布物自带构建产物（`lib/`），安装端无需构建授权。
 
 ### 方式二：本地开发安装（link 直连本仓库）
 
@@ -144,6 +147,19 @@ dsh plugin --profile <name> add F:/dsh-balance-plugin/bundles/dsh-widgets-plugin
 > （`ERR_PNPM_WORKSPACE_PKG_NOT_FOUND`）。给别人用请走方式一（npm 发布）或
 > `pnpm pack` 交付 tarball。
 
+### 方式三：官方桌面端（Electron）
+
+官方桌面端跑的是同一份 Web 前端与同一套插件模型，所以装法一致，只是 profile 固定为
+`desktop`、且**应用要先完全退出**（bundle 层属于启动时组合，装完重启桌面端生效）：
+
+```sh
+"F:\DeepSeek-Harness-Desktop\resources\runtime\cli\bin\dsh.cmd" plugin --profile desktop add F:/dsh-balance-plugin/bundles/dsh-widgets-plugin
+```
+
+`link:` 安装不会装 bundle 的依赖，所以本地开发时**还要把 6 个 `@dsh-plugins/*` 包逐个
+`link:` 进同一个 profile**（否则插件会从仓库路径加载第二份 `@deepseek-ai/*`）；完整命令、
+隔离 profile 预检与桌面端浮窗顶栏避让见 AGENTS.md「DSH 桌面端（Electron）」。
+
 ## 安装（手动）
 
 在 profile 的 `cordis.patch.yml`（或自定义 `--patch`）加入：
@@ -162,6 +178,8 @@ dsh plugin --profile <name> add F:/dsh-balance-plugin/bundles/dsh-widgets-plugin
       name: '@dsh-plugins/client-ui-session-monitor'
     - id: ui-card-container
       name: '@dsh-plugins/client-ui-card-container'
+    - id: ui-rainbow-flow
+      name: '@dsh-plugins/client-ui-rainbow-flow'
     - id: ui-widget-manager
       name: '@dsh-plugins/client-ui-widget-manager'
 ```
@@ -195,6 +213,10 @@ dsh plugin --profile <name> add F:/dsh-balance-plugin/bundles/dsh-widgets-plugin
 纯 UI 挂件，无需凭据。在小组件管理页启用「卡片容器」后，左上角出现容器面板：上方「可放入的小组件」托盘列出当前已启用的挂件，把 chip 拖进下方网格（或直接点击）即停靠——挂件的浮窗自动隐藏，网格内显示它的紧凑卡片（token-crit / session-monitor 为内置统计卡，balance 为通用卡）；拖动卡片可调整顺序，点 × 移出容器恢复浮窗。列数在「配置」弹窗里调（自适应 / 2 / 3 / 4 列），停靠顺序与面板位置刷新后保留。
 
 ### 桌面悬浮窗（速览）
+
+> **可选组件**：官方 DeepSeek Harness 桌面端（Electron）里看板就在主窗口内，
+> 不需要本壳；它只服务于「要一块独立于 Harness 窗口的常驻置顶小窗」这一场景
+> （见 AGENTS.md「DSH 桌面端（Electron）」）。
 
 「会话监控」的 Windows 桌面版（`desktop/dsh-session-desktop/`，Tauri 2 应用，
 非 npm 包）：

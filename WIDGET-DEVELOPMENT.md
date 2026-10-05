@@ -327,6 +327,57 @@ window.dispatchEvent(new CustomEvent('dsh.card-container.dock', { detail: 'clock
 - **缺席回退**：容器未安装时 `widgets.card` 不被声明，`ctx.slots.inject` 回调
   永不执行——卡片不注册，无任何副作用。
 
+### 2.6 浮窗必须避让桌面端窗口 chrome
+
+官方桌面端（Electron）在同一个文档里画自己的窗口 chrome，并在 `<html>` 上公布它占用的
+竖带 `--dsh-frame-top-clearance`：macOS 48px（红绿灯 + 折叠侧栏的窗口控件）、Windows 40px
+（标题条，带「应用/编辑」菜单、侧栏控件与原生窗口按钮，同时整条都是
+`-webkit-app-region: drag` 拖动带）。**默认 `top: 16px` 的浮窗会钻到这条带下面**；在
+Windows 上更糟——点它等于拖窗口。
+
+所以任何以 `position: fixed` 自行定位的挂件，把「顶边」的下界取
+`max(自身边距, 公布的带 + 20)`，四处都要覆盖：角停靠的样式、拖动钳制、初始/持久化位置的
+钳制、以及「吸附到角」的判定阈值。仓库里四个浮窗各带一份同样的实现，照抄即可：
+
+```ts
+// src/client/overlay-inset.ts（每包一份；包内相对 import，不跨包依赖）
+/** Last resolved value, keyed by everything the inset depends on. */
+let cachedKey = ''
+let cachedInset = 0
+
+export function overlayTopInset(fallback: number): number {
+  const root = document.documentElement
+  const key = `${root.dataset.platform ?? ''}|${root.hasAttribute('data-windows-titlebar')}|${fallback}`
+  if (key === cachedKey) return cachedInset
+  const clearance = Number.parseFloat(getComputedStyle(root).getPropertyValue('--dsh-frame-top-clearance'))
+  cachedInset = Number.isFinite(clearance) ? Math.max(fallback, clearance + 20) : fallback
+  cachedKey = key
+  return cachedInset
+}
+```
+
+> 四处调用点传入的 `fallback` 不同：**停靠位置**传自身边距（网页端停靠在 16/6px 处，
+> 桌面端抬到带上），**拖动/持久化位置的钳制**与**吸附判定**传 `0`（网页端因此与改动前
+> 完全一致，桌面端得到带高 + 20）。`scripts/build.mjs` 会断言四份拷贝从 `let cachedKey`
+> 起逐字节相同，改一份必须同步其余三份。
+
+要点：
+
+- **必须缓存**：拖动是每 pointermove 一次 `getBoundingClientRect` + 钳制，再读一次
+  computed style 会多一次强制样式刷新。缓存键用「平台标记 + Windows 标题条标记 + 边距」，
+  这两条属性完全决定该变量的取值。
+- **Web 无此变量**，`Number.parseFloat` 得 `NaN` → 原样返回自身边距，网页端行为不变。
+- **不要改用壳的 `--dsh-frame-overlay-top`**：它全屏时降到 20px，而 Windows 的标题条菜单与
+  macOS 折叠侧栏的窗口控件是全屏也仍在的 `position: fixed` 元素，20px 会把浮窗压在它们
+  下面。
+- 底部停靠不受影响；默认位置除卡片容器是左上（`DEFAULT_LEFT/DEFAULT_TOP = 16/96`）外，
+  其余三个浮窗都在右下（`bottom`/`right`）。
+- 浮窗内部自己的 `z-index` 再大也翻不过壳的浮层（`shell.overlay` 层是 `z-index: 20` 的
+  层叠上下文，Modal 1000、平台页 1001、Windows 菜单 1100 都在其上）——不要试图对抗。
+- 浮窗根节点不要声明拖动区（不要设 `data-window-drag`、不要写
+  `-webkit-app-region: drag`）：拖动区的组合规则按 DOM 顺序取第一个声明者，内容容器从来
+  不是拖动区。
+
 ---
 
 ## 3. 完整示例：带配置面板与容器卡片的时钟挂件

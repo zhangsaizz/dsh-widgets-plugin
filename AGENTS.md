@@ -52,6 +52,9 @@ packages/
   dsh-client-ui-rainbow-flow/ 彩虹流光（纯 UI，浏览器端：conversation.input.left
                              + .right + widgets.config，呼吸光晕随 token 速率）
   dsh-client-ui-widget-manager/ 小组件管理设置页（声明 widgets.config 子槽）
+desktop/
+  dsh-session-desktop/       自建 Tauri 2 会话悬浮窗（可选，不属于官方桌面端，
+                             不在 pnpm workspace 内；见「DSH 桌面端（Electron）」）
 bundles/
   dsh-widgets-plugin/        可安装 bundle：cordis.patch.yml 插入 6 个插件
 scripts/
@@ -368,7 +371,160 @@ pack → git diff 干净」。
    服务（0.1.5 → 0.1.7 迁移后实测 `settingsScope`：0.1.7 的客户端壳没有这个服务，cordis
    于是把该行留在 pending）。排查：`lib/client.js` 的 mtime 早于 `src/client/index.ts`；
    修复：`pnpm build` 后刷新页面（引导期就没激活的条目不会被 `rebuilt` 帧自动重试）。
-- **会话监控桌面壳**：`desktop/dsh-session-desktop/` 是 **Tauri 2（Rust）应用，不是
-  npm 发布包、不在 pnpm workspace 内**（仅用 npm 装 `@tauri-apps/cli`）。桌面
-  （WebView2）与网页（浏览器）不共享 localStorage/BroadcastChannel，所以配置与跳转都
-  走 Host 服务端中转（`/_dsh/session-monitor/settings` + `/jump`）。
+- **自建 Tauri 会话悬浮窗（可选，不属于官方桌面端）**：`desktop/dsh-session-desktop/` 是
+  Tauri 2（Rust）应用，不在 pnpm workspace 内。与官方 Electron 桌面端的分工、以及
+  `dsh-smon://` 深链与 `/jump` 队列只服务于该壳这一点，见「DSH 桌面端（Electron）」与
+  [COMPONENTS.md](COMPONENTS.md) §3.8。
+
+---
+
+## DSH 桌面端（Electron）
+
+官方桌面端是「完整 dsh Web 应用外的一层 Electron 壳」：同一份 Web 前端、同一套插件模型与
+`dsh.client` 行，所以**不是另一个插件目标**——bundle 与六个插件行与 Web 完全一致，差别只在
+安装位置与三条运行时事实（文档来源、传输、窗口 chrome）。
+
+### 目标环境
+
+- 安装目录 `F:\DeepSeek-Harness-Desktop`：`resources/app.asar/dsh` 内是随包发布的 dsh
+  运行时与私有 Host，**自带 dsh CLI 与 pnpm**（`resources/runtime/cli/bin/dsh.cmd`、
+  `resources/runtime/pnpm`），与 npm 全局安装互不影响。
+- profile 固定为 `$DSH_HOME/profiles/desktop`，由 Electron 独占；默认端口 **19387**
+  （Web 版 3080），可用 `webserver.config.port` patch 覆盖。
+- 应用文档来源是 `dsh-app://app/`：`/`、`/index.html`、`/assets/*`、`/favicon.svg`、
+  `/manifest.webmanifest` 由壳从打包前端提供，**其余路径（含 `/_dsh/*`、`/plugins/*`）转发给已认证
+  的 Host**；转发时删除 `host`/`origin`/`cookie`/`sec-fetch-site` 并注入 Host cookie，
+  `/plugins/*` 响应被强制 `no-store`。因此插件 Host 路由的 `Origin` 门禁看到「无 Origin」
+  （同源/非浏览器）而放行，客户端半的相对路径 `fetch('/_dsh/…')` 在桌面端与网页端同样有效。
+- 壳拒绝全部 `window.open`（http(s) 交给系统浏览器）、阻止跨来源导航，渲染进程没有文件系统、
+  原生 IPC 或任意 pnpm 参数；窗口关闭默认隐藏到托盘而不是退出。
+- **不给插件任何通知/角标/唤醒 API**：`window.dshDesktop` 只有 `browser` / `keyboard` /
+  `shortcuts` / `deviceInfo` / `updates`，壳的 `flashFrame`、Dock 提醒只服务于更新授权。
+  插件要在后台提醒只能用 DOM `Notification`（渲染进程权限默认放行——`setPermissionCheckHandler`
+  对非 media 一律 true；是否最终显示成 Windows toast 取决于壳的 AUMID/开始菜单快捷方式，
+  属壳侧行为）或 `shell.overlay` 内的前台浮层。会话监控的 `isUserAway()` 用
+  `visibilityState === 'hidden' || !document.hasFocus()`，窗口隐藏到托盘时 `hasFocus()`
+  为 false，后台提醒照常触发。
+
+### 安装到 desktop profile
+
+CLI **不能 boot** 桌面 profile（`--dump-config` 也会报
+`profile "desktop" is managed exclusively by the Electron application`），但可以装包；应用内
+「插件」页写的是同一份 profile。
+
+```sh
+# 应用完全退出后（先启动过一次以初始化 profile），用随包 CLI：
+"F:\DeepSeek-Harness-Desktop\resources\runtime\cli\bin\dsh.cmd" plugin --profile desktop add F:/dsh-balance-plugin/bundles/dsh-widgets-plugin
+```
+
+**`link:` 安装不会安装 bundle 的依赖**。bundle 的 6 个 `@dsh-plugins/*` 依赖声明为
+`workspace:*`，profile 内的 pnpm 解析不了，于是插件包只能从
+`bundles/dsh-widgets-plugin/node_modules/@dsh-plugins/*`（本仓库 workspace 软链）解析到
+`packages/*` 的**真实路径**——这些路径不在任何 linked root 之下，runtime resolution 的 peer
+拦截不参与，插件会加载自己 `node_modules` 里的第二份 `@deepseek-ai/*`（重复实例）。修法与
+Web profile 相同：**把 6 个包也逐个 `link:` 进 profile**，使每个包成为一个 linked root，
+peer 由运行时提供：
+
+```sh
+for p in dsh-balance dsh-client-ui-token-crit dsh-client-ui-session-monitor \
+         dsh-client-ui-card-container dsh-client-ui-rainbow-flow dsh-client-ui-widget-manager; do
+  "…/dsh.cmd" plugin --profile desktop add "F:/dsh-balance-plugin/packages/$p"
+done
+```
+
+从 npm 装发布版（`add @dsh-plugins/dsh-widgets-plugin`）**不需要**这一步：pnpm 把 6 个包作为
+普通依赖装进 profile，它们的 `@deepseek-ai/*` peer 由运行时的 profile 解析提供（同一份实例），
+仓库路径那份不会被读到。`link:` 的 6 个包会各打印一条
+`dsh: warning: <name> declares no dsh.bundle — installed as a plain dependency, not a profile layer`
+（预期，它们不是 bundle 层）。
+
+bundle 栈改动属于启动时组合，**必须重启桌面端**；改完可用隔离 profile 预检——桌面端自带
+运行时也能 boot 普通 profile。下面是最小配方（自建 web profile），更贴近真实组合的
+「复制 desktop profile」变体见「实测验收」第 1 条，两者择一即可：
+
+```sh
+$env:DSH_HOME="$env:TEMP\dsh-preflight"; "…/dsh.cmd" widgettest --from-default-profile web --dump-config
+"…/dsh.cmd" plugin --profile widgettest add <同上 7 个包>
+"…/dsh.cmd" widgettest --port 19390        # 避开 7993–8606 与 19387
+```
+
+预检判据（`--dump-config` 里有 `# == @dsh-plugins/dsh-widgets-plugin` 段；启动后
+`/_dsh/session-monitor/status`、`/_dsh/balance/settings` 与
+`plugins/??<pkg>/client.js&rev=…` 均 200，启动日志无插件激活错误）。客户端半改动由
+`dsh-client-hmr` 热替换（桌面端同样挂载该行），Host 半仍需重启。
+
+### 桌面端专属适配（本仓库已做）
+
+- **浮窗顶栏避让**：桌面端在文档里画自己的窗口 chrome，并在 `<html>` 上公布它占用的带
+  `--dsh-frame-top-clearance`（macOS 48px = 红绿灯 + 窗口控件；Windows 40px = 标题条，同时
+  是 `-webkit-app-region: drag` 的整条拖动带）。四个浮窗（balance / token-crit /
+  session-monitor / card-container）各带一份 `src/client/overlay-inset.ts`，把停靠与拖动钳制
+  的上边界取 `max(自身边距, 公布的带 + 20)`；Web 无此变量，行为不变。**不复用壳的
+  `--dsh-frame-overlay-top`**：它全屏降到 20px，而 Windows 标题条的「应用/编辑」菜单与
+  macOS 折叠侧栏的窗口控件是全屏也仍在的 `position: fixed` 元素。新增浮窗按
+  `WIDGET-DEVELOPMENT.md` §2.6 照做。
+- **会话监控的桌面开关**：配置面板的「桌面端会话监控」（`dsh-smon://` 拉起 Tauri 挂件）只在
+  自建 Tauri 壳有意义；官方桌面端里窗口就是看板，该行换成说明文案
+  （`client/desktop-shell.ts` 的 `inOfficialDesktop()` 读 `window.dshDesktop`——官方壳在
+  `dsh-app://app/` 下暴露它，Tauri 壳暴露 `window.__TAURI__`），后台提醒交给既有的
+  「浏览器通知」开关。跳转仍走 `ctx.uiWorkspace.openSession`（客户端服务，桌面端可用）；
+  `window.focus()` 无法把隐藏的 Electron 窗口提到前台，这是壳的限制。
+- 线协议、`dsh.client` 行、seed 模块表与 Web 端完全一致，**Host/wire 面无需改动**。
+
+### 实测验收
+
+**已做（离线可复现，2026-09-30，桌面端 0.2.0-rc.2）**
+
+1. **真实 bundle 栈预检**：把 `profiles/desktop` 原样复制成隔离 home 里的
+   `profiles/desktoptest`（保留 `dsh-base` / `dsh-web-app` /
+   `dsh-experimental-agent-team-profile` / `dsh-experimental-schedule-bundle` +
+   本 bundle 五层与 7 条 `link:`），用随包 CLI 在 `$env:TEMP` 的隔离 `DSH_HOME` 启动
+   （`dsh desktoptest --port 19391 --no-open`）。结果：`--dump-config` 里 6 条
+   `@dsh-plugins/*` 行齐全；`/_dsh/session-monitor/{status,sessions,notifications}` 与
+   `/_dsh/balance/settings` 全 200；六个 `plugins/??@dsh-plugins/*/client.js&rev=…`
+   全 200（289KB/124KB/88KB/83KB/81KB/33KB）；启动日志无激活错误。
+2. **Origin 门禁**：`/_dsh/session-monitor/status` 在**无 Origin**（桌面端转发后的形态，
+   壳会删除该头）与 `Origin=本机 host`（网页端）下均 200，`Origin=https://evil.example.com`
+   为 403——桌面端传输与既有安全门禁同时成立。
+3. **顶栏避让 A/B（真实 Chromium，Playwright）**：对上面的实例注入桌面端公布的那一个
+   变量 `<html style="--dsh-frame-top-clearance: 40px">`（**只注入这个变量，不要伪造
+   `data-platform`/`data-windows-titlebar`**——那是壳自己的桌面判别位，伪造后
+   `dsh-client-shortcuts` 之类的一等官方插件会去找不存在的 `window.dshDesktop`，客户端条目
+   成批停在 pending；那次预检报的是 `web boot: 28 entries did not activate`，而当时的
+   client roster 有约 75 条）：
+
+   | 浮窗 | 网页（无该变量） | 桌面带 40px |
+   |---|---|---|
+   | balance 拖到左上角停靠 | top **16** | top **60** |
+   | session-monitor 拖到顶边钳制 | top **6** | top **60** |
+   | token-crit 拖到顶边钳制 | top **6** | top **60** |
+   | card-container（无 `data-widget-id`，按「卡片容器」标题定位）拖到顶边钳制 | top **6** | top **60** |
+
+   四种浮窗、两种模式共 8 次运行控制台均零 error / 零 pageerror；overlay 均挂载
+   （`[data-widget-id]` = token-crit / session-monitor / balance，卡片容器另按标题定位）、
+   彩虹流光 `data-rf-sweep="on"`。
+
+   探针期间踩到的两个坑（复现验收时会用到）：该实例无凭据，首屏会弹**「预览版说明」→
+   API Key 引导**的 `Modal`（遮罩 `aria-hidden` 但 `pointer-events: auto`），必须先点
+   「稍后配置」把它关掉，否则任何浮窗都点不到；token-crit 的透明锚点覆盖整个右下角
+   （`z-index: 9999`），拖动 balance 前要先把其他 `[data-widget-id]` 隐藏。
+4. **真实 Electron 窗口（2026-10-05，本机运行中的应用，只读探针）**：重启后插件已加载。
+   `/plugins/events` SSE 的客户端图里 6 条 `@dsh-plugins/*` 全在，六个
+   `plugins/??@dsh-plugins/*/client.js` 全 200（与预检同尺寸）；
+   `/_dsh/session-monitor/status` 返回本会话真实的 `tools` 折叠、`/notifications` 有 inbox
+   记录、`/_dsh/balance/settings` 200；`GET /_dsh/session-monitor/jump` 的 `webAlive=true`
+   持续为真——渲染进程里的客户端半确实在跑，且其相对路径 `fetch('/_dsh/…')` 经
+   `dsh-app://app/` 转发到达已认证 Host。
+   另记一个未定论项：`%APPDATA%\@deepseek-ai\dsh-desktop\logs` 里有两条
+   `crash-*-host.log`（2026-09-30 04:32、2026-10-05 18:54），都是 `phase: running`、Host 以
+   `0x40010004` 退出；两份报告的 Host stderr 尾部只有标准的 `fs.Stats` 弃用告警、渲染进程零
+   error 级输出，profile 里也没有恢复流程留下的 `.bak-*`（即没走「禁用第三方 bundle」）。证据
+   不支持「插件激活失败」这一解释，但成因未定论——再遇到 Host 退出请把该 log 一并提供。
+
+**仍需人眼确认（真实 Electron 窗口，浏览器探针不能替代）**：窗口 chrome 与浮窗的实际叠放
+（是否被原生窗口按钮遮挡；可在 DevTools 里跑
+`[...document.querySelectorAll('[data-widget-id]')].map((el) => [el.dataset.widgetId, el.getBoundingClientRect().top])`
+看四个浮窗的 top 是否 ≥ 60）、`dsh-client-hmr` 对**本插件**的热替换（要 touch 一次
+`lib/client.js` 才触发，会重置挂件内 React 状态），以及 Windows 上 DOM `Notification` 是否
+真的渲染成系统 toast（壳侧 AUMID）。
+

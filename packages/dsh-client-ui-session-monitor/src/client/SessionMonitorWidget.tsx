@@ -47,6 +47,7 @@ import {
   loadLastActive, loadPos, loadScale, loadSettings, playChime, saveDone, saveLastActive, savePos, saveScale,
 } from './settings.ts'
 import type { MonitorSettings } from './settings.ts'
+import { overlayTopInset } from './overlay-inset.ts'
 import css from './SessionMonitorWidget.module.css'
 
 /** Injected business face: the jump-to-session verb (backed by
@@ -1449,7 +1450,10 @@ export function SessionMonitorWidget(props: SessionMonitorWidgetProps) {
   }
   if (pos) {
     anchorStyle.left = pos.x
-    anchorStyle.top = pos.y
+    // Floor the first painted frame too: the mount effect clamps after paint,
+    // and an unclamped frame inside the Windows caption's drag strip would let
+    // a click there move the window instead of the panel.
+    anchorStyle.top = Math.max(pos.y, overlayTopInset(0))
   } else {
     anchorStyle.right = DEFAULT_RIGHT
     anchorStyle.bottom = DEFAULT_BOTTOM

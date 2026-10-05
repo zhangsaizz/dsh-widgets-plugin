@@ -82,6 +82,7 @@ export type SessionMonitorKey =
   | 'showSubagentsDesc'
   | 'desktopMonitorLabel'
   | 'desktopMonitorDesc'
+  | 'desktopNativeHint'
   | 'ackOnJumpLabel'
   | 'ackOnJumpDesc'
   | 'autoAckOnOpenLabel'
@@ -182,6 +183,7 @@ export const zh: Record<SessionMonitorKey, string> = {
   showSubagentsDesc: '默认过滤子代理会话；开启后在列表中显示并提醒',
   desktopMonitorLabel: '桌面端会话监控',
   desktopMonitorDesc: '默认关闭。打开时经 dsh-smon:// 拉起桌面挂件应用（未运行则启动、已运行则唤出窗口）并开始轮询会话与通知；关闭后桌面挂件暂停监控（网页挂件不受影响）',
+  desktopNativeHint: '官方桌面端里本窗口就是看板，没有需要单独拉起的桌面监控应用；应用在后台时要系统通知，请打开上方的「浏览器通知」。',
   ackOnJumpLabel: '处理后自动已读',
   ackOnJumpDesc: '桌面端点「处理」跳转会话后，该通知自动标记为已读',
   autoAckOnOpenLabel: '打开时自动全部已读',
@@ -283,6 +285,7 @@ export const en: Record<SessionMonitorKey, string> = {
   showSubagentsDesc: 'Subagent sessions are filtered out by default; enable to list and notify them',
   desktopMonitorLabel: 'Desktop monitoring',
   desktopMonitorDesc: 'Off by default. Turning it on launches / surfaces the desktop app via the dsh-smon:// protocol (starts it if not running, brings the window forward otherwise) and starts polling sessions and notifications; turning it off pauses the desktop widget (the web widget is unaffected)',
+  desktopNativeHint: 'In the official desktop app this window is the dashboard — there is no separate monitor app to launch. Turn on “Browser notification” above for system alerts while the app is in the background.',
   ackOnJumpLabel: 'Auto-read on handle',
   ackOnJumpDesc: 'Desktop: handling a notification marks it read after jumping to the session',
   autoAckOnOpenLabel: 'Auto-read all on open',

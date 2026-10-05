@@ -168,7 +168,13 @@ rounds. Without the host half the widget still works (base notification kinds).
   OFF pauses the desktop widget (it shows a paused state) while the web widget
   is unaffected. The setting is shared with the desktop side through the Host
   store, so a change on either side takes effect on the other within a few
-  seconds.
+  seconds. **In the official Electron desktop this switch is replaced by an
+  explanatory line**: that shell already hosts the dashboard in its main window,
+  so there is no second process to launch (`client/desktop-shell.ts` tells the
+  two shells apart through `window.dshDesktop` vs `window.__TAURI__`); use the
+  **browser notification** switch above for background alerts. The
+  `dsh-smon://` deep link, the `/jump` queue and the standalone widget page
+  serve only the self-built Tauri window.
 
 ## Desktop widget (notification inbox)
 
@@ -297,7 +303,12 @@ No configuration is needed after mounting:
 3. **Shrink / zoom** — click the **—** button in the header to collapse the
    panel into a compact pill (tap the pill to expand it again); drag the
    bottom-right corner handle to zoom the panel from 0.6× to 1.6×. Both the
-   position and the zoom persist.
+   position and the zoom persist. Position is clamped through
+   `client/overlay-inset.ts`: inside the official Electron desktop (a 40 px
+   caption strip on Windows, the 48 px traffic-light band on macOS) the panel's
+   top edge stops below the shell's window chrome instead of slipping under the
+   caption or the native window buttons; plain web publishes no such band and
+   keeps its previous placement.
 4. **Notifications** — when a session finishes a round, a toast appears
    (auto-dismiss or confirm-required per the settings). Click **跳转** to jump,
    **知道了** to dismiss.

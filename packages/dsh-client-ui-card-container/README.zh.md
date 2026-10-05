@@ -77,7 +77,9 @@ ctx.slots.inject('widgets.card', () => ctx.slots.register({
 
 在**小组件管理**设置页的「卡片容器」行点**添加**。面板默认出现在左上角（拖动头部
 可移动）。把托盘 chip 拖进网格停靠、拖动卡片排序、点 × 移出，用**配置**修改列数或
-重置布局。
+重置布局。官方 Electron 桌面端会在文档顶部画自己的窗口 chrome（Windows 40px 标题条 /
+macOS 48px 红绿灯带），面板位置与拖动都经 `client/overlay-inset.ts` 钳制在该带之下，
+不会钻到标题条或原生窗口按钮下面；网页端没有该带，位置行为不变。
 
 ## 开发说明
 

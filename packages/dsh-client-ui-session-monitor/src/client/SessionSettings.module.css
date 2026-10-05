@@ -51,6 +51,15 @@
   color: var(--dsw-alias-label-tertiary, rgba(232, 234, 240, 0.52));
 }
 
+/* Standalone explanatory block inside a section (no control on the row). */
+.desktopHint {
+  padding: 8px 2px;
+  font-size: 11.5px;
+  line-height: 1.5;
+  color: var(--dsw-alias-label-tertiary, rgba(232, 234, 240, 0.52));
+  border-bottom: 1px solid var(--dsw-alias-border-l1, rgba(255, 255, 255, 0.06));
+}
+
 .control {
   flex: none;
   display: flex;

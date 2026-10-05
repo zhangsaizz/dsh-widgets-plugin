@@ -19,6 +19,7 @@ import type { DockCorner } from './store.ts'
 import {
   CollapseIcon, DockIcon, DockToCardIcon, GridModeIcon, MinusIcon, PlusIcon, RefreshIcon, trendIcon,
 } from './icons.tsx'
+import { overlayTopInset } from './overlay-inset.ts'
 import css from './BalanceWidget.module.css'
 
 /** Injected business face: the live balance source and the manual refresh verb. */
@@ -77,14 +78,18 @@ function resolvedAccount(view: BalanceViewState): BalanceAccount | null {
   return null
 }
 
-/** Position style for one dock corner (or the free position). */
+/** Position style for one dock corner (or the free position). The top corners
+ *  clear the desktop shell's window chrome through {@link overlayTopInset}; a
+ *  restored free position is floored here too, so a y saved on the web (or by a
+ *  window that has since gained the band) cannot paint its first frame inside
+ *  the Windows caption's window-drag strip. */
 function positionStyle(dock: DockCorner, position: { x: number; y: number }): CSSProperties {
   switch (dock) {
-    case 'top-left': return { top: DOCK_INSET, left: DOCK_INSET }
-    case 'top-right': return { top: DOCK_INSET, right: DOCK_INSET }
+    case 'top-left': return { top: overlayTopInset(DOCK_INSET), left: DOCK_INSET }
+    case 'top-right': return { top: overlayTopInset(DOCK_INSET), right: DOCK_INSET }
     case 'bottom-left': return { bottom: DOCK_INSET, left: DOCK_INSET }
     case 'bottom-right': return { bottom: DOCK_INSET, right: DOCK_INSET }
-    case 'free': return { left: position.x, top: position.y }
+    case 'free': return { left: position.x, top: Math.max(position.y, overlayTopInset(0)) }
   }
 }
 
@@ -341,7 +346,10 @@ export function BalanceWidget(props: BalanceWidgetProps) {
       const w = settings.collapsed ? (pillRect?.width ?? rect.width) : rect.width
       const h = settings.collapsed ? (pillRect?.height ?? rect.height) : rect.height
       const x = clampAxis(rect.left, w, window.innerWidth)
-      const y = clampAxis(rect.top, h, window.innerHeight)
+      // Floor with the shell's window-chrome band alone (0 on plain web), not
+      // with the corner inset: a free widget could always be dragged flush to
+      // the top edge before this change, and still can.
+      const y = clampAxis(rect.top, h, window.innerHeight, overlayTopInset(0))
       if (x !== rect.left || y !== rect.top) actions.setPosition(x, y)
     }
     clampToViewport()
@@ -634,16 +642,21 @@ export function BalanceWidget(props: BalanceWidgetProps) {
   )
 }
 
-/** Clamp one axis so a `size`-px element stays inside the `viewport` extent. */
-function clampAxis(value: number, size: number, viewport: number): number {
-  return Math.min(Math.max(value, 0), Math.max(0, viewport - size))
+/** Clamp one axis so a `size`-px element stays inside the `viewport` extent,
+ *  no closer to the leading edge than `min` (the shell's window-chrome band, or
+ *  0 on plain web). */
+function clampAxis(value: number, size: number, viewport: number, min = 0): number {
+  return Math.min(Math.max(value, min), Math.max(min, viewport - size))
 }
 
-/** Choose the nearest viewport corner within the snap threshold, else free. */
+/** Choose the nearest viewport corner within the snap threshold, else free.
+ *  Only the top edge measures from the window-chrome band: it is the edge the
+ *  band pushes the top-corner targets away from, while the other three edges
+ *  have no such offset (their targets stay DOCK_INSET from the viewport). */
 function snapCorner(x: number, y: number): DockCorner {
   const nearLeft = x < SNAP_THRESHOLD
   const nearRight = x > window.innerWidth - SNAP_THRESHOLD
-  const nearTop = y < SNAP_THRESHOLD
+  const nearTop = y < overlayTopInset(0) + SNAP_THRESHOLD
   const nearBottom = y > window.innerHeight - SNAP_THRESHOLD
   if (nearLeft && nearTop) return 'top-left'
   if (nearRight && nearTop) return 'top-right'
@@ -656,7 +669,7 @@ function snapCorner(x: number, y: number): DockCorner {
 function snapRect(rect: DOMRect): DockCorner {
   const nearLeft = rect.left < SNAP_THRESHOLD
   const nearRight = rect.right > window.innerWidth - SNAP_THRESHOLD
-  const nearTop = rect.top < SNAP_THRESHOLD
+  const nearTop = rect.top < overlayTopInset(0) + SNAP_THRESHOLD
   const nearBottom = rect.bottom > window.innerHeight - SNAP_THRESHOLD
   if (nearLeft && nearTop) return 'top-left'
   if (nearRight && nearTop) return 'top-right'
@@ -700,9 +713,10 @@ interface SnapTarget {
 function snapTarget(x: number, y: number, w: number, h: number): SnapTarget | null {
   const vw = window.innerWidth
   const vh = window.innerHeight
+  const top = overlayTopInset(DOCK_INSET)
   const candidates: readonly SnapTarget[] = [
-    { dock: 'top-left', pos: { x: DOCK_INSET, y: DOCK_INSET } },
-    { dock: 'top-right', pos: { x: vw - w - DOCK_INSET, y: DOCK_INSET } },
+    { dock: 'top-left', pos: { x: DOCK_INSET, y: top } },
+    { dock: 'top-right', pos: { x: vw - w - DOCK_INSET, y: top } },
     { dock: 'bottom-left', pos: { x: DOCK_INSET, y: vh - h - DOCK_INSET } },
     { dock: 'bottom-right', pos: { x: vw - w - DOCK_INSET, y: vh - h - DOCK_INSET } },
   ]
@@ -738,10 +752,11 @@ function resolveMagneticDrag(
   } else {
     state.snap = null
     // Restrict the movement range: the dragged element (panel box, or the
-    // pill while collapsed) always stays fully inside the viewport.
+    // pill while collapsed) always stays fully inside the viewport — and below
+    // the desktop shell's window chrome.
     latest.current = {
       x: clampAxis(x, state.size.w, window.innerWidth),
-      y: clampAxis(y, state.size.h, window.innerHeight),
+      y: clampAxis(y, state.size.h, window.innerHeight, overlayTopInset(0)),
     }
   }
 }

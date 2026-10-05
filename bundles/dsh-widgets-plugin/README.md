@@ -6,7 +6,9 @@ An installable **bundle** for the DeepSeek Harness widgets collection: one
 `cordis.patch.yml` insertion layer that mounts all widget plugins at once —
 the balance dashboard (`@dsh-plugins/balance`), the token-crit widget
 (`@dsh-plugins/client-ui-token-crit`), the session monitor dashboard
-(`@dsh-plugins/client-ui-session-monitor`) and the widgets manager settings
+(`@dsh-plugins/client-ui-session-monitor`), the card container
+(`@dsh-plugins/client-ui-card-container`), rainbow-flow
+(`@dsh-plugins/client-ui-rainbow-flow`) and the widgets manager settings
 page (`@dsh-plugins/client-ui-widget-manager`).
 
 ## Installation (published, recommended)
@@ -47,11 +49,26 @@ bundle). After changing code, run `pnpm build` at the repo root to refresh the
 > no build, and the bundle's `workspace:*` dependencies cannot resolve outside a
 > workspace. Distribute via npm publish or a `pnpm pack` tarball instead.
 
+## Official desktop (Electron)
+
+The same bundle installs into the desktop profile (`dsh plugin --profile
+desktop add <bundle path>`; fully quit the app first and restart it afterwards,
+because the bundle layer is startup composition). **A `link:` install from this
+repo must also link the six `@dsh-plugins/*` packages into the profile**: the
+bundle declares them as `workspace:*`, which pnpm inside the profile cannot
+resolve, and `link:` does not install dependencies — without them each plugin
+resolves its own copy of `@deepseek-ai/*` from the repo path, i.e. duplicate
+instances. The published npm install needs none of this (pnpm installs the six
+packages as ordinary dependencies of the profile). Full commands, the isolated
+pre-flight profile and the floating widgets' window-chrome inset are documented
+in the root AGENTS.md, section "DSH 桌面端（Electron）".
+
 ## Structure
 
 - `cordis.patch.yml` — one insertion layer: `balance` → `ui-token-crit` →
-  `ui-session-monitor` → `ui-widget-manager`, referencing the plugins by package
-  name (provided by `dependencies`).
+  `ui-session-monitor` → `ui-card-container` → `ui-rainbow-flow` →
+  `ui-widget-manager`, referencing the plugins by package name (provided by
+  `dependencies`).
 - `package.json` — `dsh.bundle.patch` points at that patch; `files` contains
   only `cordis.patch.yml`.
 

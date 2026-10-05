@@ -96,6 +96,11 @@ From the **小组件管理** (Widgets) settings page, click **添加** on the
 **卡片容器** row. The panel appears (top-left by default; drag the header to
 move it). Drag tray chips into the grid to dock, drag cards to reorder, click
 × to undock, and use **配置** to change the column count or reset the layout.
+The official Electron desktop paints its own window chrome at the top of the
+document (a 40 px caption strip on Windows, the 48 px traffic-light band on
+macOS); the panel's position and drag are clamped below that band through
+`client/overlay-inset.ts`, so it never slips under the caption or the native
+window buttons. Plain web has no such band and keeps the original placement.
 
 ## Development
 

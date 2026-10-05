@@ -28,6 +28,7 @@ import {
 } from './controller.ts'
 import type { CardContainerController, ColumnSetting, ContainerSnapshot } from './controller.ts'
 import type { CardSpec } from './cards.tsx'
+import { overlayTopInset } from './overlay-inset.ts'
 import css from './CardContainerWidget.module.css'
 
 /** Injected business face: the container controller source + dock verbs. */
@@ -92,12 +93,14 @@ const PANEL_W = 380
  *  widget and its config panel). Re-exported here for backward compat. */
 export type { ColumnSetting } from './controller.ts'
 
-/** Keep the panel's top-left inside the viewport (with a small margin). */
+/** Keep the panel's top-left inside the viewport (with a small margin, and
+ *  below the desktop shell's window chrome). */
 function clampToViewport(x: number, y: number, w: number, h: number): { x: number; y: number } {
   const m = 6
+  const top = overlayTopInset(m)
   return {
     x: Math.round(Math.min(Math.max(x, m), Math.max(m, window.innerWidth - w - m))),
-    y: Math.round(Math.min(Math.max(y, m), Math.max(m, window.innerHeight - h - m))),
+    y: Math.round(Math.min(Math.max(y, top), Math.max(top, window.innerHeight - h - m))),
   }
 }
 
@@ -660,7 +663,10 @@ export function CardContainerWidget(props: CardContainerWidgetProps) {
   }
   if (pos) {
     anchorStyle.left = pos.x
-    anchorStyle.top = pos.y
+    // Floor the first painted frame too: the mount effect clamps after paint,
+    // and an unclamped frame inside the Windows caption's drag strip would let
+    // a click there move the window instead of the panel.
+    anchorStyle.top = Math.max(pos.y, overlayTopInset(0))
   } else {
     anchorStyle.left = DEFAULT_LEFT
     anchorStyle.top = DEFAULT_TOP

@@ -3,5 +3,5 @@
 # editing either side, bring the other along and re-record with:
 #   git hash-object packages/dsh-client-ui-card-container/README.md
 #   git hash-object packages/dsh-client-ui-card-container/README.zh.md
-README.md: 0f133a950fb6d5715bf6b6597b4b95d23a7aaf14
-README.zh.md: c087a50f7bf7f65710466e9b558c104de023336b
+README.md: 0c4ec44174c2a1601444a9667d5dd32a92f9dafd
+README.zh.md: e321c59573df0ae4ed7e76cf110ce0a6144875f6

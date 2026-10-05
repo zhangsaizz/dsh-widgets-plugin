@@ -192,7 +192,10 @@
 
 .modalOverlay {
   position: fixed;
-  inset: 0;
+  /* Start below the desktop shell's caption strip, like the harness's own
+     Modal (its mask must not dim the Application/Edit menu, and a click there
+     must not be swallowed). `--dsh-frame-chrome-top` is 0 on plain web. */
+  inset: var(--dsh-frame-chrome-top, 0px) 0 0;
   z-index: 1000;
   display: flex;
   align-items: center;

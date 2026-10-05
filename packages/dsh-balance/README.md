@@ -65,7 +65,13 @@ hover tooltip / loading states, light & dark themes](../../docs/previews/balance
   hover tip use a **liquid-glass** material — the same recipe as the
   rainbow-flow input box (translucent white glass gradient + light frosted
   backdrop blur + 1 px edge reflections + soft drop shadow, with theme-aware
-  dark/light glass palettes).
+  dark/light glass palettes). **Desktop:** the official Electron shell paints
+  its own window chrome in the document (a 40 px caption strip on Windows, the
+  48 px traffic-light band on macOS); the dashboard's corner dock, drag,
+  position clamp and snap test all raise their top edge to that band + 20 px
+  through `client/overlay-inset.ts`, so the widget never slips under the
+  caption strip or the native window buttons. Plain web publishes no such band
+  and keeps the original placement.
 
 ## Installation
 

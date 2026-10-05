@@ -87,7 +87,12 @@ No configuration is needed after mounting — open any session to see the widget
    cumulative token usage (input / cached read / cached write / output) in real
    time, with crit animations and `+N` damage numbers as usage grows.
 2. **Reshape it** — drag the header to move, drag a corner to resize, click the
-   collapse button to shrink it to a compact pill.
+   collapse button to shrink it to a compact pill. The badge and its settings
+   panel are clamped through `client/overlay-inset.ts`: inside the official
+   Electron desktop (a 40 px caption strip on Windows, the 48 px
+   traffic-light band on macOS) the top edge stops below the shell's window
+   chrome instead of slipping under the caption or the native window buttons;
+   plain web has no such band and keeps the original placement.
 3. **Open settings** — click the ⚙ on the widget to adjust language (zh/en),
    number format / font size, label, combo, particle count and color, crit
    threshold / ratio, sound, edge glow in real time; all settings (panel
