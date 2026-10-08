@@ -378,6 +378,61 @@ export function overlayTopInset(fallback: number): number {
   `-webkit-app-region: drag`）：拖动区的组合规则按 DOM 顺序取第一个声明者，内容容器从来
   不是拖动区。
 
+### 2.7 配置项只显示当前环境能生效的那些
+
+同一份配置面板会出现在三种宿主环境里，**不要渲染当前环境根本无法生效的开关**——
+用户打开的是「能用的配置」，不是一个点了没反应的复选框：
+
+| 环境 | 判定 | 该环境里能生效的典型东西 |
+|---|---|---|
+| `web` | 默认（既无 `__TAURI__` 也无 `dshDesktop`）：`dsh web` 的浏览器标签页；Tauri 挂件只连这个部署（127.0.0.1:3080） | 拉起/控制自建 Tauri 挂件的开关、桌面 inbox 的已读策略 |
+| `official-desktop` | `window.dshDesktop`（官方 Electron 壳在 `dsh-app://app/` 下暴露） | 只有渲染进程里的东西；没有第二个进程可拉起 |
+| `tauri` | `window.__TAURI__`（自建 Tauri 小窗的 WebView） | 挂件页自己的设置；浮窗/看板那套配置面板在此不渲染 |
+
+判定用**每包一份**的 `src/client/environment.ts`（与 `overlay-inset.ts` 同一套「包独立
+发布，不跨包依赖」的先例）：`detectEnvironment()` 给出上面的三值，另有 API 能力探针
+`supportsSystemNotifications()` / `supportsAudioChime()`。面板里第一行就取好判定，
+渲染时按它过滤：
+
+```tsx
+// src/client/SessionSettings.tsx（session-monitor 的实际写法）
+import { detectEnvironment, supportsAudioChime, supportsSystemNotifications } from './environment.ts'
+
+const environment = detectEnvironment()
+const officialDesktop = environment === 'official-desktop'
+/** 自建 Tauri 挂件只连网页版部署，它的三项设置只在 web 有意义。 */
+const companionRows = environment === 'web'
+const canNotify = supportsSystemNotifications()   // 缺失 → 整行不渲染
+const canChime = supportsAudioChime()
+…
+{canChime && <Row label={t('soundLabel')}>…</Row>}
+{(officialDesktop || companionRows) && (
+  <Section title={t('sectionDesktop')}>
+    {officialDesktop
+      ? <div className={css.desktopHint}>{t('desktopNativeHint')}</div>
+      : <>{/* 三项 Tauri 专属行 */}</>}
+  </Section>
+)}
+```
+
+规则：
+
+- **该藏就藏，但别让用户猜**：整段配置在当前环境完全无意义时直接不渲染该段；只缺其中
+  一两项、或需要解释替代方案时（官方桌面端就是这种情况），保留一句说明文案比整块消失
+  更好。
+- **能力探针缺失就省略整行**（连它旁边的权限提示行一起省略）：一个永远打不开的开关
+  比没有这个选项更糟。权限「被拒」不算缺失（要保留授权引导）。
+- **文案也可以按环境切换**：小组件管理页的安装指引按壳选 `installStep*NoteWeb` /
+  `installStep*NoteDesktop`（profile 名与重启方式不同）。
+- **拷贝必须逐字节一致**（只有模块 docblock 可不同），`scripts/build.mjs` 会扫描
+  `packages/*/src/client/environment.ts` 并在漂移时让构建失败；少于两份拷贝时构建也会
+  直接失败（否则这道防线会被静默拆掉）。新增第三个拷贝时无需改脚本，但**新增后要自己
+  核对**它与其他拷贝从 `/** Which shell hosts this page. */` 起完全相同。
+- **已知边界**：判定只看文档级桥，拿不到 host/profile 信号。用浏览器直接打开官方桌面端
+  Host（`GET /` 401 后控制台打印的那条带 token 的 `127.0.0.1:19387` URL）会被判成 `web`，
+  Tauri 专属行照常显示，而 companion 只连网页版部署（3080）——这是既有行为（客户端无法
+  区分该 host 形态），记录即可，别为此去猜 host。
+
 ---
 
 ## 3. 完整示例：带配置面板与容器卡片的时钟挂件

@@ -111,10 +111,15 @@
    桌面挂件应用**（未运行则启动并直接唤出窗口，已运行则把窗口带到前台），桌面挂件
    随即开始轮询会话与通知；关闭后桌面挂件停止轮询与提醒并显示「已暂停」状态，网页
    挂件不受影响；该设置经 Host 与桌面端实时共享，任意一侧改动另一侧几秒内自动生效。
-   **官方 Electron 桌面端里这个开关会换成一句说明**：官方桌面端的看板就在主窗口内，
-   没有需要拉起的第二个进程（`client/desktop-shell.ts` 用 `window.dshDesktop` 与
-   `window.__TAURI__` 区分两种壳）；后台提醒改用上方的**浏览器通知**。`dsh-smon://`
-   深链、`/jump` 跳转队列与独立挂件页只服务于自建的 Tauri 小窗。
+   **配置面板只渲染当前环境能生效的行**（`client/environment.ts` 按 `window.__TAURI__`
+   与 `window.dshDesktop` 把宿主分成 web / 官方 Electron 桌面 / Tauri 三种）：
+   Tauri 挂件专属的三项——本开关与桌面 inbox 的「处理后自动已读」「打开时自动全部已读」
+   ——只在 **web** 页面渲染（Tauri 小窗只连网页版部署 127.0.0.1:3080），**官方 Electron
+   桌面端里整段「桌面」区换成一句说明**（看板就在主窗口内，没有需要拉起的第二个进程），
+   后台提醒改用上方的**浏览器通知**；宿主壳没有的 API（`Notification` / WebAudio）对应行
+   整行省略，不留永远打不开的开关。`dsh-smon://` 深链只拉起自建的 Tauri 小窗
+   （它连的是网页版部署 127.0.0.1:3080）；独立挂件页与 `/jump` 跳转队列由 Host 提供，
+   该页在普通浏览器标签页里同样可用——上面这三项也能在它自己的 ⚙ 里改。
 
 ## 桌面挂件（通知列表）
 
@@ -172,6 +177,7 @@ src/client/SessionMonitorWidget.module.css
 src/client/SessionSettings.tsx
 src/client/SessionSettings.module.css
 src/client/settings.ts        # 共享设置 / 位置持久化 + 提示音
+src/client/environment.ts     # 宿主环境判定 + 能力探针（web / 官方桌面 / Tauri）
 src/client/locales.ts         # 字典 NS `session-monitor`（zh / en）
 docs/                         # 通知列表重构设计稿 + 交互原型
 lib/index.js                  # Host 构建产物（ESM）

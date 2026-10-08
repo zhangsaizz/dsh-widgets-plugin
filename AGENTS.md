@@ -474,11 +474,19 @@ $env:DSH_HOME="$env:TEMP\dsh-preflight"; "…/dsh.cmd" widgettest --from-default
   `--dsh-frame-overlay-top`**：它全屏降到 20px，而 Windows 标题条的「应用/编辑」菜单与
   macOS 折叠侧栏的窗口控件是全屏也仍在的 `position: fixed` 元素。新增浮窗按
   `WIDGET-DEVELOPMENT.md` §2.6 照做。
-- **会话监控的桌面开关**：配置面板的「桌面端会话监控」（`dsh-smon://` 拉起 Tauri 挂件）只在
-  自建 Tauri 壳有意义；官方桌面端里窗口就是看板，该行换成说明文案
-  （`client/desktop-shell.ts` 的 `inOfficialDesktop()` 读 `window.dshDesktop`——官方壳在
-  `dsh-app://app/` 下暴露它，Tauri 壳暴露 `window.__TAURI__`），后台提醒交给既有的
-  「浏览器通知」开关。跳转仍走 `ctx.uiWorkspace.openSession`（客户端服务，桌面端可用）；
+- **配置面板按环境过滤**：配置弹窗与 Plugins 行的配置页只渲染**当前环境能生效**的选项。
+  判定集中在每包一份的 `src/client/environment.ts`：`detectEnvironment()` 返回 `web` /
+  `official-desktop` / `tauri`（官方 Electron 壳在 `dsh-app://app/` 下暴露 `window.dshDesktop`，
+  自建 Tauri 壳暴露 `window.__TAURI__`；两份拷贝由 `scripts/build.mjs` 断言逐字节一致）。
+  - **会话监控**：Tauri 挂件专属的三项——「桌面端会话监控」（`dsh-smon://` 拉起）、桌面 inbox 的
+    「处理后自动已读」与「打开时自动全部已读」——只在 **web** 环境渲染：该挂件只与网页版部署
+    （127.0.0.1:3080）通信，官方桌面端里**整段「桌面」区只留说明文案**（窗口即看板，后台提醒交给
+    既有的「浏览器通知」开关）。`Notification` / WebAudio 缺失时，对应的「浏览器通知」「提示音」
+    行整行省略，不留一个永远打不开的开关。
+  - **小组件管理页**：安装指引按壳切换文案——Web 用 web profile + 重启 `dsh web`；官方桌面端用
+    固定的 desktop profile（或应用内「插件」页安装）+ 完全退出重开。
+  新增挂件按 `WIDGET-DEVELOPMENT.md` §2.7 照做。
+- **会话监控跳转**：跳转仍走 `ctx.uiWorkspace.openSession`（客户端服务，桌面端可用）；
   `window.focus()` 无法把隐藏的 Electron 窗口提到前台，这是壳的限制。
 - 线协议、`dsh.client` 行、seed 模块表与 Web 端完全一致，**Host/wire 面无需改动**。
 

@@ -9,6 +9,11 @@
  * Desktop) for scannability, and each row renders its label as a wrapping
  * `<label>` so screen readers associate the label with its control AND the
  * whole row is a click target (bigger hit area than the bare input).
+ *
+ * Rows are filtered by environment (./environment.ts): the Desktop rows
+ * configure the Tauri companion, which only the Web deployment can launch, and
+ * a row whose API is missing from the hosting shell (Notification, WebAudio) is
+ * omitted rather than rendered as a switch that can never turn on.
  */
 
 import { useEffect, useState } from 'react'
@@ -18,7 +23,7 @@ import {
   DEFAULT_SETTINGS, POS_KEY, SCALE_KEY, SETTINGS_CHANGED_EVENT, loadSettings, saveSettings,
 } from './settings.ts'
 import type { MonitorSettings } from './settings.ts'
-import { inOfficialDesktop } from './desktop-shell.ts'
+import { detectEnvironment, supportsAudioChime, supportsSystemNotifications } from './environment.ts'
 import css from './SessionSettings.module.css'
 
 /** Injected face: just the locale seat. */
@@ -76,11 +81,21 @@ function launchDesktopApp(): void {
 
 export function SessionSettings({ t }: SessionSettingsInjected) {
   const [settings, setSettings] = useState<MonitorSettings>(loadSettings)
-  /** The official Electron desktop hosts this page, so the Tauri companion
-   *  switch below has nothing to launch. */
-  const officialDesktop = inOfficialDesktop()
+  /** Which shell hosts this panel — every row that only one deployment can
+   *  honour is gated on it (see ./environment.ts). */
+  const environment = detectEnvironment()
+  /** The official Electron desktop hosts this page itself, so the Tauri
+   *  companion rows have nothing to launch, jump to or ack there. */
+  const officialDesktop = environment === 'official-desktop'
+  /** The companion is launched from — and only from — the WEB page: it talks to
+   *  the loopback Web deployment, never to the desktop app's own Host. */
+  const companionRows = environment === 'web'
+  /** Rows whose API the hosting shell does not expose are omitted entirely
+   *  rather than shown broken (a switch that can never be turned on). */
+  const canNotify = supportsSystemNotifications()
+  const canChime = supportsAudioChime()
   const [perm, setPerm] = useState<'default' | 'granted' | 'denied' | 'unsupported'>(
-    () => typeof Notification !== 'undefined' ? Notification.permission : 'unsupported',
+    () => canNotify ? Notification.permission : 'unsupported',
   )
   /** Which reset button just fired (transient feedback), so the action is
    *  visibly acknowledged. */
@@ -157,34 +172,40 @@ export function SessionSettings({ t }: SessionSettingsInjected) {
             </Row>
             )
           : null}
-        <Row label={t('soundLabel')}>
-          <input type="checkbox" checked={settings.sound} onChange={(e) => update({ sound: e.target.checked })} />
-        </Row>
-        <Row label={t('browserNotifyLabel')} hint={t('browserNotifyDesc')}>
-          <input
-            type="checkbox"
-            checked={settings.browserNotify}
-            onChange={async (e) => {
-              const want = e.target.checked
-              if (!want) { update({ browserNotify: false }); return }
-              if (typeof Notification === 'undefined') { update({ browserNotify: false }); return }
-              let permission = Notification.permission
-              if (permission === 'default') {
-                try { permission = await Notification.requestPermission() } catch { /* denied */ }
-              }
-              setPerm(permission)
-              if (permission === 'granted') update({ browserNotify: true })
-              else update({ browserNotify: false })
-            }}
-          />
-        </Row>
-        <div className={css.permLine}>
-          {perm === 'granted'
-            ? <span className={css.permOk}>{t('permGranted')}</span>
-            : perm === 'denied'
-              ? <span className={css.permBad}>{t('permDenied')}</span>
-              : <span className={css.permMuted}>{t('permAsk')}</span>}
-        </div>
+        {canChime && (
+          <Row label={t('soundLabel')}>
+            <input type="checkbox" checked={settings.sound} onChange={(e) => update({ sound: e.target.checked })} />
+          </Row>
+        )}
+        {canNotify && (
+          <>
+            <Row label={t('browserNotifyLabel')} hint={t('browserNotifyDesc')}>
+              <input
+                type="checkbox"
+                checked={settings.browserNotify}
+                onChange={async (e) => {
+                  const want = e.target.checked
+                  if (!want) { update({ browserNotify: false }); return }
+                  if (typeof Notification === 'undefined') { update({ browserNotify: false }); return }
+                  let permission = Notification.permission
+                  if (permission === 'default') {
+                    try { permission = await Notification.requestPermission() } catch { /* denied */ }
+                  }
+                  setPerm(permission)
+                  if (permission === 'granted') update({ browserNotify: true })
+                  else update({ browserNotify: false })
+                }}
+              />
+            </Row>
+            <div className={css.permLine}>
+              {perm === 'granted'
+                ? <span className={css.permOk}>{t('permGranted')}</span>
+                : perm === 'denied'
+                  ? <span className={css.permBad}>{t('permDenied')}</span>
+                  : <span className={css.permMuted}>{t('permAsk')}</span>}
+            </div>
+          </>
+        )}
         <Row label={t('notifyCurrentLabel')} hint={t('notifyCurrentDesc')}>
           <input type="checkbox" checked={settings.notifyCurrent} onChange={(e) => update({ notifyCurrent: e.target.checked })} />
         </Row>
@@ -221,34 +242,41 @@ export function SessionSettings({ t }: SessionSettingsInjected) {
         </Row>
       </Section>
 
-      <Section title={t('sectionDesktop')}>
-        {officialDesktop
-          // The official Electron desktop IS the host of this panel: there is
-          // no second process for `dsh-smon://` to launch or surface, so the
-          // Tauri companion switch is replaced by what actually applies there
-          // (the system-notification switch above).
-          ? <div className={css.desktopHint}>{t('desktopNativeHint')}</div>
-          : (
-            <Row label={t('desktopMonitorLabel')} hint={t('desktopMonitorDesc')}>
-              <input
-                type="checkbox"
-                checked={settings.desktopMonitor}
-                onChange={(e) => {
-                  update({ desktopMonitor: e.target.checked })
-                  // Turning monitoring ON also launches / surfaces the desktop app
-                  // (Tauri shell) via the dsh-smon:// protocol.
-                  if (e.target.checked) launchDesktopApp()
-                }}
-              />
-            </Row>
+      {(officialDesktop || companionRows) && (
+        <Section title={t('sectionDesktop')}>
+          {officialDesktop
+            // The official Electron desktop IS the host of this panel, and the
+            // companion these three rows configure is launched from — and only
+            // talks to — the web deployment, so it is out of reach in this
+            // shell. They are replaced by what actually applies here (the
+            // system-notification switch above); the same three switches stay
+            // editable in the standalone widget page's own ⚙ panel, which any
+            // Host serves.
+            ? <div className={css.desktopHint}>{t('desktopNativeHint')}</div>
+            : (
+              <>
+                <Row label={t('desktopMonitorLabel')} hint={t('desktopMonitorDesc')}>
+                  <input
+                    type="checkbox"
+                    checked={settings.desktopMonitor}
+                    onChange={(e) => {
+                      update({ desktopMonitor: e.target.checked })
+                      // Turning monitoring ON also launches / surfaces the desktop app
+                      // (Tauri shell) via the dsh-smon:// protocol.
+                      if (e.target.checked) launchDesktopApp()
+                    }}
+                  />
+                </Row>
+                <Row label={t('ackOnJumpLabel')} hint={t('ackOnJumpDesc')}>
+                  <input type="checkbox" checked={settings.ackOnJump} onChange={(e) => update({ ackOnJump: e.target.checked })} />
+                </Row>
+                <Row label={t('autoAckOnOpenLabel')} hint={t('autoAckOnOpenDesc')}>
+                  <input type="checkbox" checked={settings.autoAckOnOpen} onChange={(e) => update({ autoAckOnOpen: e.target.checked })} />
+                </Row>
+              </>
             )}
-        <Row label={t('ackOnJumpLabel')} hint={t('ackOnJumpDesc')}>
-          <input type="checkbox" checked={settings.ackOnJump} onChange={(e) => update({ ackOnJump: e.target.checked })} />
-        </Row>
-        <Row label={t('autoAckOnOpenLabel')} hint={t('autoAckOnOpenDesc')}>
-          <input type="checkbox" checked={settings.autoAckOnOpen} onChange={(e) => update({ autoAckOnOpen: e.target.checked })} />
-        </Row>
-      </Section>
+        </Section>
+      )}
 
       <div className={css.actions}>
         <button

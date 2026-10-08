@@ -28,13 +28,13 @@
 | 11 | Token 暴击挂件 `TokenCritWidget` | Web 挂件 | `@dsh-plugins/client-ui-token-crit` | `shell.overlay`（order 50） | 透明可拖动/缩放的 token 用量计数器 + 暴击动效 + 设置面板 |
 | 12 | 会话监控看板 `SessionMonitorWidget` | Web 挂件 | `@dsh-plugins/client-ui-session-monitor` | `shell.overlay`（order 90） | 列出运行中/空闲/本轮完成的会话（子代理默认过滤、可配置时间范围默认 1h），完成一轮主动弹提醒（按状态配色：完成/待处理/出错/中止/阻塞/token 上限等，可自动消失或需确认），点击行一键跳转；**任务进度显示**（有任务在执行的会话带动画进度条 + 「第 N 轮 · 正在执行 <工具>」/子代理/后台任务标签，**多种活动并存时颜色与标签轮换**，工具与轮次由 Host 半折叠；**目标模式会话升级为确定进度条**「目标 第 X/Y 轮」，读 `projectionValues.goal` 实时百分比）；**未读 inbox 徽标**（头部 + 收起胶囊，5s 轮询 `/notifications`，点击跳最新未读会话并标记已读）；可收起为胶囊、拖角缩放；面板/胶囊/提醒条为**液态玻璃**材质（与彩虹流光输入框同一配方） |
 | 13 | 会话监控 Host 半 + 状态路由 + 通知 inbox | Host 插件 + Web 路由 | `@dsh-plugins/client-ui-session-monitor` | `/_dsh/session-monitor/status` 等 9 条路由 | 监听 `turn/end` 记录结束原因（completed/aborted/blocked/error/max-tokens/interrupted）+ **`tool/call`→`tool/result` 折叠每会话执行中的工具**（`tools` 表）+ 累计轮次（`rounds` 表），浏览器半 3s 轮询取回；另把会话事件折叠为**持久化通知 inbox**（审批/回答/计划/出错/阻塞/token 上限/完成一轮/子代理完成等，已读状态存 Host，桌面与网页共享） |
-| 14 | 会话监控配置面板 `SessionSettings` | Web 配置弹窗 | `@dsh-plugins/client-ui-session-monitor` | `widgets.config`（管理器「配置」弹窗） | 提醒开关/关闭方式/秒数/音效/提醒范围与列表显示选项 + **「桌面端会话监控」开关**（默认关，打开时经 `dsh-smon://` 拉起桌面应用并开始监控，关闭后桌面挂件暂停），localStorage 持久化；**官方 Electron 桌面端里该开关换成一句说明文案**（窗口即看板，后台提醒用「浏览器通知」，见组件 31） |
+| 14 | 会话监控配置面板 `SessionSettings` | Web 配置弹窗 | `@dsh-plugins/client-ui-session-monitor` | `widgets.config`（管理器「配置」弹窗） | 提醒开关/关闭方式/秒数/音效/提醒范围与列表显示选项 + **「桌面端会话监控」开关**（默认关，打开时经 `dsh-smon://` 拉起桌面应用并开始监控，关闭后桌面挂件暂停），localStorage 持久化；**按环境过滤（组件 31）**：Tauri 挂件专属的三项（该开关 + 桌面 inbox 的「处理后自动已读」「打开时自动全部已读」）只在 **web** 环境渲染（该挂件只与网页版部署 127.0.0.1:3080 通信），官方 Electron 桌面端**整段「桌面」区只留说明文案**（窗口即看板，后台提醒用「浏览器通知」）；`Notification` / WebAudio 缺席时对应的「浏览器通知」「提示音」行整行省略，不留永远打不开的开关 |
 | 15 | 卡片容器 `CardContainerWidget` | Web 挂件 | `@dsh-plugins/client-ui-card-container` | `shell.overlay`（order 20） | 浮动容器面板：**多分组**（顶部分组标签 + ⋯ 管理菜单），托盘列出可停靠挂件，拖入网格即停靠（影子条目隐藏浮窗）、渲染紧凑卡片视图；卡片**实时换位**（ghost 跟随 + 其余让位，拖出网格=移出）、键盘可达（Enter/空格移出、方向键排序）、触屏常显、列数可配、状态持久化；面板/卡片/胶囊/分组菜单为**液态玻璃**材质（与彩虹流光输入框同一配方） |
 | 16 | 卡片容器控制器 `CardContainerController` | 客户端数据层 | `@dsh-plugins/client-ui-card-container` | 注入 hook | 多分组停靠（groups/active 持久化，旧单列表自动迁移）+ 可用托盘投影，注册/释放 priority -2 停靠影子，针对 overlay 台账自我修复 |
 | 17 | 卡片视图 | Web 卡片视图 | `@dsh-plugins/client-ui-token-crit` / `client-ui-session-monitor` / `balance` | `widgets.card`（容器声明子槽，**容器无内置卡片**） | **token-crit、session-monitor、balance 各自注册自己的紧凑卡片**（priority 0：token 用量 / 忙碌会话数 / 实时余额，见各自包源码）；**标准接入规范**（`WidgetCardProps` + 槽级注入面 `CardSlotInject`，见 WIDGET-DEVELOPMENT.md §2.5）：挂件自己注册进 `widgets.card`（id = shell.overlay id、priority 默认 0、显示名优先读 shell.overlay 的 label）即渲染，不注册则用占位卡；卡片可声明**规格**（静态 `spec`：small 1 列 / medium 2 列 / large 整行） |
 | 18 | 卡片容器配置面板 `CardContainerSettings` | Web 配置弹窗 | `@dsh-plugins/client-ui-card-container` | `widgets.config`（管理器「配置」弹窗） | 列数（自适应/2/3/4）+ 清空停靠/重置，localStorage 持久化 |
 | 19 | 安装 bundle | 分发层 | `@dsh-plugins/dsh-widgets-plugin` | `cordis.patch.yml` | 一次插入 6 个插件，一键挂载全部组件 |
-| 20 | 小组件管理页 `WidgetManagerSettings` | Web 设置页 | `@dsh-plugins/client-ui-widget-manager` | `settings.section`（order 10） | 实时列出小组件，支持「添加/关闭」，并为带配置的挂件提供「配置」弹窗；**未安装挂件提供「安装指引」弹窗**（装包命令 + `cordis.yml`/`cordis.patch.yml` 挂载行 + 重启提示）；**支持非 overlay 组件**（`configOnly`，如 rainbow-flow——启用/停用经 window 事件桥控制其自身开关 store，与工具栏圆点双向同步） |
+| 20 | 小组件管理页 `WidgetManagerSettings` | Web 设置页 | `@dsh-plugins/client-ui-widget-manager` | `settings.section`（order 10） | 实时列出小组件，支持「添加/关闭」，并为带配置的挂件提供「配置」弹窗；**未安装挂件提供「安装指引」弹窗**（装包命令 + `cordis.yml`/`cordis.patch.yml` 挂载行 + 重启提示，**按环境只显示适用的一套（组件 31）**：Web = web profile + 重启 `dsh web`；官方桌面端 = 固定 desktop profile/应用内「插件」页 + 完全退出重开）；**支持非 overlay 组件**（`configOnly`，如 rainbow-flow——启用/停用经 window 事件桥控制其自身开关 store，与工具栏圆点双向同步） |
 | 21 | 会话监控桌面快照路由 | Host Web 路由 | `@dsh-plugins/client-ui-session-monitor` | `/_dsh/session-monitor/sessions` | 把实时会话存储折叠成紧凑 JSON 行（running/title/pending/子代理计数等），`tools`/`rounds` 与行级 `goal`（`goal/change` 折叠）同车返回（桌面挂件任务/目标进度条数据），桌面挂件 2s 轮询 |
 | 22 | 会话监控独立挂件页 | Host 托管的独立 Web 页 | `@dsh-plugins/client-ui-session-monitor` | `/_dsh/session-monitor/widget` | 自包含 HTML（无框架）：**「待处理」通知列表（主视图，未读徽标 + 处理/忽略/全部已读 + 级别开关）+ 「会话」列表副 Tab** + 完成一轮 toast + 置顶/隐藏/设置，供桌面壳加载 |
 | 23 | 会话监控桌面悬浮窗壳（可选） | 桌面应用（Tauri 2） | `desktop/dsh-session-desktop` | Windows 桌面 | 无边框/透明/置顶/无任务栏小窗 + 托盘（显示/退出），加载挂件页；启动时探测本机 web 服务、外部导航交系统浏览器。**官方 Electron 桌面端出现之前自建，与官方桌面端互不影响**：官方桌面端里看板就在主窗口内，该壳只在「要一块独立于 Harness 窗口的常驻置顶小窗」时才有意义 |
@@ -46,7 +46,7 @@
 | 29 | 彩虹流光命令卡上色 `toolAccent` | Web 输入框装饰（会话记录命令卡） | `@dsh-plugins/client-ui-rainbow-flow` | 非插槽（`MutationObserver` + `[data-tool]`/`[data-variant="bash"]`/`[data-variant="think"]` 装饰） | 会话记录里模型每个**工具调用（命令）卡片**按工具名启发式分类（shell/read/search/write/edit/code/web/ask/plan/task/memory/other，另 **「Think」思考推理行** `data-variant="think"` 归入 `think` 淡紫类别）：卡片左侧亮起**对应颜色边条**，**相关文字也按类别上色**——**标题用主题感知渐变**（`background-clip: text`）、**前导图标**类别色、**摘要**柔和色调、**读/写/编辑类文件的路径链接（`_fileLink`）**用纯类别色（悬停显示类别名）；读卡片稳定 `data-tool` 属性（**shell 卡是例外**：它由专用卡片组件渲染，只带 `data-variant="bash"`、没有 `data-tool`，故按变体归入 `shell`）→ `classify.ts` 分类 → `data-rf-tool-cat` 属性 + `ToolAccent.css` 上色；**不重渲染卡片、不改产品 DOM**，harness 升级后仍生效（文字按 CSS-module 本地名后缀 `_title`/`_leading`/`_summary` 选中，同发送按钮 `_primary`），未知工具归入"命令"默认色（**读取/规划/编辑**三个家族的边界用 `(_|$)` 而非 `\b`，因此 `read_image`/`str_replace_editor` 会落到本家族；**任务类**（`todo_write`/目标/`schedule_*`/`team_task_*`/`job_*`/`workflow`/`ralph`）统一归入新增的 **task（任务）** 类别，不再落默认色；智能体/团队协作类如 `subagent`/`send_message`/`wait_agent`、以及 `present`/`skill`/`lsp` 按设计仍为默认色。**可见性前提**：行是否可见由工作详情模式决定——`compact`/`standard`（0.1.7 默认）收起每一轮的过程分组，需**展开分组**才可见；`detailed`（0.2.0 默认）只收起已结束轮次，运行中可见；`verbose` 从不折叠。装饰器从不给隐藏行上色）；斜杠命令卡（`conversation.chat.commandview` 的 `GenericCommandCard`，`data-variant="others"`、无 `data-tool`）**不在**上色范围；**每类颜色可按用户配置自定义**（把设置里的 `toolColors` 写成 `<html>` 内联 `--rf-tool-*`，覆盖样式表 `:root` 默认，实时生效）；**折叠父行也上色**（命令行被过程分组收起后 harness 显示两条父行之一：分组标题行 / 已结束轮次的整轮控制行；二者都不是命令行，故 `applyFoldAccents` 分别盖 `data-rf-group-cat` / `data-rf-turn-cat` + 内联 `--rf-tool-accent`，取「其隐藏的最新子命令」类别，图标/文字继承该色；关掉上色开关即移除；最新行动被折叠隐藏时扫字转标该父行 `data-rf-latest-fold`，并与行标记同规则地在正文回复出现后熄灭；不给更旧的可见行打标）；**最新行动（命令/思考）被彩虹扫过（正文除外）**（会话里**最新的一条**——工具卡、shell 卡或 `data-variant="think"` 思考行，`setLatest` 在 `ROW_SELECTOR` 并集里取最晚标 `data-rf-latest`——其 `_title`/`_summary`/`_fileLink` 被**流动的彩虹渐变**（`background-clip: text`）扫过每个字符，输出正文不参与；**跟随最新行动持续**（read/edit 等秒完的命令也亮，不依赖 running），直到**其后出现正文回复**（只按 flow-item 结构判定，0.1.7 下沿嵌套 `[data-chat-flow]` 层级向上找整组之后的正文；被过程折叠策略 `hidden` 的隐藏行不标、隐藏正文不算，不误判 composer）才熄灭）——纯 CSS、不重渲染 DOM、`prefers-reduced-motion` 冻结；**受 `commandSweep` 开关控制**，经本模块写成 `<html>` 的 `data-rf-sweep='on'|'off'` 门控）；命令上色本身**受 `commandColor` 开关控制**（关掉时本模块停止打标签并清除已有 `data-rf-tool-cat`/`title`，命令卡恢复原厂外观；两者均独立于输入框光晕开关） |
 
 | 30 | 桌面端顶栏避让 `overlay-inset.ts` | 客户端工具模块（每包一份） | `@dsh-plugins/balance` / `client-ui-token-crit` / `client-ui-session-monitor` / `client-ui-card-container` | 浮窗定位计算 | 读 `<html>` 上壳公布的 `--dsh-frame-top-clearance`（macOS 48px 红绿灯+窗口控件 / Windows 40px 标题条，后者整条是窗口拖动带），把浮窗「顶边」下界取 `max(传入边距, 该带 + 20)`；无该变量（网页端）时原样返回传入边距。**balance 在角停靠样式、拖动钳制、持久化位置钳制、吸附判定四处调用**（停靠传 `DOCK_INSET`、钳制/吸附传 `0`），token-crit 两处（拖动钳制 + 设置面板定位）、session-monitor 与 card-container 各一处（拖动钳制）；**刻意不用壳的 `--dsh-frame-overlay-top`**（全屏降到 20px，会压到全屏仍在的 Windows 标题条菜单 / macOS 折叠侧栏控件）；按平台标记+标题条标记缓存，避免每 pointermove 读 computed style。四份拷贝由 `scripts/build.mjs` 断言逐字节一致 |
-| 31 | 官方桌面端判定 `desktop-shell.ts` | 客户端工具模块 | `@dsh-plugins/client-ui-session-monitor` | 配置弹窗分支 | `inOfficialDesktop()` 读 `window.dshDesktop`（官方 Electron 壳在 `dsh-app://app/` 下暴露；自建 Tauri 壳暴露 `window.__TAURI__`）；为真时把配置面板的「桌面端会话监控」（`dsh-smon://` 拉起 Tauri 挂件）换成说明文案，后台提醒交给既有「浏览器通知」开关 |
+| 31 | 宿主环境判定 `environment.ts` | 客户端工具模块（每包一份） | `@dsh-plugins/client-ui-session-monitor` / `client-ui-widget-manager` | 配置面板/配置页分支 | `detectEnvironment()` 返回 `web` / `official-desktop` / `tauri`（官方 Electron 壳在 `dsh-app://app/` 下暴露 `window.dshDesktop`；自建 Tauri 壳暴露 `window.__TAURI__`，只与网页版部署通信），另含能力探针 `supportsSystemNotifications()` / `supportsAudioChime()`；**只渲染当前环境能生效的配置项**——会话监控的 Tauri 三项只在 web 渲染、官方桌面端整段「桌面」区换成说明文案，小组件管理页的安装指引按 web/官方桌面端切换 profile 与重启文案。两份拷贝由 `scripts/build.mjs` 断言逐字节一致 |
 
 > 1–10 全部由 `@dsh-plugins/balance` 一个包、一个插件行承载（原 `balance` 缝隙 +
 > `balance-vendors` + `client-ui-balance` 三个包已合并）。
@@ -531,9 +531,13 @@
   **浏览器通知（含权限状态：已授权 / 被拒 / 待授权）**、提醒当前会话开关、
   显示子代理开关（默认关）、只显示运行中、**时间范围**（全部 / 15m / 30m / 1h /
   3h / 6h / 24h，默认 1h）、显示完成标记、**桌面 inbox 的「处理后自动已读」与
-  「打开时自动全部已读」**；另有重置位置/重置设置。**官方 Electron 桌面端**
-  （组件 31 判定为真）里，「桌面端会话监控」那一行换成说明文案，不渲染该开关——
-  该壳没有第二个进程可拉起，后台提醒交给上面的「浏览器通知」。**配置依赖提示**：
+  「打开时自动全部已读」**；另有重置位置/重置设置。**每一行都先过环境判定（组件 31）**：
+  桌面三项（「桌面端会话监控」+ 上述两个 inbox 开关）只在 **web** 渲染——Tauri 挂件只连
+  网页版部署（127.0.0.1:3080）；**官方 Electron 桌面端**（`official-desktop`）里整段
+  「桌面」区只剩一句说明文案（该壳没有第二个进程可拉起，而这三项配置的桌面挂件只连网页版
+  部署、此壳够不到；文案里指路挂件页 ⚙ / 网页端面板，后台提醒交给上面的「浏览器通知」）；
+  Tauri 壳内（`tauri`）该区整段不渲染。`Notification` /
+  WebAudio 缺席时，「浏览器通知」「提示音」两行也整行省略。**配置依赖提示**：
   「只显示运行中」开启时时间范围不生效（运行中豁免窗口、空闲被开关藏掉）——配置
   面板此时对时间范围做视觉淡化并提示"关掉后立即生效"，值仍可预配置；列表的
   「已隐藏 N 个更早的会话」提示只统计时间窗口隐藏数，运行中模式下不显示。
@@ -742,8 +746,9 @@
 > **与官方桌面端的分工**：本节描述的 Tauri 壳是官方 Electron 桌面端（见 AGENTS.md
 > 「DSH 桌面端（Electron）」）出现之前自建的独立置顶悬浮窗。官方桌面端里看板就在主窗口内，
 > 不需要也不应安装本壳；本节描述的 `dsh-smon://` 启动、`/jump` 队列、挂件页与
-> `tauri://localhost` CORS 放行**只服务于该壳**，官方桌面端下配置面板会把对应开关换成说明
-> 文案（组件 31）。九条路由按消费方分三类：**两边共用** `/status`、`/settings`、
+> `tauri://localhost` CORS 放行**只服务于该壳**，官方桌面端下配置面板整段「桌面」区
+> 只剩说明文案（组件 31）——本壳连的是网页版部署（127.0.0.1:3080），与官方桌面端没有直接
+> 关系。九条路由按消费方分三类：**两边共用** `/status`、`/settings`、
 > `/notifications` 与 `/notifications/ack`（客户端半与挂件页都读/写）；**仅挂件页（Tauri）**
 > `/sessions`、`/widget`、`/jump/poll`；**仅其它进程经服务端中转** `/jump`（挂件页投递、网页
 > 标签页取走）与 `/events`（客户端半 relay，Host 侧 inbox 已能自主覆盖 question/plan-review）。
@@ -801,9 +806,9 @@
   （数百个 crate，10–30 分钟）。运行前提：本机 Harness web 服务
   （`dsh web`，默认 127.0.0.1:3080）+ 会话监控插件 Host 半已挂载。
 
-### 3.9 桌面端适配工具模块（组件 30 / 31）
+### 3.9 环境判定 / 桌面端适配工具模块（组件 30 / 31）
 
-两个模块都不是独立发布的包，随宿主包的客户端 bundle 一起进入 `lib/client.js`，因此
+这两个模块都不是独立发布的包，随宿主包的客户端 bundle 一起进入 `lib/client.js`，因此
 **不新增构建产物、也不注册任何插槽**（§5、§6 无需加行）：
 
 - **`overlay-inset.ts`（组件 30，四份）**：`overlayTopInset(fallback)` 读壳公布的窗口
@@ -813,10 +818,15 @@
   session-monitor / card-container）除模块 docblock 外必须逐字节相同，
   `scripts/build.mjs` 会断言这一点并在漂移时让构建失败。详见
   [WIDGET-DEVELOPMENT.md](WIDGET-DEVELOPMENT.md) §2.6。
-- **`desktop-shell.ts`（组件 31，一份）**：`inOfficialDesktop()` 用
-  `'dshDesktop' in globalThis` 区分官方 Electron 壳与自建 Tauri 壳（后者暴露
-  `window.__TAURI__`），只被 `SessionSettings` 用来选择「桌面端会话监控」那一行渲染成
-  开关还是说明文案（§3.6 配置面板）。
+- **`environment.ts`（组件 31，两份）**：`detectEnvironment()` 用
+  `window.__TAURI__` / `window.dshDesktop` 把宿主分成 `tauri` / `official-desktop` /
+  `web`（前两者互斥，Tauri 优先），另含能力探针 `supportsSystemNotifications()` /
+  `supportsAudioChime()`。**配置面板在渲染任何一项前先问它**：session-monitor 的 Tauri
+  三项只在 `web` 渲染、官方桌面端整段「桌面」区换说明文案、`tauri` 内整区不渲染，缺失
+  API 的行整行省略（`SessionSettings.tsx`）；小组件管理页用它切换安装指引的 profile 取值
+  （web 用 `<name>` 占位、桌面端直接写 `desktop`）与重启文案（`WidgetManagerSettings.tsx`）。
+  两份拷贝（session-monitor / widget-manager）除模块 docblock 外必须逐字节相同，
+  `scripts/build.mjs` 同样断言。详见 [WIDGET-DEVELOPMENT.md](WIDGET-DEVELOPMENT.md) §2.7。
 
 ---
 
@@ -971,6 +981,10 @@ Host 半用 esbuild，浏览器半用 **Vite library mode**（与官方 deepseek
 - [ ] **若新增/改动浮窗定位**：顶边下界必须走各包 `src/client/overlay-inset.ts` 的
   `overlayTopInset()`（角停靠样式、拖动钳制、持久化位置钳制、吸附判定四处），否则在
   官方桌面端会钻到 Windows 标题条/ macOS 红绿灯下面（见 `WIDGET-DEVELOPMENT.md` §2.6）
+- [ ] **若配置面板里有只在某个宿主环境生效的项**（如 Tauri 挂件专属开关）：从
+  session-monitor 或 widget-manager 拷一份 `src/client/environment.ts`，在面板里按
+  `detectEnvironment()` / 能力探针过滤，**不要渲染当前环境无法生效的开关**；
+  两份以上拷贝由 `scripts/build.mjs` 断言逐字节一致（见 `WIDGET-DEVELOPMENT.md` §2.7）
 - [ ] 若改动 `@dsh-plugins/balance` 的 Remote 线协议：同步重新生成 `lib/typert.*`
   （typert codegen，build.mjs 不重建；仓库内无生成工具，需从上游生成后提交，
   见 AGENTS.md 第 3 节）

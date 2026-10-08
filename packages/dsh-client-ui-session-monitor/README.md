@@ -173,13 +173,19 @@ rounds. Without the host half the widget still works (base notification kinds).
   OFF pauses the desktop widget (it shows a paused state) while the web widget
   is unaffected. The setting is shared with the desktop side through the Host
   store, so a change on either side takes effect on the other within a few
-  seconds. **In the official Electron desktop this switch is replaced by an
-  explanatory line**: that shell already hosts the dashboard in its main window,
-  so there is no second process to launch (`client/desktop-shell.ts` tells the
-  two shells apart through `window.dshDesktop` vs `window.__TAURI__`); use the
-  **browser notification** switch above for background alerts. The
-  `dsh-smon://` deep link, the `/jump` queue and the standalone widget page
-  serve only the self-built Tauri window.
+  seconds. **The panel only offers what the hosting shell can honour**
+  (`client/environment.ts` classifies the page as web / official desktop /
+  Tauri through `window.__TAURI__` vs `window.dshDesktop`): the three companion
+  rows — this switch plus the inbox's auto-read pair below — render on a **web**
+  page only (the Tauri window talks to the loopback Web deployment, never to the
+  desktop app); the official Electron desktop replaces the whole Desktop section
+  with an explanatory line (that shell hosts the dashboard in its main window,
+  so there is no second process to launch); and a row whose API the shell does
+  not expose (no `Notification`, no WebAudio) is omitted rather than shown
+  broken. The `dsh-smon://` deep link launches only the self-built Tauri window
+  (which connects to the web deployment on 127.0.0.1:3080); the standalone
+  widget page and the `/jump` queue are Host-side, so that page also works as a
+  plain browser tab — and its own ⚙ panel edits the three settings above.
 
 ## Desktop widget (notification inbox)
 
@@ -260,6 +266,7 @@ src/client/SessionMonitorWidget.module.css
 src/client/SessionSettings.tsx
 src/client/SessionSettings.module.css
 src/client/settings.ts        # Shared settings / position persistence + chime
+src/client/environment.ts     # Hosting shell + API probes (web / official desktop / Tauri)
 src/client/locales.ts         # Dictionary namespace `session-monitor` (zh/en)
 docs/                         # Inbox redesign doc + interactive prototype
 lib/index.js                  # Host build artifact (ESM)

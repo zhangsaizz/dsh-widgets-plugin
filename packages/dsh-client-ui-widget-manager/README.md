@@ -28,7 +28,11 @@ lists this project's widgets and lets you **Add (enable)** or **Close
   **Install guide** button instead of a disabled action. Clicking it opens a
   dialog with the concrete steps for this widget: the `dsh plugin --profile
   <name> add <package>` command, the `cordis.yml` / `cordis.patch.yml` mount
-  row (using the bundle's row id), and a restart hint. The guide closes
+  row (using the bundle's row id), and a restart hint. The profile/restart
+  wording follows the hosting shell (`client/environment.ts`): the Web app uses
+  the `web` profile and a `dsh web` restart, the official Electron desktop uses
+  the fixed `desktop` profile (or the app's Plugins page) and a quit-and-reopen
+  — the guide never prints the other shell's procedure. The dialog closes
   automatically as soon as the widget actually mounts.
 - **Add (enable)**: removes the hide on a widget; it reappears on the page
   immediately.
@@ -56,6 +60,7 @@ src/index.ts                  # Host empty apply (pure UI plugin)
 src/client/index.ts           # Browser apply + inject (registers settings.section)
 src/client/controller.ts      # Runtime toggling: shadow registration / ledger projection / localStorage
 src/client/widgets.ts         # Static catalog of the project widgets
+src/client/environment.ts     # Hosting-shell classification (web / official desktop / Tauri)
 src/client/locales.ts         # Dictionary namespace `widgets` (zh/en)
 src/client/WidgetManagerSettings.tsx
 src/client/WidgetManagerSettings.module.css

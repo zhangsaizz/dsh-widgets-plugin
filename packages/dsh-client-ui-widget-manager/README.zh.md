@@ -22,7 +22,10 @@ Web 设置页插件：在 Web 设置里新增「小组件管理」页，列出�
 - **安装指引**：目录里存在但未挂载的小组件，行上显示**安装指引**按钮（不再是
   禁用的操作按钮）。点击弹出该挂件的具体安装步骤：`dsh plugin --profile <name>
   add <package>` 安装命令、`cordis.yml` / `cordis.patch.yml` 挂载行（使用 bundle
-  的行 id），以及重启提示。挂件一旦真正挂载，指引弹窗自动关闭。
+  的行 id），以及重启提示。**profile 与重启文案跟随宿主环境**
+  （`client/environment.ts`）：Web 版用 web profile + 重启 `dsh web`，官方 Electron
+  桌面端用固定的 desktop profile（或应用内「插件」页）+ 完全退出重开——只显示当前
+  环境适用的那一套。挂件一旦真正挂载，指引弹窗自动关闭。
 - **添加（启用）**：解除对挂件的隐藏，挂件立即回到页面上。
 - **关闭（禁用）**：在 `shell.overlay` 中以更低优先级（-1）注册同 id 的影子条目，
   让影子赢得该列表单元（ui-slots 影子机制）从而隐藏挂件——**不卸载插件、不改动
@@ -43,6 +46,7 @@ src/index.ts                  # Host 空 apply（纯 UI 插件）
 src/client/index.ts           # 浏览器 apply + inject（注册 settings.section）
 src/client/controller.ts      # 运行时开关：影子注册 / 台账投影 / localStorage
 src/client/widgets.ts         # 项目挂件静态目录
+src/client/environment.ts     # 宿主环境判定（web / 官方桌面 / Tauri）
 src/client/locales.ts         # 字典 NS `widgets`（zh / en）
 src/client/WidgetManagerSettings.tsx
 src/client/WidgetManagerSettings.module.css

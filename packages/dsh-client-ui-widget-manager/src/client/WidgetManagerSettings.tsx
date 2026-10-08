@@ -10,6 +10,10 @@
  * into the manager-declared `widgets.config` child slot get a "Configure"
  * button; clicking it opens a dialog that renders the widget's own config
  * component (`renderSlot('widgets.config', {}, { only: widgetId })`).
+ *
+ * The install guide only shows the steps that apply to the hosting shell
+ * (./environment.ts): the profile name and the restart procedure differ between
+ * the Web app and the official Electron desktop.
  */
 
 import { useEffect, useRef, useState } from 'react'
@@ -17,6 +21,7 @@ import type { HostObservable, InjectFace, PropsLocale, PropsRenderSlots, PropsRu
 import type { WidgetRow } from './controller.ts'
 import { requestUndock } from './controller.ts'
 import type { WidgetManagerLocaleKey } from './locales.ts'
+import { detectEnvironment } from './environment.ts'
 import css from './WidgetManagerSettings.module.css'
 
 /** Injected business face: the live widget list source and the toggle verb. */
@@ -39,6 +44,10 @@ export type WidgetManagerSettingsProps =
 /** The widget manager settings page. */
 export function WidgetManagerSettings({ t, useWidgets, toggle, renderSlot }: WidgetManagerSettingsProps) {
   const rows = useWidgets(snapshot => snapshot)
+  /** The install guide's profile name and restart procedure are per-shell; the
+   *  manager page only runs in a browser-style shell, so anything that is not
+   *  the official desktop is served the Web variant. */
+  const officialDesktop = detectEnvironment() === 'official-desktop'
   const [openConfig, setOpenConfig] = useState<string | null>(null)
   const [openInstall, setOpenInstall] = useState<string | null>(null)
   const configRow = openConfig === null ? undefined : rows.find(row => row.id === openConfig)
@@ -190,8 +199,10 @@ export function WidgetManagerSettings({ t, useWidgets, toggle, renderSlot }: Wid
                   <p className={css.guideIntro}>{t('installGuideIntro')}</p>
                   <div className={css.guideStep}>
                     <span className={css.guideStepTitle}>{t('installStep1')}</span>
-                    <p className={css.guideNote}>{t('installStep1Note')}</p>
-                    <code className={css.codeBlock}>{`dsh plugin --profile <name> add ${installRow.packageName}`}</code>
+                    <p className={css.guideNote}>
+                      {t(officialDesktop ? 'installStep1NoteDesktop' : 'installStep1NoteWeb')}
+                    </p>
+                    <code className={css.codeBlock}>{`dsh plugin --profile ${officialDesktop ? 'desktop' : '<name>'} add ${installRow.packageName}`}</code>
                   </div>
                   <div className={css.guideStep}>
                     <span className={css.guideStepTitle}>{t('installStep2')}</span>
@@ -201,7 +212,9 @@ export function WidgetManagerSettings({ t, useWidgets, toggle, renderSlot }: Wid
                   </div>
                   <div className={css.guideStep}>
                     <span className={css.guideStepTitle}>{t('installStep3')}</span>
-                    <p className={css.guideNote}>{t('installStep3Note')}</p>
+                    <p className={css.guideNote}>
+                      {t(officialDesktop ? 'installStep3NoteDesktop' : 'installStep3NoteWeb')}
+                    </p>
                   </div>
                 </>
               )}

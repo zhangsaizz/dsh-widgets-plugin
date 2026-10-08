@@ -229,3 +229,42 @@ for (const entry of CLIENT_PACKAGES) {
   }
   console.log(`desktop overlay inset: ${bodies.length} copies in sync`)
 }
+
+// Hosting-shell classification: packages whose config panels gate rows by
+// environment each carry their own copy of `environment.ts` (they publish
+// independently), and the copies must stay byte-identical from the type
+// declaration onward — a copy edited alone would silently gate a panel by the
+// wrong shell. Only the module docblock (its path) may differ.
+{
+  const copies = readdirSync(join(root, 'packages'))
+    .map((name) => ({
+      pkg: `packages/${name}`,
+      file: join(root, 'packages', name, 'src/client/environment.ts'),
+    }))
+    .filter((entry) => existsSync(entry.file))
+  if (copies.length < 2) {
+    // Fewer than two copies means the guard below would compare nothing and
+    // silently pass — the failure mode it exists to catch, e.g. one package
+    // renaming its copy (and its import) so it drops out of the scan.
+    console.error('ERROR: expected one environment.ts copy per package that gates config by environment, found ' + copies.length + ':')
+    for (const entry of copies) console.error(`  found: ${entry.pkg}`)
+    process.exit(1)
+  }
+  const bodies = copies.map(({ pkg, file }) => {
+    const text = readFileSync(file, 'utf8').replaceAll('\r\n', '\n')
+    const start = text.indexOf('/** Which shell hosts this page. */')
+    if (start < 0) {
+      console.error(`ERROR: ${pkg}/src/client/environment.ts has no "/** Which shell hosts this page. */" marker`)
+      process.exit(1)
+    }
+    return { pkg, body: text.slice(start) }
+  })
+  const drifted = bodies.slice(1).filter((entry) => entry.body !== bodies[0].body)
+  if (drifted.length > 0) {
+    console.error('ERROR: the environment.ts copies drifted apart — keep the implementation identical:')
+    console.error(`  reference: ${bodies[0].pkg}`)
+    for (const entry of drifted) console.error(`  differs:   ${entry.pkg}`)
+    process.exit(1)
+  }
+  console.log(`hosting environment: ${bodies.length} copies in sync`)
+}
