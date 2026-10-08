@@ -42,6 +42,7 @@ import type { SessionId } from '@deepseek-ai/dsh-session/types'
 import type {} from '@deepseek-ai/dsh-client-ui-session/client'
 import { currentSessionId } from './session-selection.ts'
 import { jobWatchTargets, useWatchedJobRows } from './jobs-bridge.ts'
+import { useArchivedSessions } from './archive-bridge.ts'
 import {
   MAX_SCALE, MIN_SCALE, POS_KEY, SETTINGS_CHANGED_EVENT, SETTINGS_KEY, clampToViewport, loadDone,
   loadLastActive, loadPos, loadScale, loadSettings, playChime, saveDone, saveLastActive, savePos, saveScale,
@@ -398,8 +399,42 @@ export function SessionMonitorWidget(props: SessionMonitorWidgetProps) {
    */
   const currentId = currentSessionId(sessions)
 
-  /** Brand-free view of the list rows (`SessionId` is a branded string). */
-  const rowsById = sessions.byId as Readonly<Record<string, MonitorSessionRow>>
+  /**
+   * Canonical "running" bit for every listed Session (byId is keyed by SessionId
+   * — a branded string — so the map is keyed by plain string).
+   *
+   * The unified status map is the harness's own source of truth for liveness —
+   * its session tree reads `statuses.get(id)?.running ?? row.running` — and the
+   * Host pushes an `api-session/status` edge the moment an Agent stops, so the
+   * map clears on an aborted or errored turn even when the list snapshot a row
+   * came from has not caught up. Reading the list row alone would leave this
+   * widget's busy / 子×N / 后×N state — and the progress bar keyed off it — on
+   * for a Session nothing is executing any more: exactly the reported
+   * "abnormally ended session keeps its subagent-ish state" symptom.
+   */
+  const runningById = useMemo(() => {
+    const map = new Map<string, boolean>()
+    for (const id of sessions.ids) {
+      const row = sessions.byId[id]
+      if (row === undefined) continue
+      map.set(id, sessionStatus.get(id)?.running ?? row.running)
+    }
+    return map
+  }, [sessions, sessionStatus])
+
+  /** Whether one listed Session is running, by the canonical source above. */
+  const isRunning = (id: string): boolean => runningById.get(id) === true
+
+  /**
+   * Session ids the user archived (see ./archive-bridge.ts). An archived Session
+   * is hidden from the list, excluded from the busy counts and job watches, and
+   * never raises a reminder: it is work the user explicitly put away, and the
+   * Host only archives a Session whose running work was stopped first. Without
+   * a Workspace Controller the set stays empty and nothing changes.
+   */
+  const archivedIds = useArchivedSessions()
+  /** Whether one listed Session is archived (state the list snapshot omits). */
+  const isArchived = (id: string): boolean => archivedIds.has(id)
 
   const [settings, setSettings] = useState<MonitorSettings>(loadSettings)
   const [collapsed, setCollapsed] = useState(false)
@@ -473,6 +508,8 @@ export function SessionMonitorWidget(props: SessionMonitorWidgetProps) {
   const syncChannelRef = useRef<BroadcastChannel | null>(null)
   /** Last-observed session-id set; shrinking ids = disposed sessions. */
   const prevIdsRef = useRef<ReadonlySet<string>>(new Set())
+  /** Last-observed archive set, so only newly archived sessions are retired. */
+  const prevArchivedRef = useRef<ReadonlySet<string>>(archivedIds)
   /** Latest dragged position / scale, so drag-end can persist them once
    *  instead of writing localStorage on every pointermove (sync writes jank). */
   const posRef = useRef<{ x: number; y: number } | null>(null)
@@ -600,6 +637,43 @@ export function SessionMonitorWidget(props: SessionMonitorWidgetProps) {
     })
   }, [sessions.ids])
 
+  // Archive retirement: an archived session keeps its list row (the Host hides
+  // it by the archive filter, not by removing it), so the disposal cleanup above
+  // never sees it. Its monitor state must go the moment it is archived: the user
+  // put it away, so a queued round alert, an in-page toast, a live system
+  // notification and a "本轮完成" mark would all be stale nagging about work the
+  // Host stopped. The previous set is tracked in a ref; only NEW archive members
+  // are retired, so unarchiving restores the row without re-firing anything.
+  useEffect(() => {
+    const prev = prevArchivedRef.current
+    prevArchivedRef.current = archivedIds
+    if (archivedIds.size === 0) return
+    let hasNew = false
+    for (const id of archivedIds) {
+      if (!prev.has(id)) {
+        hasNew = true
+        break
+      }
+    }
+    if (!hasNew) return
+    for (const id of archivedIds) {
+      if (prev.has(id)) continue
+      pendingRef.current.delete(id)
+      roundsRef.current.delete(id)
+      closeBrowserNotify(id)
+    }
+    setToasts((ts) => {
+      const next = ts.filter((t) => !archivedIds.has(t.sessionId))
+      return next.length === ts.length ? ts : next
+    })
+    setDoneIds((ds) => {
+      let changed = false
+      const next = new Set(ds)
+      for (const id of archivedIds) if (next.delete(id)) changed = true
+      return changed ? next : ds
+    })
+  }, [archivedIds])
+
   // Tick "now" so the time-window filter and relative timestamps age sessions
   // out while the page stays open without any session-list mutation.
   useEffect(() => {
@@ -699,7 +773,10 @@ export function SessionMonitorWidget(props: SessionMonitorWidgetProps) {
     broadcastSync({ type: 'opened', sessionId: next })
   }, [currentId])
 
-  // Round-completion detection: diff the running bits across snapshots.
+  // Round-completion detection: diff the running bits across snapshots. The
+  // same canonical source the rows render from (see runningById) feeds the
+  // edge, so a Session that stops on an aborted / errored turn notifies on the
+  // Host's status edge instead of waiting for a list snapshot that may lag.
   useEffect(() => {
     const prev = prevRunningRef.current
     const next = new Map<string, boolean>()
@@ -707,8 +784,9 @@ export function SessionMonitorWidget(props: SessionMonitorWidgetProps) {
     for (const id of sessions.ids) {
       const row = sessions.byId[id]
       if (!row) continue
-      next.set(id, row.running)
-      if (prev.get(id) === true && !row.running) finished.push(row)
+      const running = isRunning(id)
+      next.set(id, running)
+      if (prev.get(id) === true && !running) finished.push(row)
     }
     prevRunningRef.current = next
 
@@ -748,6 +826,9 @@ export function SessionMonitorWidget(props: SessionMonitorWidgetProps) {
     // poll driver below once the Host turn-end reason is known (or immediately
     // when no Host is present), so error/aborted rounds get the right kind.
     for (const row of finished) {
+      // An archived Session raises no reminder: the user put its work away, and
+      // the Host archives only after stopping what ran.
+      if (isArchived(row.id)) continue
       // Subagents are filtered out by default — skip them entirely unless
       // "show subagents" is enabled (then they show up and notify too).
       if (row.origin === 'subagent' && !cfg.showSubagents) continue
@@ -818,6 +899,10 @@ export function SessionMonitorWidget(props: SessionMonitorWidgetProps) {
       }
       if (!tracked || !nowPending || wasPending) continue
       if (finishedIds.has(id)) continue
+      // An archived Session raises no reminder. The closed edge above still
+      // runs: if a pause was open when the user archived (archiving stops the
+      // work), the Host inbox record must be resolved rather than dangle.
+      if (isArchived(id)) continue
       if (row.origin === 'subagent' && !cfg.showSubagents) continue
       // Interaction toasts are exempt from the current-session suppression —
       // "your turn" must not be missed even while looking at the page (same
@@ -842,7 +927,7 @@ export function SessionMonitorWidget(props: SessionMonitorWidgetProps) {
     // waiting for the next poll.
     flushPending()
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [sessions])
+  }, [sessions, runningById, archivedIds])
 
   /** Append toasts with the mode's dedupe/eviction policy (newest first). */
   function appendToasts(emit: Toast[]): void {
@@ -874,6 +959,14 @@ export function SessionMonitorWidget(props: SessionMonitorWidgetProps) {
     const emit: Toast[] = []
     const settled: string[] = []
     for (const [sessionId, alert] of pending) {
+      // Archived between the round edge and this flush: the queued alert is
+      // dropped rather than emitted — a Session the user put away must not pop a
+      // toast or a system notification. (This closure is refreshed every render,
+      // so it reads the current archive set.)
+      if (isArchived(sessionId)) {
+        settled.push(sessionId)
+        continue
+      }
       const rec = reasonsRef.current[sessionId]
       // The Host records the turn-end at event wall time, which precedes the
       // client's running-flip detection (the status frame arrives after the
@@ -1047,7 +1140,10 @@ export function SessionMonitorWidget(props: SessionMonitorWidgetProps) {
     const map = new Map<string, number>()
     for (const id of sessions.ids) {
       const row = sessions.byId[id]
-      if (!row || row.origin !== 'subagent' || !row.running || !row.parentId) continue
+      if (!row || row.origin !== 'subagent' || !isRunning(id) || !row.parentId) continue
+      // An archived child is a child the user put away; it never keeps a
+      // parent's 子×N badge alive (the Host stops its work when archiving).
+      if (isArchived(id)) continue
       const seen = new Set<string>()
       // byId is keyed by SessionId (a branded string); the ancestor chain walks
       // parentId strings, so index through a plain-string view.
@@ -1060,16 +1156,21 @@ export function SessionMonitorWidget(props: SessionMonitorWidgetProps) {
       }
     }
     return map
-  }, [sessions])
+  }, [sessions, runningById, archivedIds])
 
   // Only the Sessions that can have a roster are watched (running, already
   // holding a live job, or the current one) — 0.1.7 serves rosters per Session,
-  // so watching the whole list would keep one stream open per Session.
+  // so watching the whole list would keep one stream open per Session. Archived
+  // Sessions are skipped: they are hidden here, and the Host stopped their work.
+  const watchedIds = useMemo(
+    () => sessions.ids.filter((id) => !isArchived(id)),
+    [sessions, archivedIds],
+  )
   const jobRows = useWatchedJobRows((rows) => jobWatchTargets(
-    sessions.ids,
-    (id) => rowsById[id]?.running === true,
+    watchedIds,
+    isRunning,
     rows,
-    currentId,
+    currentId === undefined || isArchived(currentId) ? undefined : currentId,
   ))
 
   /**
@@ -1105,24 +1206,32 @@ export function SessionMonitorWidget(props: SessionMonitorWidgetProps) {
       const row = sessions.byId[id]
       if (!row || row.blank) return n
       if (row.origin === 'subagent' && !settings.showSubagents) return n
-      if (row.running) return n + 1
+      // An archived Session is not "busy" for the header count: the user put it
+      // away, and the list hides it entirely.
+      if (isArchived(id)) return n
+      if (isRunning(id)) return n + 1
       // A session pausing for the user's input/confirmation is not idle — it
       // counts as needing attention (and stays visible, see the rows memo).
       if (row.pendingInteraction !== undefined) return n + 1
       if ((runningSubagentsByParent.get(id) ?? 0) > 0 || (runningJobsBySession.get(id) ?? 0) > 0) return n + 1
       return n
     }, 0),
-    [sessions, settings.showSubagents, runningSubagentsByParent, runningJobsBySession],
+    [sessions, runningById, archivedIds, settings.showSubagents, runningSubagentsByParent, runningJobsBySession],
   )
 
   // The visible rows projection. Deliberately placed after the two busyness
   // sources above: it reads runningSubagentsByParent / runningJobsBySession,
   // and JavaScript's temporal dead zone would throw if it ran before them.
   const { rows, hiddenCount } = useMemo(() => {
+    // Archived Sessions are dropped up front: they are the user's "put away",
+    // and the row set, the busy ranking, the time-window filter and the hidden
+    // count must all agree on that. `SessionRowState.archivedSessionIds` is the
+    // harness's own visibility rule (its default sidebar filter hides them too).
     const live = sessions.ids
       .map((id) => sessions.byId[id])
       .filter((row): row is MonitorSessionRow =>
-        !!row && !row.blank && (settings.showSubagents || row.origin !== 'subagent'))
+        !!row && !row.blank && !isArchived(row.id)
+        && (settings.showSubagents || row.origin !== 'subagent'))
     // "Busy" rows are still doing work even though the session itself is not
     // in a turn: it has subagents or background jobs executing. They are
     // treated like running rows — ranked on top and kept visible by the time
@@ -1130,7 +1239,7 @@ export function SessionMonitorWidget(props: SessionMonitorWidgetProps) {
     // only genuinely idle ones), consistent with the busy-status labeling.
     const busyIds = new Set<string>()
     for (const row of live) {
-      if (row.running) continue
+      if (isRunning(row.id)) continue
       // A session pausing for the user's input/confirmation is not idle: it
       // must stay visible (time-window exemption) and rank on top — "your
       // turn" is the row most worth seeing.
@@ -1143,20 +1252,20 @@ export function SessionMonitorWidget(props: SessionMonitorWidgetProps) {
     const inWindow = windowMs > 0
       ? live.filter((row) => {
           // Running and busy sessions are always recent — never hide them.
-          if (row.running || busyIds.has(row.id)) return true
+          if (isRunning(row.id) || busyIds.has(row.id)) return true
           // The current session is always visible too — never hide what the
           // user is actively using, even when its updatedAt is old.
           if (row.id === currentId) return true
           return now - Math.max(row.updatedAt, lastActive[row.id] ?? 0) <= windowMs
         })
       : live
-    const visible = settings.runningOnly ? inWindow.filter((row) => row.running || busyIds.has(row.id)) : inWindow
+    const visible = settings.runningOnly ? inWindow.filter((row) => isRunning(row.id) || busyIds.has(row.id)) : inWindow
     // The "N older sessions hidden" hint is about the time window only: in
     // busy-only mode the idle rows are hidden by that switch, not by time,
     // so counting them here would mislead.
     const hiddenCount = settings.runningOnly ? 0 : live.length - visible.length
     return { rows: orderRows(visible, doneIds, busyIds), hiddenCount }
-  }, [sessions, settings.runningOnly, settings.timeWindowMin, settings.showSubagents, lastActive, now, doneIds, runningSubagentsByParent, runningJobsBySession])
+  }, [sessions, runningById, archivedIds, settings.runningOnly, settings.timeWindowMin, settings.showSubagents, lastActive, now, doneIds, runningSubagentsByParent, runningJobsBySession])
 
   /**
    * Whether any visible row has SEVERAL kinds of work in flight at once (a turn
@@ -1170,7 +1279,7 @@ export function SessionMonitorWidget(props: SessionMonitorWidgetProps) {
     const goal = goalProjectionOf(row)?.goal
     if (goal !== undefined && goal.phase !== 'complete') return false
     let kinds = 0
-    if (row.running) kinds++
+    if (isRunning(row.id)) kinds++
     if ((runningSubagentsByParent.get(row.id) ?? 0) > 0) kinds++
     if ((runningJobsBySession.get(row.id) ?? 0) > 0) kinds++
     return kinds > 1
@@ -1547,6 +1656,9 @@ export function SessionMonitorWidget(props: SessionMonitorWidgetProps) {
             : rows.map((row) => {
               const isCurrent = row.id === currentId
               const done = doneIds.has(row.id)
+              // Canonical liveness (see runningById): an abnormally ended turn
+              // must not leave the row labelled 运行中 / 子代理执行中.
+              const running = isRunning(row.id)
               const subRunning = runningSubagentsByParent.get(row.id) ?? 0
               const jobsRunning = runningJobsBySession.get(row.id) ?? 0
               // A session that is not in a turn but still has subagents (or
@@ -1554,8 +1666,8 @@ export function SessionMonitorWidget(props: SessionMonitorWidgetProps) {
               // instead of showing 空闲 next to a 子×N / 后×N badge. The busy
               // labels also win over the 本轮完成 text — "still working" is the
               // more current signal (the dot keeps its done color meanwhile).
-              const busySub = !row.running && subRunning > 0
-              const busyJobs = !row.running && subRunning === 0 && jobsRunning > 0
+              const busySub = !running && subRunning > 0
+              const busyJobs = !running && subRunning === 0 && jobsRunning > 0
               // Plan mode: the session presented a plan and is waiting for the
               // user's review — a distinct wait worth naming (the client
               // derives `plan-review` from the plan-review-routed question
@@ -1565,7 +1677,7 @@ export function SessionMonitorWidget(props: SessionMonitorWidgetProps) {
                 ? t('planReviewWait')
                 : row.pendingInteraction !== undefined
                   ? t('pendingInput')
-                  : row.running
+                  : running
                     ? t('running')
                     : busySub
                       ? t('subagentsActive')
@@ -1603,7 +1715,7 @@ export function SessionMonitorWidget(props: SessionMonitorWidgetProps) {
               // derives from it (plus the paused/blocked goal exception), so the
               // non-goal branch below can never run with an empty kind list.
               const progressKinds: ProgressKind[] = []
-              if (row.running) progressKinds.push('turn')
+              if (running) progressKinds.push('turn')
               if (subRunning > 0) progressKinds.push('sub')
               if (jobsRunning > 0) progressKinds.push('jobs')
               const active = progressKinds.length > 0 || goalPausedOrBlocked
@@ -1683,8 +1795,8 @@ export function SessionMonitorWidget(props: SessionMonitorWidgetProps) {
                   <span
                     className={[
                       css.dot,
-                      row.running ? css.dotRunning : '',
-                      done && !row.running ? css.dotDone : '',
+                      running ? css.dotRunning : '',
+                      done && !running ? css.dotDone : '',
                     ].filter(Boolean).join(' ')}
                   />
                   <div className={css.rowMain}>

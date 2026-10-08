@@ -1500,6 +1500,9 @@
 
   function onRoundFinished(row) {
     if (shared.notify === false) return
+    // An archived Session raises no reminder: the user put its work away, so the
+    // stop that archiving caused must not surface as a finished round.
+    if (row.archived) return
     var record = reasons[row.sessionId]
     var kind = row.pending === 'approval' ? 'approval' : mapReason(record ? record.reason : undefined)
     var round = record ? record.round : undefined
@@ -1624,9 +1627,11 @@
     }
 
     // Base filter (mirrors the web widget's `live` set): hide blank (never-run)
-    // sessions and subagent rows unless enabled.
+    // sessions, archived sessions (the user put them away; the Host stops their
+    // work when archiving), and subagent rows unless enabled.
     var live = rows.filter(function (row) {
       if (row.blank) return false
+      if (row.archived) return false
       if (row.origin === 'subagent' && !shared.showSubagents) return false
       return true
     })

@@ -308,6 +308,9 @@
   子代理最后回合结束（turn 深度归零 → 父会话 `subagent` 通知）、**host 工具调用
   检测 question/plan-review**（`ask_user_question` / `exit_plan_mode` 的
   `tool/call` → `tool/result` 即等待生命周期，纯桌面可见）+ 网页 relay 幂等备份。
+  **`tool/result` 的 call id 在结果消息里**（`data.message.source.callId`，镜像
+  `toolCallId`；事件数据本身没有 `callId`）——`closedCallId()` 按此匹配，否则等待记录
+  只能拖到回合结束才消解。
 - **`sessionMonitorTurnEnd` 会话投影**（`src/turn-end-projection.ts` +
   `src/turn-end-types.ts`，**与上面的内存表并行**）：把同一件事实（最新一次
   `turn/end` 的 `{ reason, at, round }`）改成注册进 harness 的
@@ -328,22 +331,27 @@
   - `/_dsh/session-monitor/status`（GET → `{ ok, value: { sessions: { id: {
     reason, at, round } }, tools: { id: { name, at } }, rounds: { id: count } } }`）：
     `sessions` = turn/end 原因表；`tools` = 每会话**当前正在执行的模型工具**（Host 从
-    `tool/call` → `tool/result` 事件折叠，回合结束时清空，取最新打开的调用）；
+    `tool/call` → `tool/result` 事件折叠，回合结束时清空，取最新打开的调用；每次读取
+    再用 `ctx.agents` 自愈一遍——Agent 已不在运行的会话，其 in-flight 记录当场剔除，
+    异常结束的回合不会留下永远挂着的「正在执行 X」）；
     `rounds` = 每会话**累计完成轮次**（不 TTL 裁剪，供「第 N 轮」进度文案算进行中
     轮次 = count + 1，长回合也准确）；
   - `/_dsh/session-monitor/sessions`（GET → `{ ok, value: buildDesktopSnapshot() }`）：
     **桌面快照**——`src/desktop-snapshot.ts` 把实时会话存储折叠成紧凑 JSON 行：
     `sessionId / title / running / blank / updatedAt / lastActive / origin /
-    parentSessionId / pending / subagents`（`tools` / `rounds` 随快照同车返回，
+    parentSessionId / pending / subagents / archived`（`tools` / `rounds` 随快照同车返回，
     供桌面挂件的任务进度条使用；`goal/change` 事件折叠为行级 `goal`
-    `{ phase, maxGoalRounds, roundsStarted }`，供目标确定进度条）。全部从
-    `ctx.sessions.list()` +
-    事件日志推导，**零新增 peer 依赖**：`running` = 最后一个 turn 边界事件
+    `{ phase, maxGoalRounds, roundsStarted }`，供目标确定进度条）。除 `archived`
+    外的字段全部从 `ctx.sessions.list()` +
+    事件日志推导，**零新增 peer 依赖**（`archived` 读 `ctx.workspaceRegistry`，未组合该
+    服务时整行为缺席）：`running` = 最后一个 turn 边界事件
     （`turn/start` 开、`turn/end` 关）；`title` = 最后一个 `session/title` 事件；
     `pending` = 最后一条审批审计事件（`approval/asked` 无配对的
     `approval/decided`，question/plan-review 属客户端瞬时态不入日志故缺席）；
     `subagents` = `origin==='subagent' && running && parentSessionId===本会话` 的
-    实时计数（与浏览器挂件「子×N」语义一致）；路由带 try/catch，失败回 500 +
+    实时计数（与浏览器挂件「子×N」语义一致）；`archived` = 该会话在
+    `ctx.workspaceRegistry.archivedSessionIds` 里（归档不是会话事实，故在折叠完成的
+    行上打标；桌面挂件页据此隐藏，且归档行不再触发完成提醒）；路由带 try/catch，失败回 500 +
     错误栈（便于排障）。全部路由均带宽松 CORS（`Access-Control-Allow-Origin: *`
     ——桌面壳的 `tauri://localhost` 启动探测页需要跨源探测）；
   - `/_dsh/session-monitor/settings`（GET 快照 / POST 合并）：**共享设置存储**——
@@ -384,7 +392,8 @@
     全部已读。「会话」Tab = 原列表迁入（运行中/空闲/子代理运行中/待审批状态
     点、子×N 徽标、相对时间、**忙碌豁免的时间窗口过滤**（运行中/有子代理/待审批
     始终显示，与网页挂件同语义；隐藏数只统计窗口隐藏，busy-only 模式下为 0）、
-    子代理默认过滤、只显示运行中），
+    子代理默认过滤、**已归档会话隐藏**（行级 `archived` 标记；归档行也不再触发
+    完成 toast）、只显示运行中），
     footer 显示「N 运行中 · M 显示」；**运行中/子代理执行中的行带任务进度条**
     （细动画不确定进度条 + 「第 N 轮 · 正在执行 <工具>」/「N 个子代理执行中」，
     工具与轮次来自快照同车的 `tools` / `rounds`；目标模式的行升级为**确定进度条**
@@ -400,7 +409,10 @@
     （`window.open` 跳转）。
   - `/_dsh/session-monitor/notifications`（GET → `{ ok, value: { seq, unread,
     notes } }`）：**通知 inbox 全量快照**——记录 `{ id, sessionId, kind, title,
-    round?, at, ackedAt?, resolved? }`（v1 全量 + 客户端签名 diff，不做增量）。
+    round?, at, ackedAt?, resolved? }`（v1 全量 + 客户端签名 diff，不做增量）；
+    **已归档会话的记录在此读取时被隐去**（`NotificationStore.snapshotExcluding`，
+    `unread` 只计保留记录）——归档是「收起来」，既不该继续点红点，也不该把用户送到
+    Harness 拒绝打开的已归档会话；是隐藏不是 resolve，取消归档后按原未读状态恢复。
   - `/_dsh/session-monitor/notifications/ack`（POST `{ ids }` / `{ sessionId }` /
     `{ all: true }` → `{ ok, count }`）：**已读确认**，持久化到同一条目的 `inbox` volatile 字段。
   - `/_dsh/session-monitor/events`（POST `{ sessionId, kind: 'question' |
@@ -433,7 +445,12 @@
   见 `src/client/session-selection.ts` 的 `currentSessionId()`）——**无 Host RPC、无轮询**，
   运行时经 `host/session-status` 帧实时推送 `running` 状态；等待用户状态统一读
   `useSessionStatus`（`Map<SessionId, { running, pendingInteraction, completionUnread }>`，
-  kind 取 `status.pendingInteraction?.kind`）。
+  kind 取 `status.pendingInteraction?.kind`）。**`running` 一律按「状态表优先、列表行兜底」
+  读**（`statuses.get(id)?.running ?? row.running`，与 harness 自己的 session tree 同规则）：
+  状态表由 Host 的 `api-session/status` 边沿驱动，异常/中止结束的回合会立刻清掉，
+  而列表行还可能停在旧快照上——只看列表行就会让忙碌 / 「子×N」/「后×N」/进度条
+  挂着不消（浮窗 `runningById` 与紧凑卡片同规则，见 `SessionMonitorWidget.tsx`、
+  `cards.tsx`）。
 - **每会话后台任务**：不再依赖 runtime 的全局镜像（`SessionListState.jobsBySession`
   已删除），改由 `ctx.jobs`（`@deepseek-ai/dsh-api-job-controller/client`）提供——
   `ctx.jobs.state` 是只含「有观察者」会话的 roster 可观察源，`ctx.jobs.watchRows(id)`
@@ -445,7 +462,11 @@
   不观察（它也不可能产生任务）；会话停下后只要还有在跑任务（跨轮次的后台任务）就继续
   观察，任务全部落定后才释放。服务用 `ctx.inject(['jobs'], …)` 迟到安装（`dsh.client.inject`
   只排预取、不保证 apply 顺序），bridge 在被替换时重建订阅与全部 watch。
-- 会话列表：过滤 blank（从未开跑的 New Session）行与**子代理会话（默认过滤，
+- 会话列表：过滤 blank（从未开跑的 New Session）行、**已归档会话**（Workspace
+  Controller 的注册表级归档集合，经 `src/client/archive-bridge.ts` 桥接
+  `ctx.workspaces.list`；归档行连同行/忙碌计数/子代理聚合/job 观察/完成或等待提醒
+  一并剔除，归档时还会清掉该会话的队列提醒、toast、系统通知与「本轮完成」标记——
+  归档是用户把会话收起来，Host 只会归档已停掉工作的会话）与**子代理会话（默认过滤，
   `showSubagents` 开关可重新显示）**；运行中置顶（呼吸绿点）+ 本轮完成（黄点，
   访问后清除）+ 空闲（灰点）排序；每行显示 `displayTitle`、子代理（仅开启时）/
   当前徽标、等待输入状态（**`plan-review` 单独显示紫色「等待计划评审」**，与
@@ -913,7 +934,7 @@ Host 半用 esbuild，浏览器半用 **Vite library mode**（与官方 deepseek
 | `webServer` | `/_dsh/session-monitor/sessions` | — | client-ui-session-monitor | 桌面快照 JSON（`buildDesktopSnapshot` + `tools`/`rounds`，桌面挂件轮询） |
 | `webServer` | `/_dsh/session-monitor/widget` | — | client-ui-session-monitor | 独立挂件页 HTML（桌面壳加载；esbuild `text` loader 内联进 Host bundle） |
 | `webServer` | `/_dsh/session-monitor/settings` | — | client-ui-session-monitor | 共享设置存储（插件 Config 条目的 `settings` volatile 字段，命名空间 = profile 条目原始 id `ui-session-monitor`；GET 带 `X-DSH-Settings-Revision`，POST 可带同头做 CAS，冲突 409 `settings-conflict`；桌面直读直写 + 网页客户端半按 delta 镜像） |
-| `webServer` | `/_dsh/session-monitor/notifications` | — | client-ui-session-monitor | 通知 inbox 全量快照（`NotificationStore`，持久化到同一条目的 `inbox` volatile 字段；ack/resolve 立即落盘） |
+| `webServer` | `/_dsh/session-monitor/notifications` | — | client-ui-session-monitor | 通知 inbox 全量快照（`NotificationStore`，持久化到同一条目的 `inbox` volatile 字段；ack/resolve 立即落盘；读取时隐去已归档会话的记录） |
 | `webServer` | `/_dsh/session-monitor/notifications/ack` | — | client-ui-session-monitor | inbox 已读确认（`{ ids }` / `{ sessionId }` / `{ all }`） |
 | `webServer` | `/_dsh/session-monitor/events` | — | client-ui-session-monitor | 网页半 interaction relay（question / plan-review open/closed） |
 | `webServer` | `/_dsh/session-monitor/jump` | — | client-ui-session-monitor | 桌面→网页跳转队列（POST 入队/消费/存活心跳，GET 查状态，30s TTL） |

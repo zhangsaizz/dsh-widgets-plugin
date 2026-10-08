@@ -104,6 +104,9 @@ export interface AckTarget {
   readonly all?: boolean
 }
 
+/** Stable empty exclusion set, so the plain snapshot path allocates nothing. */
+const EMPTY_EXCLUDED: ReadonlySet<string> = new Set<string>()
+
 /** Host-side notification inbox. */
 export class NotificationStore {
   private notes: InboxNotification[] = []
@@ -144,11 +147,28 @@ export class NotificationStore {
 
   /** Read snapshot for the widget (prunes expired records first). */
   snapshot(): InboxSnapshot {
+    return this.snapshotExcluding(EMPTY_EXCLUDED)
+  }
+
+  /**
+   * Snapshot with one Session set's records withheld (the archived Sessions).
+   *
+   * Withheld rather than resolved: archiving is the user's "put this away", so
+   * its outstanding records must not keep the "not handled yet" badge lit nor
+   * send a surface to a Session the Harness refuses to open — but unarchiving
+   * must bring them back as unread as they were.
+   * @param excluded - Session ids whose records this read omits.
+   * @returns the snapshot shape, with `unread` counting only retained records.
+   */
+  snapshotExcluding(excluded: ReadonlySet<string>): InboxSnapshot {
     this.prune()
+    const notes = excluded.size === 0
+      ? this.notes.slice()
+      : this.notes.filter((note) => !excluded.has(note.sessionId))
     return {
       seq: this.seq,
-      unread: this.notes.filter((note) => note.ackedAt === undefined && note.resolved !== true).length,
-      notes: this.notes.slice(),
+      unread: notes.filter((note) => note.ackedAt === undefined && note.resolved !== true).length,
+      notes,
     }
   }
 

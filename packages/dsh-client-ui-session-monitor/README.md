@@ -19,7 +19,12 @@ rounds. Without the host half the widget still works (base notification kinds).
 
 - **Live session list**: projects the standard `useSessions` session-list store
   (no Host RPC, no polling — the runtime pushes session summaries and
-  `running`-status updates reactively). Running sessions are pinned on top with
+  `running`-status updates reactively). **Archived sessions are hidden**: the
+  list reads the Workspace Controller's registry-global archive set
+  (`ctx.workspaces`, bridged in `src/client/archive-bridge.ts`) and drops those
+  rows along with their busy counts and reminders — archiving is the user putting
+  a session away, and the Host only archives work it has already stopped.
+  Running sessions are pinned on top with
   a pulsing green dot; each row shows the session title, its workspace-derived
   display title, current-session badge, pending-interaction state (plan review
   is its own violet 「等待计划评审」, distinct from the generic question wait)

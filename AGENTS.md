@@ -26,7 +26,7 @@
 |---|---|---|
 | `@dsh-plugins/balance` | **单包单插件**（Host 缝隙 + 厂商 + Web 看板） | Host：`BalanceRuntime` 自注册 `ctx.balance`，应答 `balance/query` / `balance/list` Remote；5 个厂商 Provider + 设置驱动用户绑定 + `/_dsh/balance/settings` Web 路由。客户端：`await ctx.remote.$mount(TYPERT_REMOTE)` 后注册 `shell.overlay` 看板挂件（id `balance`，order 100）+ `widgets.config` 供应商配置面板 |
 | `@dsh-plugins/client-ui-token-crit` | 纯 UI（浏览器端） | `shell.overlay` 挂件（id `token-crit`，order 50）+ `widgets.card` token 用量统计卡；数据走标准 `useSessions` 的 `tokenUsage` 投影（无 Host RPC、无轮询） |
-| `@dsh-plugins/client-ui-session-monitor` | **双半插件行** | Host：9 条 `/_dsh/session-monitor/*` 路由（`turn/end` 结束原因、执行中工具 `tools`、累计轮次 `rounds`、桌面快照 `buildDesktopSnapshot`、共享设置、`/jump` 跳转队列 + `/jump/poll` 长轮询、inbox 通知存储、独立挂件页 HTML）。客户端：`shell.overlay`（order 90）+ `widgets.config`，用 `useSessions` 投影列表 + `running` 边沿检测「完成一轮」提醒 + 点击跳转会话 |
+| `@dsh-plugins/client-ui-session-monitor` | **双半插件行** | Host：9 条 `/_dsh/session-monitor/*` 路由（`turn/end` 结束原因、执行中工具 `tools`、累计轮次 `rounds`、桌面快照 `buildDesktopSnapshot`（含行级 `archived`、读取时隐去归档会话的 inbox 记录）、共享设置、`/jump` 跳转队列 + `/jump/poll` 长轮询、inbox 通知存储、独立挂件页 HTML）。客户端：`shell.overlay`（order 90）+ `widgets.config`，用 `useSessions` 投影列表（过滤已归档会话，经 `ctx.workspaces` 桥接）+ `running` 边沿检测「完成一轮」提醒 + 点击跳转会话 |
 | `@dsh-plugins/client-ui-card-container` | 纯 UI（浏览器端） | `shell.overlay`（id `card-container`，order 20）+ `widgets.config` 配置面板；声明 `widgets.card` 子槽把其他挂件停靠进卡片网格（影子条目隐藏浮窗），**不注册任何内置卡片** |
 | `@dsh-plugins/client-ui-rainbow-flow` | 纯 UI（浏览器端） | `conversation.input.left`（`rainbow-flow-glow` 呼吸光晕 order 99 + `rainbow-flow-toggle` 开关 order 100）、`conversation.input.right`（`rainbow-flow-send` 按钮美化 order 150）、`widgets.config` 配置面板；另用 `MutationObserver` 给会话命令卡按类别上色（`toolAccent`） |
 | `@dsh-plugins/client-ui-widget-manager` | 设置页（纯 UI） | `settings.section`（id `widgets`，order 10）列出小组件、支持添加/关闭；声明 `widgets.config` 子槽，为带配置的挂件提供「配置」弹窗 |
@@ -306,6 +306,17 @@ pack → git diff 干净」。
     - agent-loop 在失败步骤上现在会补发 `tool/result`（`TOOL_NOT_STARTED` /
       `TOOL_OUTCOME_UNKNOWN`）；会话监控的 `openTools` 折叠按 `callId` 关闭，
       `turn-end-projection` 是纯 fold（非 `turn/end` 事件原样返回），都已兼容。
+      **坑：`tool/result` 的事件数据里没有 `callId`**——它带的是结果消息
+      （`data.message`，call id 在 `data.message.source.callId`，镜像成
+      `toolCallId`）。按 `data.callId` 取会一条都匹配不上（2026-10-09 回放本机
+      155 个会话：27692 条 tool/result 0 命中），
+      于是「正在执行 X」在工具返回后一直挂着、`ask_user_question`/`exit_plan_mode`
+      的 inbox 记录也要等到回合结束才消解；会话监控的 `closedCallId()` 现在优先读
+      结果消息（`turn/end` 分支也改成先清 in-flight、再读原因字段，清理不会被
+      事件字段读取的抛错跳过）。另：`/status` 与 `/sessions` 每次读取都用 `ctx.agents`
+      自愈一次——in-flight 记录只有 `tool/result` 与 `turn/end` 两个退场边，`turn/end`
+      落地失败时该会话已回到 idle，记录会被当场剔除，异常结束的回合不会留下永远
+      挂着的「正在执行 X」与未决 question 记录。
   - **实测验收（0.2.0-rc.2，隔离 `DSH_HOME` + 自建 profile）**：6 行全部激活，
     浏览器控制台零 error / 零 uncaught；overlay 里能查到
     `[data-widget-id="balance" | "token-crit" | "session-monitor"]`，`<html>` 上有

@@ -28,6 +28,7 @@ import type {} from '@deepseek-ai/dsh-client-ui-session/client'
 import type {} from '@dsh-plugins/client-ui-card-container/client'
 import type { WidgetCardComponent } from '@dsh-plugins/client-ui-card-container/client'
 import { jobWatchTargets, useWatchedJobRows } from './jobs-bridge.ts'
+import { useArchivedSessions } from './archive-bridge.ts'
 import { SETTINGS_CHANGED_EVENT, SETTINGS_KEY, loadSettings } from './settings.ts'
 import css from './cards.module.css'
 
@@ -59,13 +60,46 @@ export function SessionMonitorCard(props: PropsRuntime<'widgets.card'> & PropsLo
   }, [sessionStatus])
   // byId is keyed by SessionId (a branded string); index through a plain view.
   const byId = sessions.byId as Readonly<Record<string, SessionSummary>>
+  /**
+   * Canonical running bit per listed Session (same rule as the floating
+   * widget's `runningById`): the unified status map is the harness's own
+   * liveness source — its session tree reads `statuses.get(id)?.running ??
+   * row.running` — and it clears on the Host's status edge, so a Session that
+   * stopped on an aborted / errored turn stops counting as busy here even when
+   * a list row lags behind.
+   */
+  const runningById = useMemo(() => {
+    const map = new Map<string, boolean>()
+    for (const id of sessions.ids) {
+      const row = sessions.byId[id]
+      if (row === undefined) continue
+      map.set(id, sessionStatus.get(id)?.running ?? row.running)
+    }
+    return map
+  }, [sessions, sessionStatus])
+  /** Whether one listed Session is running, by the canonical source above. */
+  const isRunning = (id: string): boolean => runningById.get(id) === true
+  /**
+   * Session ids the user archived (see ./archive-bridge.ts). The card mirrors
+   * the floating widget, which hides them: an archived Session is put-away work
+   * and must not inflate the busy count.
+   */
+  const archivedIds = useArchivedSessions()
+  /** Whether one listed Session is archived (state the list snapshot omits). */
+  const isArchived = (id: string): boolean => archivedIds.has(id)
   // Watch only the Sessions that can have a roster (running, or already holding
   // a live job) — 0.1.7 serves rosters per Session, so watching the whole list
   // would keep one stream open per listed Session. The card aggregates counts
   // rather than labelling a row, so it does not need the current Session.
+  // Archived Sessions are skipped: they are hidden from the count and the Host
+  // stopped their work when archiving.
+  const watchedIds = useMemo(
+    () => sessions.ids.filter((id) => !isArchived(id)),
+    [sessions, archivedIds],
+  )
   const jobRows = useWatchedJobRows((rows) => jobWatchTargets(
-    sessions.ids,
-    (id) => byId[id]?.running === true,
+    watchedIds,
+    isRunning,
     rows,
     undefined,
   ))
@@ -94,7 +128,8 @@ export function SessionMonitorCard(props: PropsRuntime<'widgets.card'> & PropsLo
   const subagentsByParent = new Map<string, number>()
   for (const id of sessions.ids) {
     const row = byId[id]
-    if (!row || row.origin !== 'subagent' || !row.running || !row.parentId) continue
+    if (!row || row.origin !== 'subagent' || !isRunning(id) || !row.parentId) continue
+    if (isArchived(id)) continue
     const seen = new Set<string>()
     let pid: string | undefined = row.parentId
     while (pid !== undefined && !seen.has(pid)) {
@@ -118,7 +153,10 @@ export function SessionMonitorCard(props: PropsRuntime<'widgets.card'> & PropsLo
     const row = byId[id]
     if (!row || row.blank) return n
     if (row.origin === 'subagent' && !showSubagents) return n
-    if (row.running) return n + 1
+    // An archived Session is not busy for this count: the floating widget hides
+    // the row, so counting it here would make the two surfaces disagree.
+    if (isArchived(id)) return n
+    if (isRunning(id)) return n + 1
     if (pendingInteractions.has(id)) return n + 1
     if ((subagentsByParent.get(id) ?? 0) > 0 || (runningJobsBySession.get(id) ?? 0) > 0) return n + 1
     return n
@@ -127,7 +165,9 @@ export function SessionMonitorCard(props: PropsRuntime<'widgets.card'> & PropsLo
     <div className={css.statCard}>
       <span className={css.statValue}>{busy}</span>
       <span className={css.statLabel}>{t('cardBusyLabel')}</span>
-      <span className={css.statMeta}>{t('cardSessionMeta', { n: String(sessions.ids.length) })}</span>
+      {/* The session count follows the same visibility rule as the busy count:
+          archived Sessions are put away, so neither figure includes them. */}
+      <span className={css.statMeta}>{t('cardSessionMeta', { n: String(watchedIds.length) })}</span>
     </div>
   )
 }

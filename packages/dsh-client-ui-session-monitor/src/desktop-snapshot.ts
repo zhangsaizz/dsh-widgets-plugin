@@ -5,7 +5,9 @@
  * The row set mirrors what the web widget's `useSessions` list shows, so the
  * two monitors stay consistent: ATTACHED (in-memory) sessions plus COLD
  * persisted sessions. Everything for attached rows is derived from the store
- * and its event logs — no extra services, no new peer dependencies:
+ * and its event logs, with the archive set as the ONE exception —
+ * `workspaceRegistry` is read (when composed) so a row can carry the user's
+ * archive choice, which no Session fact expresses. No new peer dependencies:
  *
  *  - `running`: the last turn-boundary event wins (`turn/start` opens a turn,
  *    `turn/end` closes it; trailing non-turn events like titles or approval
@@ -20,6 +22,9 @@
  *  - `subagents`: count of LIVE child sessions with `origin === 'subagent'`
  *    whose parent is this session AND that are currently running (mirrors the
  *    browser widget's 子×N badge semantics).
+ *  - `archived`: the session is in the registry-global archive set; the widget
+ *    hides those rows, and the browser half reads the same set from
+ *    `ctx.workspaces` directly.
  *
  * Cold rows (persisted but not attached) come from `sessionPersistence` when
  * present — the same source the official `session.list` RPC merges. Their
@@ -80,6 +85,10 @@ export interface DesktopSessionRow {
   }
   /** Whether this row came from persistence (not attached in this process). */
   readonly cold?: boolean
+  /** In the registry-global archive set: the user put this Session away, so the
+   *  widget hides it (the web half reads the same set from `ctx.workspaces`).
+   *  Absent for every unarchived row. */
+  readonly archived?: true
 }
 
 /** A snapshot of sessions for the desktop widget. */
@@ -126,6 +135,30 @@ interface LoosePersistence {
   /** Physical per-session artifact (JSONL backends); SQLite etc. return undefined. */
   locate?(meta: LooseHeader): { kind?: string; path?: string } | undefined
 }
+
+/** Loose view of `ctx.workspaceRegistry` (dsh-workspace). */
+interface LooseWorkspaceRegistry {
+  /** Complete registry-global archive set, in archive order. */
+  readonly archivedSessionIds?: readonly string[]
+}
+
+/**
+ * The registry-global archived Session ids (empty without the registry).
+ *
+ * Archive membership lives on the Workspace registry rather than in any Session
+ * row, so both Host readers — the snapshot's `archived` flags and the inbox
+ * route's record filter — resolve it through this one helper.
+ * @param ctx - host context.
+ * @returns the archived Session ids as plain strings.
+ */
+export function archivedSessionIds(ctx: Context): ReadonlySet<string> {
+  const registry = ctx.get('workspaceRegistry') as LooseWorkspaceRegistry | undefined
+  const ids = registry?.archivedSessionIds
+  return ids === undefined || ids.length === 0 ? EMPTY_ARCHIVED : new Set<string>(ids.map(String))
+}
+
+/** A stable empty archive set, so the common no-archive path allocates nothing. */
+const EMPTY_ARCHIVED: ReadonlySet<string> = new Set<string>()
 
 /** The session's raw event log, viewed through the loose local shape. */
 export function eventsOf(session: Session): readonly AnyEvent[] {
@@ -452,6 +485,19 @@ export async function buildDesktopSnapshot(ctx: Context): Promise<DesktopSnapsho
 
   // Pass 3: merge cold persisted sessions (same list the web widget sees).
   await mergeColdSessions(ctx, attachedIds, rows)
+
+  // Pass 4: mark the user's archive choice. Archive membership is registry-global
+  // state rather than a Session fact, so it is stamped on the finished rows (both
+  // attached and cold) instead of being threaded through every fold above. The
+  // standalone widget hides these rows; the browser half reads the same set from
+  // `ctx.workspaces` directly, and the Host stops the work when archiving.
+  const archived = archivedSessionIds(ctx)
+  if (archived.size > 0) {
+    for (let index = 0; index < rows.length; index++) {
+      const row = rows[index]
+      if (archived.has(row.sessionId)) rows[index] = { ...row, archived: true }
+    }
+  }
 
   return { at: Date.now(), sessions: rows }
 }

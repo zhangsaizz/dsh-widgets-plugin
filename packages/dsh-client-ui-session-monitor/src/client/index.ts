@@ -23,6 +23,9 @@ import type {} from '@deepseek-ai/dsh-client-ui-workspace/client'
 // Type-only: pulls the `ctx.jobs` Context merge — the 0.1.7 owner of per-session
 // background-job rosters (`sessions.jobsBySession` was removed).
 import type {} from '@deepseek-ai/dsh-api-job-controller/client'
+// Type-only: pulls the `ctx.workspaces` Context merge — the owner of the
+// registry-global archive set (`archivedSessionIds`) the monitor filters on.
+import type {} from '@deepseek-ai/dsh-api-workspace-controller/client'
 // Type-only: pulls the shell.overlay SlotMap merge from ui-layout.
 import type {} from '@deepseek-ai/dsh-client-ui-layout/client'
 // Type-only: pulls the `ctx.slots` (SlotRegistry) Context merge from ui-renderer.
@@ -42,6 +45,7 @@ import type { SessionSettingsInjected } from './SessionSettings.tsx'
 import { SessionMonitorCard } from './cards.tsx'
 import { MONITOR_ROW_CONFIG_KEY, SessionMonitorRowConfig } from './RowConfig.tsx'
 import { installJobsBridge, uninstallJobsBridge } from './jobs-bridge.ts'
+import { installArchiveBridge, uninstallArchiveBridge } from './archive-bridge.ts'
 import { SETTINGS_REVISION_HEADER } from '../settings-revision.ts'
 import { en, zh } from './locales.ts'
 import type { SessionMonitorKey } from './locales.ts'
@@ -140,6 +144,17 @@ export function apply(ctx: ClientContext): void {
     // Retire the module-level bridge with the fiber that installed it, so an
     // unloaded plugin stops pinning the (disposed) job model it subscribed to.
     jobsCtx.effect(() => () => { uninstallJobsBridge() }, 'session-monitor: jobs bridge')
+  })
+
+  // Workspace archive set. An archived Session has been put away (the Host
+  // refuses to archive work that still runs unless stopping it was confirmed),
+  // so it must not appear on the monitor, count as busy, or raise reminders.
+  // Same late-binding rationale as the jobs bridge above: `dsh.client.inject`
+  // does not sequence `apply`, and an install without the Workspace Controller
+  // keeps the widget minus archive filtering rather than going inactive.
+  ctx.inject(['workspaces'], (workspaceCtx) => {
+    installArchiveBridge(workspaceCtx.workspaces.list)
+    workspaceCtx.effect(() => () => { uninstallArchiveBridge() }, 'session-monitor: archive bridge')
   })
 
   // ── Settings mirror (web localStorage ⇄ Host store) ────────────────

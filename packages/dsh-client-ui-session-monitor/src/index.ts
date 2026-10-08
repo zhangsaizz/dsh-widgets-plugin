@@ -28,7 +28,7 @@ import type {} from '@deepseek-ai/dsh-settings'
 // namespace is the profile plugin entry id).
 import type {} from '@deepseek-ai/cordis-plugin-loader'
 import type { Session } from '@deepseek-ai/dsh-session'
-import { buildDesktopSnapshot, eventsOf, lastTitle } from './desktop-snapshot.ts'
+import { archivedSessionIds, buildDesktopSnapshot, eventsOf, lastTitle } from './desktop-snapshot.ts'
 import { installTurnEndProjection } from './turn-end-projection.ts'
 import { MONITOR_SETTINGS_FIELD, MONITOR_SETTINGS_NS, MonitorSettingsSchema } from './desktop-settings.ts'
 import type { MonitorSettingsWire } from './desktop-settings.ts'
@@ -242,6 +242,13 @@ interface LooseSessionEvent {
     readonly name?: string
     readonly callId?: string
     readonly arguments?: string
+    /** `tool/result` carries the result MESSAGE; the id of the call it closes
+     *  lives on that message (`source.callId`, mirrored as `toolCallId`) — the
+     *  event data itself has no `callId` field. */
+    readonly message?: {
+      readonly source?: { readonly callId?: string }
+      readonly toolCallId?: string
+    }
   }
 }
 
@@ -284,6 +291,29 @@ function questionKindFromArgs(raw: string | undefined): 'question' | 'plan-revie
   } catch {
     return 'question'
   }
+}
+
+/**
+ * The tool call one `tool/result` closes.
+ *
+ * The result event carries the result MESSAGE, so the call id lives on that
+ * message (`source.callId`, mirrored as `toolCallId`); the event data has no
+ * `callId`. Reading the id off `data.callId` (this plugin's original
+ * assumption) matched nothing, which left every finished tool reported as
+ * "executing" for the rest of its turn and kept an answered question's inbox
+ * record open until the turn closed. A stored `data.callId` is still accepted
+ * first as a compatibility fallback — accepting it costs nothing.
+ * @param ev - the session event.
+ * @returns the closed call id, or undefined for a result without one.
+ */
+function closedCallId(ev: LooseSessionEvent): string | undefined {
+  const direct = ev.data.callId
+  if (typeof direct === 'string' && direct.length > 0) return direct
+  const message = ev.data.message
+  const source = message?.source?.callId
+  if (typeof source === 'string' && source.length > 0) return source
+  const mirror = message?.toolCallId
+  return typeof mirror === 'string' && mirror.length > 0 ? mirror : undefined
 }
 
 /** Clamp a wire-settings object to the ranges the client applies on read
@@ -438,13 +468,16 @@ export function apply(ctx: Context, config: Config): void {
       return
     }
     if (ev.type === 'turn/end') {
-      store.upsert(session.id, { reason: ev.data.reason?.kind ?? 'completed', at: ev.time })
+      // Retire the turn's in-flight state FIRST: the classification below reads
+      // event fields it does not own, so a throw there must not be able to skip
+      // the cleanup and leave a finished turn's tool / question records behind.
       // A turn that ends closes every still-open human-answer wait (answered,
       // cancelled, or aborted) — resolve them so no record dangles.
       resolveOpenQuestions(session.id)
       // ...and every open tool call dies with the turn: a finished turn has no
       // "executing" tool left to report.
       closeSessionTools(session.id)
+      store.upsert(session.id, { reason: ev.data.reason?.kind ?? 'completed', at: ev.time })
       const depth = Math.max(0, (turnDepth.get(session.id) ?? 1) - 1)
       turnDepth.set(session.id, depth)
       if (isSubagent) {
@@ -508,11 +541,16 @@ export function apply(ctx: Context, config: Config): void {
       return
     }
     if (ev.type === 'tool/result') {
-      if (typeof ev.data.callId !== 'string') return
-      openTools.delete(ev.data.callId)
-      const open = openQuestions.get(ev.data.callId)
+      // Resolve the closed call through the result MESSAGE, not `data.callId`
+      // (see closedCallId): mismatching it here is what made a finished tool
+      // keep its "executing" entry — and an answered question its open inbox
+      // record — until the turn happened to end.
+      const callId = closedCallId(ev)
+      if (callId === undefined) return
+      openTools.delete(callId)
+      const open = openQuestions.get(callId)
       if (open !== undefined) {
-        openQuestions.delete(ev.data.callId)
+        openQuestions.delete(callId)
         inbox.resolve(open.sessionId, open.kind)
       }
       return
@@ -616,11 +654,45 @@ export function apply(ctx: Context, config: Config): void {
         jumpWaiters.clear()
       }
 
+      /**
+       * Drop in-flight state belonging to Sessions that are no longer running.
+       *
+       * A record in {@link openTools} / {@link openQuestions} is a LIVE claim
+       * ("this session is executing X", "this session waits for an answer") and
+       * only two edges may retire it: the matching `tool/result`, and the
+       * Session's `turn/end`. The second can be missed — a `turn/end` append can
+       * fail while the Agent still returns to idle — and then the claim stays on
+       * screen for the rest of the process life, which is exactly the reported
+       * symptom of an abnormally ended Session whose executing-tool state never
+       * disappears. The agent registry is the same authority the browser's
+       * running bit comes from (`api-session/status`), so reconcile against it
+       * on every read: an absent or idle Agent means nothing of that Session is
+       * executing now. A composition without `agents` keeps the event-only fold.
+       */
+      const pruneInFlight = (): void => {
+        const agents = webCtx.get('agents') as
+          | { get(id: string): { status?: string } | undefined }
+          | undefined
+        if (agents === undefined) return
+        const isRunning = (sessionId: string): boolean => agents.get(sessionId)?.status === 'running'
+        for (const [callId, open] of openTools) {
+          if (!isRunning(open.sessionId)) openTools.delete(callId)
+        }
+        for (const [callId, open] of openQuestions) {
+          if (isRunning(open.sessionId)) continue
+          openQuestions.delete(callId)
+          // The wait cannot still be pending: resolve its inbox record so the
+          // desktop widget's "waiting for you" item cannot dangle either.
+          inbox.resolve(open.sessionId, open.kind)
+        }
+      }
+
       const disposers = [
         webCtx.webServer.register({
           kind: 'exact',
           path: STATUS_ROUTE,
           handler: (req, res) => {
+            pruneInFlight()
             responseJson(req, res, 200, {
               ok: true,
               value: { sessions: store.snapshot(), tools: currentTools(), rounds: store.roundCounts() },
@@ -637,6 +709,7 @@ export function apply(ctx: Context, config: Config): void {
           path: SESSIONS_ROUTE,
           handler: async (req, res) => {
             try {
+              pruneInFlight()
               const snapshot = await buildDesktopSnapshot(webCtx)
               responseJson(req, res, 200, {
                 ok: true,
@@ -796,11 +869,19 @@ export function apply(ctx: Context, config: Config): void {
         // + records). The desktop widget polls it like the session snapshot and
         // diffs by record signature; a future web-side badge can read the same
         // list. Records are capped/archived in the store.
+        //
+        // Archived Sessions' records are withheld here — one read path serves
+        // both surfaces, so neither the web badge nor the desktop 待处理 list
+        // keeps nagging about a Session the user put away (or offers a jump the
+        // Harness refuses). Withheld, not resolved: unarchiving restores them.
         webCtx.webServer.register({
           kind: 'exact',
           path: NOTIFICATIONS_ROUTE,
           handler: (req, res) => {
-            responseJson(req, res, 200, { ok: true, value: inbox.snapshot() })
+            responseJson(req, res, 200, {
+              ok: true,
+              value: inbox.snapshotExcluding(archivedSessionIds(webCtx)),
+            })
           },
         }),
         // Acknowledge inbox records: { ids: [...] } | { sessionId } | { all: true }.
