@@ -268,3 +268,36 @@ for (const entry of CLIENT_PACKAGES) {
   }
   console.log(`hosting environment: ${bodies.length} copies in sync`)
 }
+
+// Card-container availability probe: the widgets that ship a "put into
+// container" button each carry their own copy of `container-dock.ts` (same
+// publishing rationale as above), and the copies must stay byte-identical from
+// the CARD_CONTAINER_ID export onward — a copy edited alone would gate one
+// widget's button on different rules than the container applies. Only the
+// module docblock (its `@module` path) may differ. The reference copy is the
+// container's, which also uses it internally to notice it was disabled.
+{
+  const copies = [
+    'packages/dsh-client-ui-card-container',
+    'packages/dsh-balance',
+    'packages/dsh-client-ui-token-crit',
+    'packages/dsh-client-ui-session-monitor',
+  ].map((pkg) => ({ pkg, file: join(root, pkg, 'src/client/container-dock.ts') }))
+  const bodies = copies.map(({ pkg, file }) => {
+    const text = readFileSync(file, 'utf8').replaceAll('\r\n', '\n')
+    const start = text.indexOf('export const CARD_CONTAINER_ID')
+    if (start < 0) {
+      console.error(`ERROR: ${pkg}/src/client/container-dock.ts has no CARD_CONTAINER_ID export`)
+      process.exit(1)
+    }
+    return { pkg, body: text.slice(start) }
+  })
+  const drifted = bodies.slice(1).filter((entry) => entry.body !== bodies[0].body)
+  if (drifted.length > 0) {
+    console.error('ERROR: the container-dock.ts copies drifted apart — keep the implementation identical:')
+    console.error(`  reference: ${bodies[0].pkg}`)
+    for (const entry of drifted) console.error(`  differs:   ${entry.pkg}`)
+    process.exit(1)
+  }
+  console.log(`card-container availability: ${bodies.length} copies in sync`)
+}

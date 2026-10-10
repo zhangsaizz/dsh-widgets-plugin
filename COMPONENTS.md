@@ -30,7 +30,7 @@
 | 13 | 会话监控 Host 半 + 状态路由 + 通知 inbox | Host 插件 + Web 路由 | `@dsh-plugins/client-ui-session-monitor` | `/_dsh/session-monitor/status` 等 9 条路由 | 监听 `turn/end` 记录结束原因（completed/aborted/blocked/error/max-tokens/interrupted）+ **`tool/call`→`tool/result` 折叠每会话执行中的工具**（`tools` 表）+ 累计轮次（`rounds` 表），浏览器半 3s 轮询取回；另把会话事件折叠为**持久化通知 inbox**（审批/回答/计划/出错/阻塞/token 上限/完成一轮/子代理完成等，已读状态存 Host，桌面与网页共享） |
 | 14 | 会话监控配置面板 `SessionSettings` | Web 配置弹窗 | `@dsh-plugins/client-ui-session-monitor` | `widgets.config`（管理器「配置」弹窗） | 提醒开关/关闭方式/秒数/音效/提醒范围与列表显示选项 + **「桌面端会话监控」开关**（默认关，打开时经 `dsh-smon://` 拉起桌面应用并开始监控，关闭后桌面挂件暂停），localStorage 持久化；**按环境过滤（组件 31）**：Tauri 挂件专属的三项（该开关 + 桌面 inbox 的「处理后自动已读」「打开时自动全部已读」）只在 **web** 环境渲染（该挂件只与网页版部署 127.0.0.1:3080 通信），官方 Electron 桌面端**整段「桌面」区只留说明文案**（窗口即看板，后台提醒用「浏览器通知」）；`Notification` / WebAudio 缺席时对应的「浏览器通知」「提示音」行整行省略，不留永远打不开的开关 |
 | 15 | 卡片容器 `CardContainerWidget` | Web 挂件 | `@dsh-plugins/client-ui-card-container` | `shell.overlay`（order 20） | 浮动容器面板：**多分组**（顶部分组标签 + ⋯ 管理菜单），托盘列出可停靠挂件，拖入网格即停靠（影子条目隐藏浮窗）、渲染紧凑卡片视图；卡片**实时换位**（ghost 跟随 + 其余让位，拖出网格=移出）、键盘可达（Enter/空格移出、方向键排序）、触屏常显、列数可配、状态持久化；面板/卡片/胶囊/分组菜单为**液态玻璃**材质（与彩虹流光输入框同一配方） |
-| 16 | 卡片容器控制器 `CardContainerController` | 客户端数据层 | `@dsh-plugins/client-ui-card-container` | 注入 hook | 多分组停靠（groups/active 持久化，旧单列表自动迁移）+ 可用托盘投影，注册/释放 priority -2 停靠影子，针对 overlay 台账自我修复 |
+| 16 | 卡片容器控制器 `CardContainerController` | 客户端数据层 | `@dsh-plugins/client-ui-card-container` | 注入 hook | 多分组停靠（groups/active 持久化，旧单列表自动迁移）+ 可用托盘投影，注册/释放 priority -2 停靠影子，针对 overlay 台账自我修复；**自身被管理页关闭时用组件 32 的探针判定并释放全部停靠影子**（挂件恢复浮动，重新启用按持久化顺序恢复） |
 | 17 | 卡片视图 | Web 卡片视图 | `@dsh-plugins/client-ui-token-crit` / `client-ui-session-monitor` / `balance` | `widgets.card`（容器声明子槽，**容器无内置卡片**） | **token-crit、session-monitor、balance 各自注册自己的紧凑卡片**（priority 0：token 用量 / 忙碌会话数 / 实时余额，见各自包源码）；**标准接入规范**（`WidgetCardProps` + 槽级注入面 `CardSlotInject`，见 WIDGET-DEVELOPMENT.md §2.5）：挂件自己注册进 `widgets.card`（id = shell.overlay id、priority 默认 0、显示名优先读 shell.overlay 的 label）即渲染，不注册则用占位卡；卡片可声明**规格**（静态 `spec`：small 1 列 / medium 2 列 / large 整行） |
 | 18 | 卡片容器配置面板 `CardContainerSettings` | Web 配置弹窗 | `@dsh-plugins/client-ui-card-container` | `widgets.config`（管理器「配置」弹窗） | 列数（自适应/2/3/4）+ 清空停靠/重置，localStorage 持久化 |
 | 19 | 安装 bundle | 分发层 | `@dsh-plugins/dsh-widgets-plugin` | `cordis.patch.yml` | 一次插入 6 个插件，一键挂载全部组件 |
@@ -47,6 +47,7 @@
 
 | 30 | 桌面端顶栏避让 `overlay-inset.ts` | 客户端工具模块（每包一份） | `@dsh-plugins/balance` / `client-ui-token-crit` / `client-ui-session-monitor` / `client-ui-card-container` | 浮窗定位计算 | 读 `<html>` 上壳公布的 `--dsh-frame-top-clearance`（macOS 48px 红绿灯+窗口控件 / Windows 40px 标题条，后者整条是窗口拖动带），把浮窗「顶边」下界取 `max(传入边距, 该带 + 20)`；无该变量（网页端）时原样返回传入边距。**balance 在角停靠样式、拖动钳制、持久化位置钳制、吸附判定四处调用**（停靠传 `DOCK_INSET`、钳制/吸附传 `0`），token-crit 两处（拖动钳制 + 设置面板定位）、session-monitor 与 card-container 各一处（拖动钳制）；**刻意不用壳的 `--dsh-frame-overlay-top`**（全屏降到 20px，会压到全屏仍在的 Windows 标题条菜单 / macOS 折叠侧栏控件）；按平台标记+标题条标记缓存，避免每 pointermove 读 computed style。四份拷贝由 `scripts/build.mjs` 断言逐字节一致 |
 | 31 | 宿主环境判定 `environment.ts` | 客户端工具模块（每包一份） | `@dsh-plugins/client-ui-session-monitor` / `client-ui-widget-manager` | 配置面板/配置页分支 | `detectEnvironment()` 返回 `web` / `official-desktop` / `tauri`（官方 Electron 壳在 `dsh-app://app/` 下暴露 `window.dshDesktop`；自建 Tauri 壳暴露 `window.__TAURI__`，只与网页版部署通信），另含能力探针 `supportsSystemNotifications()` / `supportsAudioChime()`；**只渲染当前环境能生效的配置项**——会话监控的 Tauri 三项只在 web 渲染、官方桌面端整段「桌面」区换成说明文案，小组件管理页的安装指引按 web/官方桌面端切换 profile 与重启文案。两份拷贝由 `scripts/build.mjs` 断言逐字节一致 |
+| 32 | 容器可用性探针 `container-dock.ts` | 客户端工具模块（每包一份） | `@dsh-plugins/client-ui-card-container` / `balance` / `client-ui-token-crit` / `client-ui-session-monitor` | 「放入容器」按钮的显隐 | `isCardContainerIn(winners)` / `isCardContainerAvailable(ctx)` 读 overlay 台账 `entriesOfSlot('shell.overlay')` 里 `card-container` 单元的胜者（`priority ≥ 0` = 容器挂载且未被管理页关闭）；`CardContainerAvailability`（getSnapshot + subscribe）经注册的 inject `hooks` 以 `useCardContainer` 选择器 hook 交给浮窗，**容器不可用时三个挂件的「放入容器」按钮整体不渲染**（此时 `dsh.card-container.dock` 请求是静默 no-op）；容器控制器自己也用同一个投影判断「我被关闭了 → 释放全部停靠影子」。四份拷贝由 `scripts/build.mjs` 断言逐字节一致 |
 
 > 1–10 全部由 `@dsh-plugins/balance` 一个包、一个插件行承载（原 `balance` 缝隙 +
 > `balance-vendors` + `client-ui-balance` 三个包已合并）。
@@ -186,9 +187,10 @@
   另含同一族的 `contextPressure` / `contextBreakdown`）；`SessionProjectionMap`
   是可合并扩展的空接口，**必须 type-only import 拥有该键的包**才能让
   `projectionValues.tokenUsage` 有类型（这就是本包新增该 peer 的原因，替代了
-  过去手写的影子接口 + `as` 断言）。挂件与卡片的 props 分别按
-  `PropsRuntime<'shell.overlay'>` / `PropsRuntime<'widgets.card'>` 声明，
-  选择器按 `SessionListState` 声明。
+  过去手写的影子接口 + `as` 断言）。挂件的 props 为
+  `PropsRuntime<'shell.overlay'> & InjectFace<TokenCritInject>`（注入面只有容器可用性
+  探针 `hooks.cardContainer`，`useCardContainer` 决定「放入容器」按钮是否渲染，见组件 32）、
+  卡片的 props 按 `PropsRuntime<'widgets.card'>` 声明，选择器按 `SessionListState` 声明。
 - 动效：滚动数字、浮动 input/output 伤害数字、粒子、连击计数、边缘泛光、可选音效；
   hover 显示设置面板（语言、数字格式/字号、标签、连击、粒子、暴击阈值/比例、音效、泛光）；
   位置与缩放写入 `localStorage`。
@@ -214,7 +216,9 @@
   点 × 移出 = dispose 影子，浮窗恢复。停靠顺序持久化到 localStorage
   （`dsh-plugins.card-container.docked`）；订阅 `shell.overlay` 台账，挂件卸载
   时自动移除停靠与影子（自我修复）；**容器自身被隐藏时释放全部停靠影子**
-  （挂件恢复浮动），重新启用按持久化顺序恢复。
+  （挂件恢复浮动），重新启用按持久化顺序恢复——这个「我还在吗」的判断与各挂件
+  「放入容器」按钮的显隐共用组件 32 的探针（`isCardContainerIn(winners)`），
+  两处不会各行其是。
 - **托盘**：`entriesOfSlot('shell.overlay')` 投影当前 enabled（priority ≥ 0、
   非自身、未停靠）的挂件为可停靠 chip；名称经内置映射 `widgetName` 解析（未知 id
   回退为原始 id）；chip 可 HTML5 拖拽进网格（`text/plain` id），也可点击停靠。
@@ -828,6 +832,31 @@
   两份拷贝（session-monitor / widget-manager）除模块 docblock 外必须逐字节相同，
   `scripts/build.mjs` 同样断言。详见 [WIDGET-DEVELOPMENT.md](WIDGET-DEVELOPMENT.md) §2.7。
 
+### 3.10 容器可用性探针（组件 32）
+
+- **`container-dock.ts`（四份：card-container / balance / token-crit / session-monitor）**：
+  不是独立发布的包，随各包客户端 bundle 一起进 `lib/client.js`，**不新增构建产物、
+  不注册任何插槽**（§5、§6 无需加行）。
+- **要解决的问题**：「放入容器」按钮走 window 事件 `dsh.card-container.dock`，而该
+  请求在容器**收不下**挂件时是静默 no-op——容器插件没装/没挂载，或容器在小组件管理页
+  被「关闭」（管理页用 priority **-1** 的影子条目赢下容器自己的 cell，容器插件仍挂载、
+  只是不渲染）。点了没反应的按钮比没有按钮更糟，于是三个挂件在容器不可用时**整体不
+  渲染该按钮**。
+- **判定读台账，不读事件通道**：`card-container` 本身就是 `shell.overlay` 的一个条目，
+  `isCardContainerIn(ctx.slots.entriesOfSlot('shell.overlay'))` 取它所在 cell 的**胜者**
+  并检查 `priority ≥ 0`（`isCardContainerAvailable(ctx)` 是同一读法的便捷包装）。
+  这正是容器控制器自己判断「我被关闭了、释放全部停靠影子」用的投影，所以按钮与容器
+  的结论永远一致；容器 `SELF_ID` 也直接 alias 探针的 `CARD_CONTAINER_ID`，不会各写一份
+  字面量。
+- **响应式**：`CardContainerAvailability`（`getSnapshot` + `subscribe` 的
+  `HostObservable<boolean>`）在 apply 里建一个实例并订阅 `shell.overlay` 台账
+  （订阅随 fiber 销毁），经 `shell.overlay` 注册的 inject `hooks: { cardContainer }`
+  以合成的 `useCardContainer` 选择器 hook 交给浮窗——管理页上实时「关闭/添加」容器时
+  按钮立即跟随，无需刷新。
+- **四份拷贝**（唯一允许的差异是模块 docblock 的 `@module` 行）从
+  `export const CARD_CONTAINER_ID` 起必须逐字节相同，`scripts/build.mjs` 会断言并在
+  漂移时让构建失败。详见 [WIDGET-DEVELOPMENT.md](WIDGET-DEVELOPMENT.md) §2.5。
+
 ---
 
 ## 4. 依赖关系
@@ -911,8 +940,11 @@ Host 半用 esbuild，浏览器半用 **Vite library mode**（与官方 deepseek
 
 > `pnpm build` 末尾会做 **exports 完整性校验**：每个 `exports` 目标文件（default + types 条件）
 > 必须存在，缺失即构建失败（CI 亦如此）——防止「tarball 缺文件但 CI 绿」的静默损坏。
-> 同一处还会断言四份 `overlay-inset.ts`（组件 30）从 `let cachedKey` 起逐字节相同，
-> 以及桌面端顶栏避让、壳判定两个模块都内联进既有 `lib/client.js`（不新增产物）。
+> 同一处还会断言三组「每包一份」工具模块的拷贝逐字节一致：四份 `overlay-inset.ts`
+> （组件 30，从 `let cachedKey` 起）、两份 `environment.ts`（组件 31，从
+> `/** Which shell hosts this page. */` 起）、四份 `container-dock.ts`（组件 32，从
+> `export const CARD_CONTAINER_ID` 起，仅模块 docblock 的 `@module` 行可不同）；
+> 这三个模块都内联进既有 `lib/client.js`，不新增产物。
 
 ---
 
@@ -977,7 +1009,11 @@ Host 半用 esbuild，浏览器半用 **Vite library mode**（与官方 deepseek
   （type-only）；需要占多列时给组件设静态 `spec`（small/medium/large）；
   显示名优先在 `shell.overlay` 注册 `label`（thunk）；需要时实现
   `CardSlotInject`（useContainer / undock）；浮窗加「放入容器」按钮可 dispatch
-  `dsh.card-container.dock` 事件；不注册则容器显示占位卡
+  `dsh.card-container.dock` 事件，**但必须按组件 32 的 `container-dock.ts` 探针
+  隐藏**（容器没装或在管理页被关闭时该请求是静默 no-op，按钮不能留在那儿点了没反应；
+  拷贝该文件并在 apply 里 `new CardContainerAvailability(ctx)`，经 inject
+  `hooks` 用 `useCardContainer` 取值，见 `WIDGET-DEVELOPMENT.md` §2.5）；
+  不注册卡则容器显示占位卡
 - [ ] **若新增/改动浮窗定位**：顶边下界必须走各包 `src/client/overlay-inset.ts` 的
   `overlayTopInset()`（角停靠样式、拖动钳制、持久化位置钳制、吸附判定四处），否则在
   官方桌面端会钻到 Windows 标题条/ macOS 红绿灯下面（见 `WIDGET-DEVELOPMENT.md` §2.6）

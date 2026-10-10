@@ -41,6 +41,9 @@ English | [中文](README.zh.md)
 - While the container itself is disabled (hidden by the Widgets manager), the
   dock shadows are released so the widgets float again; re-enabling the
   container restores the dock from the persisted groups.
+- The widgets' own **put into container** buttons follow the container's state:
+  they are hidden while the container is closed on the Widgets manager page or
+  not installed at all, because the dock request is a silent no-op then.
 
 ## Card views (adapter contract)
 
@@ -83,6 +86,16 @@ the grid. See `WIDGET-DEVELOPMENT.md` §2.5 for the full contract.
 container's dock-request window event (`detail` = its `shell.overlay` id) to
 dock itself — decoupled, no-op when the container is absent:
 `window.dispatchEvent(new CustomEvent('dsh.card-container.dock', { detail: 'my-widget' }))`.
+Since that request is a SILENT no-op whenever the container cannot receive the
+widget (not installed, or closed on the Widgets manager page — its shadow entry
+wins the overlay cell), a widget that offers the button must hide it unless the
+container is really available. The shared probe for that lives in
+`client/container-dock.ts` (`CardContainerAvailability`, handed to the widget as
+the injected `useCardContainer` selector hook): it reads the overlay ledger's
+winners for the `card-container` cell — the exact projection the container's own
+controller uses — so the button and the container can never disagree, and a live
+enable/disable click is followed without a reload. See
+`WIDGET-DEVELOPMENT.md` §2.5.
 
 This package ships **no** built-in card views — the container is generic. Each
 widget that provides a compact card registers it into `widgets.card` at
@@ -115,4 +128,6 @@ window buttons. Plain web has no such band and keeps the original placement.
 - The controller (`src/client/controller.ts`) owns the dock shadows
   (priority -2, registrant `card-container`), the group CRUD / switching, the
   available-widget tray projection and the self-healing reconcile against the
-  overlay ledger.
+  overlay ledger. `src/client/container-dock.ts` is the shared availability
+  probe (also copied into every widget package that ships the quick-dock
+  button); `scripts/build.mjs` asserts the copies stay byte-identical.

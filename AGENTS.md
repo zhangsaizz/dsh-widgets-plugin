@@ -144,6 +144,12 @@ pack → git diff 干净」。
 - 在 `scripts/build.mjs` 的 `CLIENT_PACKAGES` 加一行（Vite library mode 产出
   `lib/client.js`，照抄现有段落）。
 - 若随 bundle 分发：加进 `bundles/dsh-widgets-plugin/` 依赖与 `cordis.patch.yml`。
+- 若挂件要提供「放入容器」快捷按钮：dock 请求走 `dsh.card-container.dock` 事件即可，
+  但**必须**按容器可用性隐藏按钮（容器没装、或在管理页被「关闭」时该请求是静默
+  no-op）——把容器包的 `src/client/container-dock.ts` 拷进本包，在 apply 里
+  `new CardContainerAvailability(ctx)` 放进注册的 inject `hooks`，组件里用
+  `useCardContainer` 取值；`scripts/build.mjs` 断言四份拷贝逐字节一致
+  （见 `WIDGET-DEVELOPMENT.md` §2.5）。
 - 补双语 README + `README.i18n.yaml`。
 
 ### 5. 余额插件是单包结构

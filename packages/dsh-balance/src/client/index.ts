@@ -48,6 +48,7 @@ import { BalanceSettings } from './BalanceSettings.tsx'
 import type { BalanceSettingsInjected } from './BalanceSettings.tsx'
 import { BALANCE_ROW_CONFIG_KEY, BalanceRowConfig } from './RowConfig.tsx'
 import { createBalanceViewStore } from './store.ts'
+import { CardContainerAvailability } from './container-dock.ts'
 import { en, zh } from './locales.ts'
 import type { BalanceKey } from './locales.ts'
 
@@ -106,6 +107,12 @@ export async function apply(ctx: ClientContext): Promise<void> {
     REFRESH_INTERVAL_MS,
   )
 
+  // Whether the card container can currently receive this widget: the quick-dock
+  // button in the header is only rendered while it can (the dock request is a
+  // silent no-op when the container is absent or closed on the manager page).
+  // One instance per apply; its ledger subscription lives in this fiber.
+  const cardContainer = new CardContainerAvailability(ctx)
+
   ctx.effect(() => {
     const disposeRegistration = ctx.slots.register({
       name: 'shell.overlay',
@@ -115,7 +122,7 @@ export async function apply(ctx: ClientContext): Promise<void> {
       store: createBalanceViewStore,
       locale: NS,
       inject: (): BalanceInject => ({
-        hooks: { balance: controller },
+        hooks: { balance: controller, cardContainer },
         refresh: () => { void controller.refresh() },
       }),
     }, BalanceWidget)

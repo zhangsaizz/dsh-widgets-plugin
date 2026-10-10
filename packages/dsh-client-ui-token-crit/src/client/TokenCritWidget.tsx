@@ -27,7 +27,8 @@ import type { CSSProperties, PointerEvent as ReactPointerEvent } from 'react'
 // import also brings the sibling `contextPressure` / `contextBreakdown` keys).
 import type {} from '@deepseek-ai/dsh-client-ui-session/client'
 import type { SessionListState } from '@deepseek-ai/dsh-api-session-controller/client'
-import type { PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
+import type { InjectFace, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
+import type { CardContainerAvailability } from './container-dock.ts'
 import type { TokenUsageProjection } from '@deepseek-ai/dsh-token-meter/client'
 import { currentSessionId } from './session-selection.ts'
 import { overlayTopInset } from './overlay-inset.ts'
@@ -334,8 +335,24 @@ const panelI18n = {
   },
 }
 
-export function TokenCritWidget(props: PropsRuntime<'shell.overlay'>) {
+/** Injected business face: the card container's availability probe — the
+ *  "put into container" button is only rendered while the container can take
+ *  the widget (see ./container-dock.ts). */
+export interface TokenCritInject {
+  hooks: { cardContainer: CardContainerAvailability }
+}
+
+/** Full composed props for the widget (runtime + inject shares). */
+export type TokenCritWidgetProps =
+  & PropsRuntime<'shell.overlay'>
+  & InjectFace<TokenCritInject>
+
+export function TokenCritWidget(props: TokenCritWidgetProps) {
   const usage = props.useSessions(selectUsage)
+  // The card container must be mounted AND not "closed" on the manager page for
+  // the quick-dock button to have any effect — the dock request event is a
+  // silent no-op otherwise (see ./container-dock.ts).
+  const cardContainerReady = props.useCardContainer(available => available)
 
   const input = usage
     ? (usage.uncachedInputTokens ?? 0) + (usage.cacheReadTokens ?? 0) + (usage.cacheWriteTokens ?? 0)
@@ -920,29 +937,31 @@ export function TokenCritWidget(props: PropsRuntime<'shell.overlay'>) {
         >
           ⚙
         </div>
-        <div
-          className={css.dockBtn}
-          title={lang === 'zh' ? '放入卡片容器' : 'Dock into card container'}
-          role="button"
-          tabIndex={0}
-          aria-label={lang === 'zh' ? '放入卡片容器' : 'Dock into card container'}
-          onPointerDown={(e) => e.stopPropagation()}
-          onClick={() => {
-            try {
-              window.dispatchEvent(new CustomEvent('dsh.card-container.dock', { detail: 'token-crit' }))
-            } catch { /* events unavailable */ }
-          }}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter' || e.key === ' ') {
-              e.preventDefault()
+        {cardContainerReady && (
+          <div
+            className={css.dockBtn}
+            title={lang === 'zh' ? '放入卡片容器' : 'Dock into card container'}
+            role="button"
+            tabIndex={0}
+            aria-label={lang === 'zh' ? '放入卡片容器' : 'Dock into card container'}
+            onPointerDown={(e) => e.stopPropagation()}
+            onClick={() => {
               try {
                 window.dispatchEvent(new CustomEvent('dsh.card-container.dock', { detail: 'token-crit' }))
               } catch { /* events unavailable */ }
-            }
-          }}
-        >
-          ⤢
-        </div>
+            }}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault()
+                try {
+                  window.dispatchEvent(new CustomEvent('dsh.card-container.dock', { detail: 'token-crit' }))
+                } catch { /* events unavailable */ }
+              }
+            }}
+          >
+            ⤢
+          </div>
+        )}
       </div>
     )
   }
