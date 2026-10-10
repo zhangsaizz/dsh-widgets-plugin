@@ -61,6 +61,9 @@ scripts/
   build.mjs                   用 esbuild 构建 Host 产物、用 Vite library mode 构建
                              浏览器 client bundle（官方 deepseek-harness 同款工具链）
                              + tsc 重生成 balance 类型面，全部进各包 lib/
+  install-profile.mjs         一键把 bundle + 6 个插件包 link: 装进某个 profile
+                             （`pnpm install:profile <profile>`；参数写成路径时直接报错，
+                             防「装成仓库根」）
 .github/workflows/             ci.yml（PR/推送校验）+ publish.yml（v* tag 发布 npm）
 ```
 
@@ -75,6 +78,7 @@ pnpm install                 # 安装（workspace 依赖用 workspace:*）
 pnpm build                   # 构建全部包产物到 lib/（node scripts/build.mjs）
 pnpm typecheck               # 类型检查（tsc --noEmit，根 tsconfig.json，CI 也会跑）
 pnpm -r pack                 # 打包校验（可加 --dry-run）
+pnpm install:profile web     # 一键装进 profile（bundle + 6 个插件包，scripts/install-profile.mjs）
 pnpm run publish:all         # pnpm -r publish --no-git-checks
 ```
 
@@ -176,10 +180,19 @@ pack → git diff 干净」。
 
 ## 发布流程
 
+**前置：发布账号必须拥有 `@dsh-plugins` scope**。该 scope 下的 7 个包都还没发布（`npm view`
+404），但名字是否已被他人占用无法只读确认——发布前先确认可用：名字空着时，登录同名账号，
+或在 npm 建同名 org（公开包免费，把发布账号加进去）；**若已被他人占用就只能换 scope**，那要
+同步改 7 个包名、`cordis.patch.yml`、widget-manager 的目录名与全部文档。scope 不属于发布账号
+时 `publish` 会 403（npm 的既定行为，本机无凭据未实测）。另外 **7 个包必须一起发**（bundle 的
+依赖是精确版本 `0.1.0`，只发 bundle 安装端 404）。
+
 1. 本地 `pnpm build` → `pnpm -r pack`（检查 tarball 内容）。
 2. 提交代码，推送并打 tag `v*`（如 `v0.1.0`）。
 3. GitHub Actions `publish.yml` 自动 `pnpm -r publish --access public`，
-   需仓库配置 `NPM_TOKEN` secret。
+   需仓库配置 `NPM_TOKEN` secret（Automation token，需 publish 权限）。
+4. 发布后自检：`npm view @dsh-plugins/dsh-widgets-plugin version`，再
+   `dsh plugin --profile <name> add @dsh-plugins/dsh-widgets-plugin`。
 
 ## 关键现状与坑
 
@@ -353,18 +366,27 @@ pack → git diff 干净」。
   另外 `dsh` 的 profile 名同时就是 app 名：`dsh --profile web` 与 `dsh web` 等价，**不能**
   既给位置参数又给 `--profile`（会报 "select a profile only once"）；自建 profile 要用
   `dsh plugin --profile <name> add …` 装包，再用 `dsh <name> --port …` 启动。
-- **本地调试安装**：有两条路径。
+- **本地调试安装**：1–2 是安装路径，3–5 是装完后的行为约定。
   1. **官方 Plugins 面板**（0.1.7 起）：侧边栏 Plugins 页可安装/启停/更新插件包，并在每一条
      插件行上提供配置入口（`plugins.row.config`，key `<bundle 包名>#<行 id>`，见
      `client-ui-plugin-manager`）。它写的就是 profile 的依赖与 bundles 两层。
-  2. **CLI**：`dsh plugin --profile <name> add F:/dsh-balance-plugin/bundles/dsh-widgets-plugin`
-     （junction 直连仓库，不拷贝）。该命令除了写 profile 的 `dependencies`，还会按「安装状态」
+  2. **CLI**：`pnpm install:profile <name>`（`scripts/install-profile.mjs`）等价于手打 7 条
+     `dsh plugin --profile <name> add <本仓库路径>`——bundle 目录 + 6 个 `packages/*` 插件包。
+     **可安装的是 `bundles/dsh-widgets-plugin`，不是仓库根**：根包包名 `dsh-widgets-plugin`、
+     没有 `dsh.bundle`，装它只会打印 `dsh: warning: dsh-widgets-plugin declares no dsh.bundle
+     — installed as a plain dependency, not a profile layer` 并静默不挂载；脚本对「把路径当
+     profile 名」的写法直接报错。（目录安装是 junction 直连仓库，不拷贝。）
+     该命令除了写 profile 的 `dependencies`，还会按「安装状态」
      把 bundle 追加回 `dsh.profile.bundles`。**注意：依赖已存在时它会跳过 bundles 追加**
      （实测 `Already up to date` 后 bundles 列表不变），此时必须手工把
      `@dsh-plugins/dsh-widgets-plugin` 加进 `dsh.profile.bundles`——两者缺一都不挂载：
      profile 只有 `dsh-base` / `dsh-web-app` 时插件行根本不在 loader 里，
      `/plugins/@dsh-plugins/...` 全 404；判断依据是 `dsh <profile> --dump-config` 里没有
      `# == @dsh-plugins/dsh-widgets-plugin` 这一段。
+     **tarball 不是离线交付格式**：`pnpm -r pack` 会把 bundle 的 `workspace:*` 改成精确版本
+     （tgz 内实测 `"@dsh-plugins/balance": "0.1.0"`），安装端 pnpm 仍去 registry 取那 6 个包
+     ——「先装 6 个 tgz 再装 bundle」「7 个 tgz 一次 add」「profile 里写
+     `pnpm.overrides → file:*.tgz`」实测全部 `ERR_PNPM_FETCH_404`；给别人只能走 npm 发布。
   3. **bundle 栈改动需要重启**：新增/删除 bundle 层属于启动时组合，`patchReload: live` 只热
      加载 `cordis.patch.yml`（patch 里对不存在行的配置会被忽略，不会报错）。加完 bundle 先
      `dsh <profile> --dump-config` 确认组合，再重启 `dsh web`；重启后 `/api/*` 需 401（栅栏）而
@@ -397,7 +419,8 @@ pack → git diff 干净」。
 
 ### 目标环境
 
-- 安装目录 `F:\DeepSeek-Harness-Desktop`：`resources/app.asar/dsh` 内是随包发布的 dsh
+- 安装目录（下称 `<桌面端安装目录>`，各机器不同，历史文档里的示例是
+  `F:\DeepSeek-Harness-Desktop`）：`resources/app.asar/dsh` 内是随包发布的 dsh
   运行时与私有 Host，**自带 dsh CLI 与 pnpm**（`resources/runtime/cli/bin/dsh.cmd`、
   `resources/runtime/pnpm`），与 npm 全局安装互不影响。
 - profile 固定为 `$DSH_HOME/profiles/desktop`，由 Electron 独占；默认端口 **19387**
@@ -424,8 +447,11 @@ CLI **不能 boot** 桌面 profile（`--dump-config` 也会报
 「插件」页写的是同一份 profile。
 
 ```sh
-# 应用完全退出后（先启动过一次以初始化 profile），用随包 CLI：
-"F:\DeepSeek-Harness-Desktop\resources\runtime\cli\bin\dsh.cmd" plugin --profile desktop add F:/dsh-balance-plugin/bundles/dsh-widgets-plugin
+# 应用完全退出后（先启动过一次以初始化 profile），在仓库根执行：
+pnpm install:profile desktop --cli "<桌面端安装目录>/resources/runtime/cli/bin/dsh.cmd"
+# 等价手打：<那份 dsh.cmd> plugin --profile desktop add <本仓库路径>/bundles/dsh-widgets-plugin
+# 本机安装目录不在 F:，而是 "D:\DeepSeek Harness"，随包 CLI 即
+# "D:/DeepSeek Harness/resources/runtime/cli/bin/dsh.cmd"。
 ```
 
 **`link:` 安装不会安装 bundle 的依赖**。bundle 的 6 个 `@dsh-plugins/*` 依赖声明为
@@ -439,9 +465,11 @@ peer 由运行时提供：
 ```sh
 for p in dsh-balance dsh-client-ui-token-crit dsh-client-ui-session-monitor \
          dsh-client-ui-card-container dsh-client-ui-rainbow-flow dsh-client-ui-widget-manager; do
-  "…/dsh.cmd" plugin --profile desktop add "F:/dsh-balance-plugin/packages/$p"
+  "…/dsh.cmd" plugin --profile desktop add "<本仓库路径>/packages/$p"
 done
 ```
+
+（`pnpm install:profile desktop --cli "…/dsh.cmd"` 已把 bundle 与这 6 条一次做完。）
 
 从 npm 装发布版（`add @dsh-plugins/dsh-widgets-plugin`）**不需要**这一步：pnpm 把 6 个包作为
 普通依赖装进 profile，它们的 `@deepseek-ai/*` peer 由运行时的 profile 解析提供（同一份实例），
