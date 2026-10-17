@@ -19,10 +19,6 @@
       "types": "./lib/types/index.d.ts",
       "default": "./lib/index.js"
     },
-    "./invariant": {
-      "types": "./lib/types/invariant.d.ts",
-      "default": "./lib/types/invariant.js"
-    },
     "./types": {
       "types": "./lib/types/types.d.ts",
       "default": "./lib/types/types.js"
@@ -58,27 +54,26 @@
     "lib"
   ],
   "dependencies": {
-    "@deepseek-ai/cosmokit": "^1.8.5",
-    "@deepseek-ai/dsh-settings": "0.2.0-rc.2",
-    "@deepseek-ai/schemastery": "^3.18.4",
-    "zod": "^4.4.3"
+    "@deepseek-ai/cosmokit": "^1.8.6",
+    "@deepseek-ai/dsh-settings": "0.2.1-rc.2",
+    "@deepseek-ai/schemastery": "^3.18.5",
+    "zod": "4.4.3"
   },
   "peerDependencies": {
-    "@deepseek-ai/cordis": "^4.0.4",
-    "@deepseek-ai/cordis-plugin-loader": "^1.0.5",
-    "@deepseek-ai/dsh-api-remotes": "^0.2.0-rc.2",
-    "@deepseek-ai/dsh-api-session-controller": "^0.2.0-rc.2",
-    "@deepseek-ai/dsh-client-locale": "^0.2.0-rc.2",
-    "@deepseek-ai/dsh-client-store": "^0.2.0-rc.2",
-    "@deepseek-ai/dsh-client-ui-layout": "^0.2.0-rc.2",
-    "@deepseek-ai/dsh-client-ui-plugin-manager": "^0.2.0-rc.2",
-    "@deepseek-ai/dsh-client-ui-renderer": "^0.2.0-rc.2",
-    "@deepseek-ai/dsh-client-ui-slots": "^0.2.0-rc.2",
-    "@deepseek-ai/dsh-client-ui-session": "^0.2.0-rc.2",
-    "@deepseek-ai/dsh-credentials": "^0.2.0-rc.2",
-    "@deepseek-ai/dsh-host-webserver": "^0.2.0-rc.2",
-    "@deepseek-ai/dsh-invariants": "^0.2.0-rc.2",
-    "@deepseek-ai/dsh-typert-protocol": "^0.2.0-rc.2",
+    "@deepseek-ai/cordis": "^4.0.5",
+    "@deepseek-ai/cordis-plugin-loader": "^1.0.6",
+    "@deepseek-ai/dsh-api-remotes": "^0.2.1-rc.2",
+    "@deepseek-ai/dsh-api-session-controller": "^0.2.1-rc.2",
+    "@deepseek-ai/dsh-client-locale": "^0.2.1-rc.2",
+    "@deepseek-ai/dsh-client-store": "^0.2.1-rc.2",
+    "@deepseek-ai/dsh-client-ui-layout": "^0.2.1-rc.2",
+    "@deepseek-ai/dsh-client-ui-plugin-manager": "^0.2.1-rc.2",
+    "@deepseek-ai/dsh-client-ui-renderer": "^0.2.1-rc.2",
+    "@deepseek-ai/dsh-client-ui-slots": "^0.2.1-rc.2",
+    "@deepseek-ai/dsh-client-ui-session": "^0.2.1-rc.2",
+    "@deepseek-ai/dsh-credentials": "^0.2.1-rc.2",
+    "@deepseek-ai/dsh-host-webserver": "^0.2.1-rc.2",
+    "@deepseek-ai/dsh-typert-protocol": "^0.2.1-rc.2",
     "@dsh-plugins/client-ui-card-container": "workspace:*",
     "@dsh-plugins/client-ui-widget-manager": "workspace:*",
     "react": "^18.2.0"

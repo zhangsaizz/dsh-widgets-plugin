@@ -183,24 +183,36 @@ pack → git diff 干净」。
 
 ## 关键现状与坑
 
-- **官方 API 基线**：`@deepseek-ai/*` 依赖为 `^0.2.0-rc.2`（npm **`next`** dist-tag 的当前
-  指向；root devDeps `dsh-host-webserver` / `dsh-settings` 为精确 `0.2.0-rc.2`，
-  `@deepseek-ai/schemastery` 为 `^3.18.4`，`@deepseek-ai/cordis` 为 `^4.0.4`，
-  `@deepseek-ai/cordis-plugin-loader` 为 `^1.0.5`）。**不要用 `latest`**：库包的 `latest`
+- **官方 API 基线**：`@deepseek-ai/*` 依赖为 `^0.2.1-rc.2`（npm **`next`** dist-tag 的当前
+  指向；root devDeps `dsh-host-webserver` / `dsh-settings` 为精确 `0.2.1-rc.2`，
+  `@deepseek-ai/schemastery` 为 `^3.18.5`，`@deepseek-ai/cordis` 为 `^4.0.5`，
+  `@deepseek-ai/cordis-plugin-loader` 为 `^1.0.6`，`@deepseek-ai/cosmokit` 为 `^1.8.6`，
+  `zod` 精确钉 `4.4.3`）。**不要用 `latest`**：库包的 `latest`
   长期停在 `0.0.1-rc.1` 一类陈旧版本，`latest` 只有主包 `@deepseek-ai/dsh` 是对的；
-  逐个 `npm view <pkg> dist-tags` 确认，或一律精确钉 `0.2.0-rc.2`。
+  逐个 `npm view <pkg> dist-tags` 确认，或一律精确钉 `0.2.1-rc.2`。
+  **预发布 semver 陷阱**：`^0.2.0-rc.2` **不满足** `0.2.1-rc.2`（prerelease 只匹配
+  `major.minor.patch` 元组相同的 comparator），所以基线升级必须把所有 specifier 一起改；
+  运行时的兼容性检查用 `includePrerelease` 放行，旧 range 会**静默通过**检查，但 pnpm 会
+  按旧 range 再拉一份 harness 包（重复实例）。
   改依赖时注意：pnpm 11.7 的 `autoInstallPeers` 对预发布 peer 会推导出非预发布
-  范围 `>=0.2.0 <0.3.0-0`，导致 `ERR_PNPM_NO_MATCHING_VERSION`（如 `dsh-sandbox`）。
+  范围 `>=0.2.1 <0.3.0-0`，导致 `ERR_PNPM_NO_MATCHING_VERSION`（如 `dsh-sandbox`）。
   **修复不是加 overrides**，而是让 `pnpm install` 把 fresh rc 版本自动写回
-  `pnpm-workspace.yaml` 的 `minimumReleaseAgeExclude`（0.1.7 → 0.2.0 升级后该列表已整体
-  改成 `0.2.0-rc.2`，并由 `pnpm install` 追加新进图的 17 个包）。
+  `pnpm-workspace.yaml` 的 `minimumReleaseAgeExclude`（0.2.0 → 0.2.1 升级后该列表已整体
+  改成 `0.2.1-rc.2`；删掉了新依赖图里已不存在的 4 个包 `dsh-host-apiproxy` /
+  `dsh-invariants` / `dsh-agent-presets` / `dsh-code-runtime`，并由 `pnpm install` 追加
+  新进图的 8 个包：`cordis@4.0.5` / `cordis-plugin-loader@1.0.6` /
+  `cordis-plugin-group@1.0.5` / `cordis-plugin-include@1.0.10` / `cosmokit@1.8.6` /
+  `schemastery@3.18.5` / `dsh-api-workspace-controller` / `dsh-working-directory`）。
   **升版只改 specifier 会留下「半新」依赖图**：`pnpm install` 会复用 lockfile 里仍满足
   新范围的旧解析，于是直接依赖跳到新 rc、而 `autoInstallPeers` 补进来的传递依赖
   （`dsh-agent` / `dsh-tools` / `dsh-fs` / `dsh-scope` …）留在旧 rc，新 rc 那批 peer 要求
-  `^0.2.0-rc.2` 就全部落空（`pnpm peers check` 会列一长串 unmet peer）。修法是删掉
+  `^0.2.1-rc.2` 就全部落空（`pnpm peers check` 会列一长串 unmet peer）。修法是删掉
   `pnpm-lock.yaml` 与 `node_modules/` 重新解析一次（store 已预热时只要十几秒），之后
-  `pnpm peers check` 应是 `No peer dependency issues found`。`@deepseek-ai/cordis` 保持
-  `^4.0.4`（0.1.7 与 0.2.0 的 vendor 树逐字节相同）。
+  `pnpm peers check` 应是 `No peer dependency issues found`。
+  **zod 要被钉住**：harness 的 `dsh-session-projection` 精确依赖 `zod@4.4.3`，而
+  `zod: ^4.4.3` 在 fresh resolve 后拿到 4.6.7——`ProjectionDefinition` 的 `ZodType`
+  跨版本不匹配会让 `turn-end-projection.ts` 报 TS2322/TS2589，并让 tsc 堆涨到 4GB 以上
+  OOM。两个用 zod 的包精确写 `"zod": "4.4.3"` 即可（见「0.2.0 → 0.2.1 的 API 迁移」）。
 - **`dsh-client-runtime` 已退役**：`@deepseek-ai/dsh-client-runtime` 最后发布的版本是
   `0.1.1-rc.2`，`0.1.5-rc.1` 起不再存在、也不再是浏览器模块；它原来的能力面已拆分——
   `ctx.slots`（SlotRegistry）的 Context 合并改由 `@deepseek-ai/dsh-client-ui-renderer`
@@ -269,7 +281,7 @@ pack → git diff 干净」。
     `cordis-plugin-loader`（`loader/volatile-update` 的 payload 仍是「变更路径数组」）、
     `dsh-host-webserver`（仍是 `ctx.webServer.register({kind:'exact',path,handler})`，
     handler 自持响应生命周期，无导出 helper）、`dsh-credentials`（`credentialRef`）、
-    `dsh-invariants`（`InvariantInstaller`）、`dsh-session-projection`
+    `dsh-invariants`（`InvariantInstaller`；0.2.1 已整体移除，见下）、`dsh-session-projection`
     （`ProjectionDefinition` + `stateVersion` 必填）、
     `dsh-typert-protocol` / `-registry` / `-generator`（strict codec 仍要求
     `create: () => schema` 惰性工厂，**生成器输出形状未变**，所以
@@ -325,12 +337,81 @@ pack → git diff 干净」。
     经 `/_dsh/balance/settings` POST 写 volatile `bindings` 后 revision 0→1、
     凭据被脱敏、`--dump-config` 里能看到已提交进运行 fiber 的值，陈旧 revision 被
     正确拒为 `SETTINGS_CONFLICT`。
-- **本机 dsh 必须 ≥ 0.2.0-rc.2**：浏览器端 bundle 的 `require()` 只认两种来源——壳的**种子
-  模块表**（staticModules，写在 `dsh-web-frontend` 里）和引导图里的插件行。0.1.7 与
-  0.2.0 的种子表**是同一张**：`react` / `react/jsx-runtime` / `react-dom` /
+- **0.2.0 → 0.2.1 的 API 迁移**（本仓库已完成的改造，**当前基线**）：
+  逐包 `git diff dsh-v0.2.0-rc.2 dsh-v0.2.1-rc.2` 核对后的结论是「**Host 侧、线协议与
+  本仓库消费的客户端 API 零改动**」；迁移落在依赖 specifier、`dsh-invariants` 移除、
+  一个 chat-flow DOM 包裹层与 bundle 兼容性声明上。
+  - **`@deepseek-ai/dsh-invariants` 被整体删除**（每个包的 `./invariant` 子路径也一起
+    删了；npm 上 `next` 仍停在 0.2.0-rc.2，所以「还能从 npm 装」不等于「还能用」）。
+    本仓库因此删除了 `packages/dsh-balance/src/invariant.ts`（本来就是空 installer）、
+    `./invariant` export、对应 peer 与 build 里的残留清理；bundle 从未挂载该伴侣，
+    `cordis.patch.yml` 无需改。上游升级指南：
+    `docs/upgrade-guide/v0.2.0-rc.2/remove-runtime-invariants`。
+  - **预发布 specifier 必须整体升级**：`^0.2.0-rc.2` 不满足 `0.2.1-rc.2`（见上一节的
+    semver 陷阱），所以 6 个包的 peer/deps 与 root devDeps 一起改成 `^0.2.1-rc.2` /
+    精确 `0.2.1-rc.2`，并删 lockfile 重解析。
+  - **zod 会被解析成两份**：harness 的 `dsh-session-projection` 精确依赖 `zod@4.4.3`，
+    而我们的 `zod: ^4.4.3` fresh resolve 后是 4.6.7；`ProjectionDefinition` 的
+    `ZodType` 于是跨版本不匹配（`packages/dsh-client-ui-session-monitor/src/`
+    `turn-end-projection.ts` 报 TS2322/TS2589，且让 tsc 堆涨过 4GB OOM）。
+    修法：两个用 zod 的包精确写 `"zod": "4.4.3"` 与 harness 对齐，dedupe 后 typecheck
+    用默认堆即可通过。生成器产出的 codec 也按这份 4.4.3 内联进 client bundle。
+  - **bundle 新增 `engines.dsh` 兼容性声明**：0.2.1 起安装与 profile 启动先读包自己的
+    `engines.dsh`（存在时**只由它决定**、peer 被忽略），没有才回退 peer 检查。
+    `bundles/dsh-widgets-plugin/package.json` 因此声明
+    `"engines": { "dsh": ">=0.2.1-rc.2 <0.3.0" }`；`engines.dsh` 里不能写 `workspace:`，
+    且范围要覆盖该包支持的全部 DSH 版本（peer 不会再放宽/收窄它）。各插件包仍用
+    peerDependencies 表达兼容性（profile 里 row 级准入读的也是它们）。
+  - **聊天流的 DOM 多了一层 slot 锚点**：0.2.1 把 `conversation.chat.flow` 渲染进
+    `renderSlot`，行被包进 `<div data-slot="conversation.chat.flow"
+    style="display:contents">`（位于 `.column[data-chat-flow]` 与行之间）。彩虹流光的
+    `toolAccent.ts` 找「后续 flow item」的层级选择器因此改成
+    `'[data-chat-flow], [data-slot="conversation.chat.flow"]'`——不改的话正文回复再也
+    退休不了「最新行动」扫字（`data-rf-latest` / `data-rf-latest-fold` 永远挂着）。
+  - **折叠动画有了 `data-chat-motion="collapse"` 过渡态**：新增 Host 设置
+    `collapseTiming: 'next-input'` 时，行先标记该属性、约 160ms 后才 `hidden`；
+    彩虹流光的 `isVisible()` 把 `[data-chat-motion="collapse"]` 也算作隐藏，避免给正在
+    折叠的行打标。默认 `'completion'` 下行为不变。
+  - **种子模块表只增不减**：0.2.1 在原表上加了 `zod` 与 `@tanstack/react-virtual`；
+    6 个 bundle 的外部 `require()` 仍落在旧集合内，**无需** `dsh.client.external`。
+    zod 继续按 `scripts/build.mjs` 内联（旧壳的模块表没有 zod，内联让 bundle 跨壳可用）。
+  - **`ui-session` / `ui-workspace` 现在硬注入新的 `remoteAccess` 客户端服务**（由
+    `dsh-base` 的 `@deepseek-ai/dsh-api-remote-access` 提供）。0.2.1 壳自带；若看到
+    `pending (waiting for service: remoteAccess)`，先确认壳版本而不是改插件。
+  - **其余消费面逐字节未变**：`useSessions` / `useSessionStatus` / `SessionListState` /
+    `TokenUsageProjection` / `ctx.jobs` / `ctx.uiWorkspace.openSession` /
+    `WorkspaceSource` 归档集 / `conversation.input.left|right` 槽与 props /
+    `widgets.config` / `settings.section` / `shell.overlay` / `PluginConfigViewProps` +
+    `plugins.row.config` / `webServer.register` / `SettingsForms` / `credentialRef` /
+    `ProjectionDefinition` / `turn/end`·`tool/call`·`tool/result` payload / HMR 帧 /
+    ModuleLoader 契约；`lib/typert.*` 手写 codec 仍被 0.2.1 registry 接受（strict codec
+    仍要求 `create()` 惰性工厂），**无需重生成**——0.2.1 生成器的输出形状变化是增量的
+    （`createTypertRemoteInfo`、`codec`+`strictCodec`、`jsonSchema`），只在改线协议时
+    才接生成器。
+  - **CLI 行为变化（升级/预检脚本用）**：`dsh plugin` 只在被转发的 pnpm 参数**之前**
+    读 `--profile`（`dsh plugin add … --profile x` 会报缺参数）；`--from-default-profile`
+    现在**替换**已存在的目标 profile（旧内容会丢）；把 profile 里已安装的包重指到别处
+    需要先 `remove` 再 `install`。见 `docs/upgrade-guide/v0.2.1-alpha.*`。
+  - **实测验收（0.2.1-rc.2，隔离 `DSH_HOME` + `--from-default-profile web` 自建 profile，
+    用桌面端随包运行时启动的 `dsh web`）**：`--dump-config` 里 6 条 `@dsh-plugins/*` 行
+    齐全，启动日志无激活错误；浏览器控制台零 error / 零 uncaught；
+    `[data-widget-id]` 查到 token-crit / session-monitor / balance（card-container 无该
+    属性，按标题定位，其托盘列出全部 12 个可停靠组件）；`style[data-plugin]` 含 6 个
+    `@dsh-plugins/*`；`<html>` 上 `data-rf-sweep="on"`；token-crit 显示 3,094,526 词元
+    （与会话统计的 3.1M tok 一致）；`/_dsh/balance/settings`、
+    `/_dsh/session-monitor/{status,sessions,settings,notifications}` 全 200；
+    六个 `plugins/??@dsh-plugins/*/client.js&rev=…` 全 200；
+    打开一个含 114 条工具/思考行（68 个 tool-call）的会话后：`data-rf-tool-cat` 114、
+    `data-rf-group-cat` 6、`data-rf-turn-cat` 1，而 **`data-rf-latest` /
+    `data-rf-latest-fold` 均为 0**（正文回复落地后扫字正确退休，即 chat-flow 锚点修复
+    生效）；设置页「小组件管理」列出 5 个挂件与 4 个「配置」入口。
+- **本机 dsh 必须 ≥ 0.2.1-rc.2**：浏览器端 bundle 的 `require()` 只认两种来源——壳的**种子
+  模块表**（staticModules，写在 `packages/client/web/src/seed.ts` 里）和引导图里的插件行。
+  0.2.1 的种子表 = 0.1.7/0.2.0 那张 + `zod` + `@tanstack/react-virtual`：
+  `react` / `react/jsx-runtime` / `react-dom` /
   `react-dom/client` / `@deepseek-ai/cordis` / `@deepseek-ai/dsh-client-store`
   / `@deepseek-ai/dsh-client-ui-slots` / `@deepseek-ai/dsh-client-ui-primitives`
-  / `@deepseek-ai/dsh-client-ui-dockkit`；
+  / `@deepseek-ai/dsh-client-ui-dockkit`（+ 新的 `zod` / `@tanstack/react-virtual`）；
   0.1.1 的种子表**没有 `dsh-client-store`**，于是 balance 客户端 bundle 的第一行
   `require("@deepseek-ai/dsh-client-store")` 直接抛
   `client-modules: require(...) missed the module table`（GUI 卡片显示
@@ -338,11 +419,11 @@ pack → git diff 干净」。
   6 个 bundle 运行时的外部 require 只有 `react` / `react/jsx-runtime` /
   `dsh-client-store` / `dsh-client-ui-slots` / `dsh-client-ui-primitives`，全部在上述种子表
   内，所以**无需** `dsh.client.external` 声明。升级方式：`npm install -g
-  @deepseek-ai/dsh@0.2.0-rc.2`（该前缀通常在 `C:\Program Files\nodejs\node_global`，
-  需管理员 shell），或免管理员用 `npx -y @deepseek-ai/dsh@0.2.0-rc.2 <profile> --port 9021`
+  @deepseek-ai/dsh@0.2.1-rc.2`（该前缀通常在 `C:\Program Files\nodejs\node_global`，
+  需管理员 shell），或免管理员用 `npx -y @deepseek-ai/dsh@0.2.1-rc.2 <profile> --port 9021`
   （**别用 7993–8606 一段的端口**：Windows 的 Hyper-V 预留段会让 `webServer` 以
   `EACCES` 启动失败，实测 8099 必失败）。
-  自检：`dsh --version` ≥ 0.2.0-rc.2；`dsh <profile> --dump-config` 里应能看到 6 条
+  自检：`dsh --version` ≥ 0.2.1-rc.2；`dsh <profile> --dump-config` 里应能看到 6 条
   `@dsh-plugins/*` 行；`GET /` 会先返回 401 `dsh web authentication required`，控制台会
   打印带 `?token=…` 的完整 URL（**用它再取一次**才是应用页）；取到后
   `plugins/??<pkg>/client.js&rev=…`（聚合形式 0.1.7 起未变）应返回 200 而不是 404，
@@ -459,6 +540,9 @@ $env:DSH_HOME="$env:TEMP\dsh-preflight"; "…/dsh.cmd" widgettest --from-default
 "…/dsh.cmd" widgettest --port 19390        # 避开 7993–8606 与 19387
 ```
 
+> 0.2.1 起 `--from-default-profile` **替换**已存在的同名 profile（旧依赖/补丁会丢），
+> 且 `dsh plugin` 只在 pnpm 参数**之前**读 `--profile`——上面两行就是正确顺序。
+
 预检判据（`--dump-config` 里有 `# == @dsh-plugins/dsh-widgets-plugin` 段；启动后
 `/_dsh/session-monitor/status`、`/_dsh/balance/settings` 与
 `plugins/??<pkg>/client.js&rev=…` 均 200，启动日志无插件激活错误）。客户端半改动由
@@ -492,7 +576,7 @@ $env:DSH_HOME="$env:TEMP\dsh-preflight"; "…/dsh.cmd" widgettest --from-default
 
 ### 实测验收
 
-**已做（离线可复现，2026-09-30，桌面端 0.2.0-rc.2）**
+**已做（离线可复现；第 1–4 项 2026-09-30 / 桌面端 0.2.0-rc.2，第 5 项 2026-10-17 / 桌面端 0.2.1-rc.2）**
 
 1. **真实 bundle 栈预检**：把 `profiles/desktop` 原样复制成隔离 home 里的
    `profiles/desktoptest`（保留 `dsh-base` / `dsh-web-app` /
@@ -539,6 +623,20 @@ $env:DSH_HOME="$env:TEMP\dsh-preflight"; "…/dsh.cmd" widgettest --from-default
    `0x40010004` 退出；两份报告的 Host stderr 尾部只有标准的 `fs.Stats` 弃用告警、渲染进程零
    error 级输出，profile 里也没有恢复流程留下的 `.bak-*`（即没走「禁用第三方 bundle」）。证据
    不支持「插件激活失败」这一解释，但成因未定论——再遇到 Host 退出请把该 log 一并提供。
+5. **桌面端运行时 0.2.1-rc.2 预检（2026-10-17，隔离 home + 自建 web profile，Playwright
+   真实 Chromium）**：用 `F:\DeepSeek-Harness-Desktop\resources\runtime\cli\bin\dsh.cmd`
+   （`dsh --version` = 0.2.1-rc.2）在 `$env:TEMP` 的隔离 `DSH_HOME` 里
+   `verify --from-default-profile web` → `dsh plugin --profile verify add` 7 个 `link:` 包
+   → `dsh verify --port 19392 --no-open`。断言：`--dump-config` 里 6 条
+   `@dsh-plugins/*` 行；六个 `plugins/??@dsh-plugins/*/client.js` 全 200（
+   251KB/130KB/88KB/84KB/82KB/35KB）；`/_dsh/session-monitor/{status,sessions,settings,
+   notifications}` 与 `/_dsh/balance/settings` 全 200；`[data-widget-id]` 三个浮窗 +
+   卡片容器挂载（其托盘列出 12 个可停靠组件）；token-crit 显示 3,094,526 词元；设置页
+   「小组件管理」列出 5 个挂件与 4 个「配置」入口；打开 114 行会话后
+   `data-rf-tool-cat` 114 / `data-rf-group-cat` 6 / `data-rf-turn-cat` 1，而
+   `data-rf-latest` 与 `data-rf-latest-fold` 均为 0；控制台零 error / 零 pageerror /
+   零 4xx（探针需先点掉「预览版说明」与 API Key 两个 Modal，并临时隐藏
+   `[data-shell-overlay]` 才能点到侧栏会话行）。
 
 **仍需人眼确认（真实 Electron 窗口，浏览器探针不能替代）**：窗口 chrome 与浮窗的实际叠放
 （是否被原生窗口按钮遮挡；可在 DevTools 里跑

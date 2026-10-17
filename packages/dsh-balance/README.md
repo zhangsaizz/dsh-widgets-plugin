@@ -147,9 +147,3 @@ persists only its own view-settings key in `localStorage`.
   settings or composition field.
 - **Response-structure sensitive** — vendors changing their response shape
   fail normalization with `provider-error`; no versioned fallback.
-
-## Invariant companion
-
-`@dsh-plugins/balance/invariant` ships the package-owned invariant companion
-registered with the `invariants` seam. It is optional and not mounted by the
-bundle.

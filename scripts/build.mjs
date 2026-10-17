@@ -25,10 +25,12 @@ const root = join(dirname(fileURLToPath(import.meta.url)), '..')
 // itself and works identically on every platform.
 const require = createRequire(import.meta.url)
 const EXTERNAL = ['@deepseek-ai/*', '@dsh-plugins/*', 'zod', 'react', 'react/*']
-// Client bundles run inside the browser ModuleLoader, whose module table has
-// no factory for `zod` (it is neither a platform seed word nor an injected
-// shell module). The generated typert wire code imports zod, so client bundles
-// must inline it instead of leaving the require external; host bundles keep it
+// Client bundles run inside the browser ModuleLoader, which resolves their
+// externals from the shell's module table. That table has no `zod` factory on
+// every supported shell: harness 0.2.1 added one, earlier shells do not, and
+// the generated typert wire code imports zod. Client bundles therefore inline
+// zod (pinned to 4.4.3, the version the harness's session-projection and
+// typert-registry use) instead of externalising it; host bundles keep it
 // external and resolve it from node_modules at runtime.
 const EXTERNAL_CLIENT = EXTERNAL.filter((entry) => entry !== 'zod')
 
@@ -71,7 +73,6 @@ for (const pkg of [
   const pkg = 'packages/dsh-balance'
   const tscCli = require.resolve('typescript/bin/tsc')
   rmSync(join(root, pkg, 'lib/types'), { recursive: true, force: true })
-  rmSync(join(root, pkg, 'lib/invariant.js'), { force: true })
   execFileSync(process.execPath, [tscCli, '-p', join(root, pkg, 'tsconfig.build.json')], { stdio: 'inherit' })
   // tsc rewrites `.ts` specifiers to `.js` in the JS emit but (as of TS 5.9)
   // leaves them untouched in the declaration emit. Normalize the .d.ts files

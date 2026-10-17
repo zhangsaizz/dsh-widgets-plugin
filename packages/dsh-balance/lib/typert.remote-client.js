@@ -8,6 +8,11 @@
 // 0.1.7 → 0.2.0: the generator's output shape is UNCHANGED (the emitter blob is
 // identical across the two tags), so this artifact stays wire-correct on
 // 0.2.0-rc.2 and needs no regeneration for that baseline change.
+// 0.2.0 → 0.2.1: the generator's output shape changed only additively (lazy
+// `createTypertRemoteInfo`, dual `codec` + `strictCodec`, `jsonSchema`), and
+// `@deepseek-ai/dsh-typert-registry` / the loader still accept this strict
+// codec (`{ mode:'strict', typeSymbol, create() }`), so keep the vendored
+// artifact — regenerate only when the Remote wire protocol itself changes.
 import { z } from 'zod'
 
 let _deepseek_ai_dsh_balance_balance_list_result$schema$value

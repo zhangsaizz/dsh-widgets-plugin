@@ -60,7 +60,7 @@
 
 | 包 | 版本 | 角色 | 发布内容（files） | 关键 exports | 维护来源 |
 |---|---|---|---|---|---|
-| `@dsh-plugins/balance` | 0.1.0 | 合并后的余额插件（Host 缝隙 + 厂商 + Web 看板） | `lib` | `.`、`./invariant`、`./types`、`./typert`、`./remote`、`./client` | 独立维护（已废弃 harness 同步） |
+| `@dsh-plugins/balance` | 0.1.0 | 合并后的余额插件（Host 缝隙 + 厂商 + Web 看板） | `lib` | `.`、`./types`、`./typert`、`./remote`、`./client` | 独立维护（已废弃 harness 同步） |
 | `@dsh-plugins/client-ui-token-crit` | 0.1.0 | Token 暴击挂件（浏览器端，纯 UI） | `lib` | `.`、`./client` | 独立维护 |
 | `@dsh-plugins/client-ui-session-monitor` | 0.1.0 | 会话监控看板（Host 半：turn/end 原因跟踪 + 通知 inbox + 路由；浏览器端看板） | `lib` | `.`、`./client` | 独立维护 |
 | `@dsh-plugins/client-ui-card-container` | 0.1.0 | 卡片容器（浏览器端，纯 UI：声明 `widgets.card` 子槽、停靠影子，**无内置卡片**） | `lib` | `.`、`./client` | 独立维护 |
@@ -149,17 +149,20 @@
   凭据 = 保留原值）；写入按插件自己的原始 entry id 在 `settings.describe()` 里找条目，
   经 `settings.update(id, { bindings })`（merge；`replace` 会把其他 volatile 字段
   重置回 base）。
-- `src/invariant.ts`：包级 invariant 伴侣（`./invariant` 子路径，可选，bundle 不挂载）。
+- 不发布 invariant 伴侣：0.2.1 起上游删除了 `@deepseek-ai/dsh-invariants` 与所有
+  `<package>/invariant` 子路径（本仓库原空 installer 已删除，详见 AGENTS.md
+  「0.2.0 → 0.2.1 的 API 迁移」）。
 - 类型面：`BalanceProvider`、`BalanceRuntime`、`BalanceProviderInfo`、
   `BalanceAccountData`、`BalanceAccount`、`BalanceQueryResult`、`BalanceListResult`、
   `BalanceBindingConfig`（`./types`）、client 面 `BalanceController`、`BalancePhase`、
   `BalanceRemote`、`BalanceViewState`、`BalanceWidgetProps`、`BalanceInject`、
   `BalanceSettingsInjected`、`BalanceKey`、`createBalanceViewStore`、`ModelDirectoriesLike`、
   `ModelDirectoriesProvider`（`./client` 类型面）。
-- 依赖：`zod`、`@deepseek-ai/schemastery`、`@deepseek-ai/dsh-settings`、
+- 依赖：`zod`（精确 `4.4.3`，与 harness 的 `dsh-session-projection` pin 对齐）、
+  `@deepseek-ai/schemastery`、`@deepseek-ai/dsh-settings`、
   `@deepseek-ai/cosmokit`（deps：手写 `Config` 接口要用具名引用，见 AGENTS.md）；
   `@deepseek-ai/cordis`、`@deepseek-ai/cordis-plugin-loader`（`loader/volatile-update`
-  事件 + `Fiber.entry`）、`dsh-credentials`、`dsh-invariants`、`dsh-typert-protocol`、
+  事件 + `Fiber.entry`）、`dsh-credentials`、`dsh-typert-protocol`、
   `dsh-api-remotes`、`dsh-api-session-controller`、`dsh-client-store`、
   `dsh-client-ui-renderer`、`dsh-client-ui-session`（`mainView` 标签的类型合并）、
   `dsh-client-locale`、`dsh-client-ui-layout`、
@@ -243,6 +246,9 @@
 
 - 包：`@dsh-plugins/dsh-widgets-plugin`（`bundles/dsh-widgets-plugin`）。
 - `dsh.bundle.patch = ./cordis.patch.yml`；依赖 6 个 `workspace:*` 包。
+- `engines.dsh = ">=0.2.1-rc.2 <0.3.0"`：0.2.1 起安装与 profile 启动先读 `engines.dsh`
+  （存在时只由它决定兼容性、`peerDependencies` 被忽略），范围必须覆盖该 bundle 支持的
+  全部 DSH 版本；`workspace:` 值在这里非法。
 - `cordis.patch.yml` 插入顺序：`balance`（requestTimeoutMs / newApiBaseURL / bindings）→
   `ui-token-crit` → `ui-session-monitor` → `ui-card-container` → `ui-rainbow-flow` →
   `ui-widget-manager`。
@@ -705,6 +711,15 @@
     `_label` 真实文本 span 并排除 TextShimmer 装饰副本）。
     全套 13 色**一色一家族、明显可区分**（暖色系 绿/黄/橙/棕，
      冷色系 蓝→青→靛→紫→淡紫 逐一错开，红色专属 ask，青绿专属 task（任务类），仅 other 为灰）；**每类颜色可按用户配置自定义**（经 `settings.ts` 的 `toolColors` → 本模块写成 `<html>` 内联 `--rf-tool-*`，覆盖样式表 `:root` 默认并实时生效，配置面板「命令文字颜色」编辑）；**最新行动（命令/思考）被彩虹扫过（正文除外）**（会话里**最新的一条**——命令卡或 `data-variant="think"` 思考行，`setLatest` 在 `[data-tool]` 与 `[data-variant="think"]` 的并集取最晚**未被折叠隐藏**的一行标 `data-rf-latest`（0.1.7 过程分组的折叠内容默认带 `hidden="until-found"`，标到隐藏行等于看不见；若最新可见行之后还有被折叠的更新行动则不标）——其 `_title`/`_summary`/`_fileLink` 被 `ToolAccent.css` 的**流动彩虹渐变**（`background-clip: text`）扫过每个字符，输出正文不参与；**跟随最新行动持续**（read/edit 等秒完的命令也亮），直到**其后出现正文回复**（只按 flow-item 结构判定，并**沿嵌套的 `[data-chat-flow]` 层级逐层向上找**——0.1.7 把命令卡嵌进过程分组，正文在整组之后的更外层；隐藏的 flow item 不算正文）才熄灭）——纯 CSS、不重渲染 DOM、`prefers-reduced-motion` 冻结为静态彩虹；**受 `commandSweep` 开关控制**（本模块把设置写成 `<html>` 的 `data-rf-sweep='on'|'off'` 门控；`setLatest` **每次从 DOM 确定性重算** `[data-tool]`/`[data-variant="think"]` 并集里最晚一行来标 `data-rf-latest`，并据 flow-item 结构（跨嵌套 `[data-chat-flow]` 层级）判定其后方是否出现正文回复（无 sticky 状态，无 `textContent` 误判）——扫字选择器只用并集标出的 `data-rf-latest`，故**独立于 `commandColor` 上色开关**）。命令上色本身**受 `commandColor` 开关控制**（关掉时本模块停止打标签并清除已有 `data-rf-tool-cat`/`title`，命令卡恢复原厂外观）。
+  - **0.2.1 适配**：聊天流改由槽渲染，行被包进
+    `<div data-slot="conversation.chat.flow" style="display:contents">`，因此
+    `toolAccent.ts` 的 `FLOW_LEVEL_SELECTOR` 是
+    `'[data-chat-flow], [data-slot="conversation.chat.flow"]'`（否则正文回复不再是
+    折叠座位的兄弟节点，「最新行动」扫字永不退休）；`isVisible()` 把
+    `[data-chat-motion="collapse"]`（`collapseTiming: 'next-input'` 的折叠过渡态）
+    也算作隐藏。实测（114 行会话）：`data-rf-tool-cat` 114、`data-rf-group-cat` 6、
+    `data-rf-turn-cat` 1，正文回复落地后 `data-rf-latest` / `data-rf-latest-fold`
+    均为 0。
 - **呼吸节奏随 token 速率**：光环组件内 500ms 采样 `useChat((c) => c.legacy.partial)`
   （流式输出内容）文本长度增量 → 估算每秒输出 token 数（约 2 字符/token，EMA 平滑）
   → 映射呼吸周期 5s（慢）↔ 1s（快）——静止时是舒缓的深呼吸、峰值输出时是
@@ -865,7 +880,6 @@ graph LR
 | `@deepseek-ai/cosmokit` | balance、client-ui-session-monitor（deps：手写 `Config` 接口需要具名引用，避免 TS2742） |
 | `@deepseek-ai/dsh-api-job-controller` | client-ui-session-monitor（client：`ctx.jobs` roster + `ctx.jobs.watchRows(id)` 引用计数流，取代已删除的 `SessionListState.jobsBySession`） |
 | `@deepseek-ai/dsh-client-ui-workspace` | client-ui-session-monitor（client：`ctx.uiWorkspace.openSession(target)`，取代已删除的 `ctx.sessions.open`） |
-| `@deepseek-ai/dsh-invariants` | balance（invariant 伴侣） |
 | `@deepseek-ai/dsh-credentials` / `dsh-typert-protocol` | balance |
 | `@deepseek-ai/dsh-settings` | balance、client-ui-session-monitor（`ctx.settings` 的 `SettingsForms` 类型合并 + Web 设置后端） |
 | `@deepseek-ai/dsh-api-remotes` | balance（client） |
@@ -1018,7 +1032,7 @@ Host 半用 esbuild，浏览器半用 **Vite library mode**（与官方 deepseek
 | 项 | 值 |
 |---|---|
 | 包版本 | 0.1.0（7 包一致） |
-| 官方 API 基线 | `@deepseek-ai/*` **0.2.0-rc.2**（npm `next` dist-tag；peer 范围 `^0.2.0-rc.2`，`@deepseek-ai/cordis` `^4.0.4`、`@deepseek-ai/schemastery` `^3.18.4`、`@deepseek-ai/cordis-plugin-loader` `^1.0.5`）。0.1.7 → 0.2.0 的 Host/线协议面逐字节未变，迁移只有依赖 specifier + 少量客户端 DOM/插槽行为，详见 AGENTS.md「关键现状与坑」的「0.1.7 → 0.2.0 的 API 迁移」。`dsh-client-runtime` 已退役：`ctx.slots` 改由 `dsh-client-ui-renderer` 提供、store API 在 `dsh-client-store` |
+| 官方 API 基线 | `@deepseek-ai/*` **0.2.1-rc.2**（npm `next` dist-tag；peer 范围 `^0.2.1-rc.2`，`@deepseek-ai/cordis` `^4.0.5`、`@deepseek-ai/schemastery` `^3.18.5`、`@deepseek-ai/cordis-plugin-loader` `^1.0.6`、`@deepseek-ai/cosmokit` `^1.8.6`，`zod` 精确 `4.4.3`）。0.2.0 → 0.2.1 的 Host/线协议面与本仓库消费的客户端 API 未变，迁移落在依赖 specifier、`dsh-invariants` 删除、chat-flow 槽锚点/折叠过渡态与 bundle `engines.dsh` 上，详见 AGENTS.md「关键现状与坑」的「0.2.0 → 0.2.1 的 API 迁移」。`dsh-client-runtime` 已退役：`ctx.slots` 改由 `dsh-client-ui-renderer` 提供、store API 在 `dsh-client-store` |
 | 语言约定 | 根文档中文；包 README 双语对 + `README.i18n.yaml` hash 凭据 |
-| 桌面端基线 | 官方 Electron 桌面端，随包运行时同为 **0.2.0-rc.2**（安装目录 `F:\DeepSeek-Harness-Desktop`，profile `desktop`，默认端口 19387，应用文档来源 `dsh-app://app/`）。bundle 与 `dsh.client` 行与 Web 端完全一致；差异只在安装位置与浮窗顶栏避让（组件 30/31），见 AGENTS.md「DSH 桌面端（Electron）」 |
+| 桌面端基线 | 官方 Electron 桌面端，随包运行时同为 **0.2.1-rc.2**（安装目录 `F:\DeepSeek-Harness-Desktop`，profile `desktop`，默认端口 19387，应用文档来源 `dsh-app://app/`）。bundle 与 `dsh.client` 行与 Web 端完全一致；差异只在安装位置与浮窗顶栏避让（组件 30/31），见 AGENTS.md「DSH 桌面端（Electron）」 |
 | CI | install → build → pack → git diff 干净（ci.yml）；`v*` tag 发布（publish.yml） |

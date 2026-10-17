@@ -120,8 +120,3 @@ New API → `NEW_API_KEY`）。要查询额外或自托管路由，在 harness �
 - **固定刷新间隔** — 看板的 30 秒刷新是常量，不是 settings 或组合字段。
 - **对响应结构敏感** — 厂商变更响应结构会以 `provider-error` 使规范化失败，没有
   版本化回退。
-
-## Invariant 伴侣
-
-`@dsh-plugins/balance/invariant` 提供本包的 invariant 伴侣（注册进 `invariants`
-缝隙）。它是可选的，bundle 不会挂载它。

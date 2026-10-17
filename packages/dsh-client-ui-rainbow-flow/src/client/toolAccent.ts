@@ -118,8 +118,11 @@ const ROW_SELECTOR = `[${TOOL_ATTR}], [${VARIANT_ATTR}="${THINK_VARIANT}"], [${V
 /** A transcript flow-list container. 0.1.5 shipped one flat list; 0.1.7 nests
  *  the action rows inside a process group whose content element
  *  (`[data-step-process-content]`) is itself a flow list, so the containers
- *  form a chain: group content → outer chat column. */
-const FLOW_LEVEL_SELECTOR = '[data-chat-flow]'
+ *  form a chain: group content → outer chat column. 0.2.1 renders the chat flow
+ *  through a slot, which wraps the rows in a `display:contents` anchor
+ *  (`[data-slot="conversation.chat.flow"]`) between the column and the rows —
+ *  it is a flow list too, so a row's following reply stays reachable. */
+const FLOW_LEVEL_SELECTOR = '[data-chat-flow], [data-slot="conversation.chat.flow"]'
 
 /** Attribute the harness sets on a flow item (its chat-node kind). */
 const FLOW_KIND_ATTR = 'data-chat-flow-kind'
@@ -186,9 +189,12 @@ function applyTo(element: Element): void {
  *  collapsed group body (`hidden="until-found"` on `[data-step-process-body]`)
  *  and individual process members (the member wrapper gets the same attribute),
  *  so `querySelectorAll` still returns rows the user cannot see; a rainbow
- *  marker on one of those can never show. */
+ *  marker on one of those can never show. 0.2.1's optional
+ *  `collapseTiming: 'next-input'` fold motion marks a closing row with
+ *  `data-chat-motion="collapse"` ~160 ms before it sets `hidden`, so treat the
+ *  whole transition as hidden. */
 function isVisible(el: Element): boolean {
-  return el.closest('[hidden]') === null
+  return el.closest('[hidden], [data-chat-motion="collapse"]') === null
 }
 
 /** Tag every decorated row in a subtree (used for the initial mount and for
