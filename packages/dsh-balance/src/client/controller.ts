@@ -16,7 +16,7 @@ import { createSnapshotStore } from '@deepseek-ai/dsh-client-store'
 import type { HostObservable } from '@deepseek-ai/dsh-client-ui-slots'
 import type { RemoteResult } from '@deepseek-ai/dsh-typert-protocol'
 import { currentSessionId } from './session-selection.ts'
-import { accountBalanceEntries, accountClientMetadata, mergeAccountRows } from './account-balance.ts'
+import { accountBalanceEntries, accountClientMetadata, accountRouteResult, mergeAccountRows } from './account-balance.ts'
 import type { AccountRemoteProvider } from './account-balance.ts'
 import type { BalanceListEntry, BalanceListResult, BalanceQueryResult } from '../types.ts'
 
@@ -246,7 +246,16 @@ export class BalanceController implements HostObservable<BalanceViewState> {
     const carried = await carriedPromise
     // oxlint-disable-next-line typescript/no-unnecessary-condition -- re-entrant reconcile/dispose can run during the await.
     if (this.disposed || generation !== this.generation) return
-    const result = carried !== null && carried.ok ? carried.value : this.failure(provider, carried)
+    let result = carried !== null && carried.ok ? carried.value : this.failure(provider, carried)
+    // The official-account model route (`deepseek-account`) has no vendor
+    // binding, so the Host answers `bound: false`. That route's balance IS the
+    // signed-in platform wallet: project the fresh wallet rows onto the result
+    // so switching a session to an account model shows the account balance in
+    // the single-account view instead of "unbound".
+    if (result.account?.status !== 'ok') {
+      const accountResult = accountRouteResult(provider, accountEntries)
+      if (accountResult !== undefined) result = accountResult
+    }
     this.publish({
       phase: 'ready', provider, model,
       accounts: this.store.getSnapshot().accounts,

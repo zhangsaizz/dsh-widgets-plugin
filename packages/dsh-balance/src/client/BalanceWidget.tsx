@@ -12,7 +12,7 @@ import type {
   InjectFace, PropsLocale, PropsRuntime, PropsStore, TranslateNS,
 } from '@deepseek-ai/dsh-client-ui-slots'
 import type { BalanceAccount, BalanceListEntry, BalanceQueryResult, BalanceTrend } from '../types.ts'
-import { ACCOUNT_VENDOR, officialAccountRows } from './account-balance.ts'
+import { ACCOUNT_PROVIDER_ROUTE, ACCOUNT_VENDOR, officialAccountRows } from './account-balance.ts'
 import type { BalanceController, BalanceViewState } from './controller.ts'
 import type { CardContainerAvailability } from './container-dock.ts'
 import { MAX_SCALE, MIN_SCALE } from './store.ts'
@@ -221,18 +221,25 @@ function AccountList(props: {
   }
   // The current account must always be visible: the Host binding table may not
   // contain its route (a custom pi-ai provider name), so merge the single-query
-  // result in when the listing lacks it.
+  // result in when the listing lacks it. The official-account route's result is
+  // a projection of the synthetic rows already listed, so it must not be added
+  // twice.
   if (currentResult !== null && currentResult.bound && currentResult.account !== undefined
     && currentResult.account.status === 'ok'
+    && currentResult.account.vendor !== ACCOUNT_VENDOR
     && !rows.some(entry => entry.provider === currentProvider)) {
     rows.push({ provider: currentResult.provider, bound: true, account: currentResult.account })
   }
   if (rows.length === 0) {
     return <span className={css.note}>{accounts === null ? t('loading') : t('noAccounts')}</span>
   }
+  /** The official wallet row representing the current model route. */
+  const isCurrentEntry = (entry: BalanceListEntry): boolean =>
+    entry.provider === currentProvider
+    || (currentProvider === ACCOUNT_PROVIDER_ROUTE && entry.account?.vendor === ACCOUNT_VENDOR)
   const ordered = [...rows].sort((left, right) => {
-    if (left.provider === currentProvider) return -1
-    if (right.provider === currentProvider) return 1
+    if (isCurrentEntry(left)) return -1
+    if (isCurrentEntry(right)) return 1
     return 0
   })
   return (
@@ -240,7 +247,7 @@ function AccountList(props: {
       {ordered.map((entry) => {
         const account = entry.account
         if (account === undefined) return null
-        const isCurrent = entry.provider === currentProvider
+        const isCurrent = isCurrentEntry(entry)
         return (
           <div key={entry.provider} className={css.accountRow} data-current={isCurrent || undefined}>
             <span className={css.accountName} title={entry.provider}>
@@ -285,6 +292,11 @@ export function BalanceWidget(props: BalanceWidgetProps) {
   // single-account body, and its own row in the all-accounts list) and use it
   // as the collapsed pill's value when no provider account resolves.
   const official = officialAccounts(view)
+  // On the official-account model route the FIRST wallet is already the primary
+  // body amount (see accountRouteResult); only the remaining currencies need the
+  // extra line. Every other route shows the official wallets as a supplementary
+  // line under the provider balance.
+  const officialExtra = view.provider === ACCOUNT_PROVIDER_ROUTE ? official.slice(1) : official
   // The collapsed pill shows the current account by default, but briefly flips
   // to a CHANGED other provider (multi-account view), then restores.
   const lastAccountsRef = useRef<readonly BalanceListEntry[] | null>(null)
@@ -348,8 +360,12 @@ export function BalanceWidget(props: BalanceWidgetProps) {
         && !(pillIsOfficial && entry.account.vendor === ACCOUNT_VENDOR))
     : null
   const animated = useAnimatedNumber(pillAccount?.total ?? 0, pillAccount !== null)
-  // Model-provider display name once a bound account resolves; the raw route otherwise.
-  const headerLabel = view.result?.account?.displayName ?? view.provider
+  // Provider display name once a bound account resolves; when the resolved
+  // account is the official wallet (the `deepseek-account` model route) use the
+  // localized vendor label rather than the provider's generic "DeepSeek".
+  const headerLabel = view.result?.account?.vendor === ACCOUNT_VENDOR
+    ? t('accountVendor')
+    : (view.result?.account?.displayName ?? view.provider)
 
   const drag = useRef<DragState | null>(null)
   const frame = useRef<number | null>(null)
@@ -604,10 +620,10 @@ export function BalanceWidget(props: BalanceWidgetProps) {
               ? <AccountList accounts={view.accounts} currentResult={view.result} t={t} />
               : <BalanceBody view={view} animated={animated} t={t} />}
           </div>
-          {settings.mode === 'current' && official.length > 0 && (
+          {settings.mode === 'current' && officialExtra.length > 0 && (
             <div className={css.official}>
               <span className={css.officialTitle}>{t('accountVendor')}</span>
-              {official.map(account => (
+              {officialExtra.map(account => (
                 <span key={account.currency} className={css.officialValue}>
                   {formatAmount(account.total)}
                   <span className={css.officialCurrency}>{account.currency}</span>

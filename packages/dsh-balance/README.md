@@ -66,7 +66,11 @@ hover tooltip / loading states, light & dark themes](../../docs/previews/balance
   bonus wallets (rounded to the official two-decimal display) and shows one entry
   per currency under the single-account balance as well as a row in the
   multi-account view; when the model provider has no balance, the collapsed pill
-  and the compact card fall back to the official account. Signed
+  and the compact card fall back to the official account. The single-account
+  primary balance follows the current session's selected model route: on the
+  official account route (`deepseek-account`) the wallet IS that route's balance,
+  and switching to a vendor-backed model switches the primary value back to that
+  vendor while the wallet stays as a supplementary line. Signed
   out, on a read failure, or on a shell without the account plugin the wallet rows
   are simply absent and every provider row is unaffected. The dashboard panel /
   collapsed pill / multi-account

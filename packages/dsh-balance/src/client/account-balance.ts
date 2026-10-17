@@ -25,10 +25,12 @@
  */
 
 import type { RemoteResult } from '@deepseek-ai/dsh-typert-protocol'
-import type { BalanceAccount, BalanceListEntry } from '../types.ts'
+import type { BalanceAccount, BalanceListEntry, BalanceQueryResult } from '../types.ts'
 
-/** Synthetic provider-route prefix; the full key is `<prefix>:<currency>`. */
-export const ACCOUNT_PROVIDER_PREFIX = 'deepseek-account'
+/** The official account LLM provider route (the harness model catalog route). */
+export const ACCOUNT_PROVIDER_ROUTE = 'deepseek-account'
+/** Synthetic per-currency provider-route prefix; the full key is `<prefix>:<currency>`. */
+export const ACCOUNT_PROVIDER_PREFIX = ACCOUNT_PROVIDER_ROUTE
 /** Synthetic vendor id, so the widget can localize the display name. */
 export const ACCOUNT_VENDOR = 'deepseek-account'
 /**
@@ -147,6 +149,33 @@ export function mergeAccountRows(
  */
 function round2(value: number): number {
   return Math.round(value * 100) / 100
+}
+
+/**
+ * Single-account result for the official account model route.
+ *
+ * Harness routes official-account models through the `deepseek-account` LLM
+ * provider, which no vendor balance provider binds. When the session uses that
+ * route the platform wallet IS the model provider's balance, so the first
+ * resolved wallet row stands in for the query result instead of the "unbound"
+ * state the Host reports.
+ * @param provider - the current session's selected LLM provider route.
+ * @param entries - the fresh synthetic wallet entries for this reconcile.
+ * @returns a bound result carrying the primary wallet, or undefined when the
+ *   route is not the account route / no wallet resolved.
+ */
+export function accountRouteResult(
+  provider: string,
+  entries: readonly BalanceListEntry[],
+): BalanceQueryResult | undefined {
+  if (provider !== ACCOUNT_PROVIDER_ROUTE) return undefined
+  for (const entry of entries) {
+    const account = entry.account
+    if (account !== undefined && account.vendor === ACCOUNT_VENDOR && account.status === 'ok') {
+      return { provider, bound: true, account }
+    }
+  }
+  return undefined
 }
 
 /**

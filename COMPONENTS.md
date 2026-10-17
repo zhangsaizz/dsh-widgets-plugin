@@ -20,7 +20,7 @@
 | 3 | 余额厂商 Provider ×5 | Host 插件 | `@dsh-plugins/balance` | Host | deepseek / moonshot / openrouter / siliconflow / new-api 五个真实余额查询 |
 | 4 | 不支持厂商占位 ×5 | Host 插件 | `@dsh-plugins/balance` | Host | openai / anthropic / google / xai / mistral 的「无公开余额接口」占位 |
 | 5 | 余额设置 Web 后端 | Host Web 路由 | `@dsh-plugins/balance` | `/_dsh/balance/settings` | 设置页的 GET 快照（脱敏）与 POST 持久化 |
-| 6 | 余额看板挂件 `BalanceWidget` | Web 挂件 | `@dsh-plugins/balance` | `shell.overlay`（order 100） | 浮动余额看板：视口内拖动/角吸附/缩放/折叠过渡、滚动金额、趋势箭头、单/多账户视图（**已登录官方 DeepSeek 账号的钱包行同时出现在单账户视图下方、多账户列表；无 provider 余额时胶囊与卡片也回退显示**）；面板/胶囊/悬停提示为**液态玻璃**材质（与彩虹流光输入框同一配方） |
+| 6 | 余额看板挂件 `BalanceWidget` | Web 挂件 | `@dsh-plugins/balance` | `shell.overlay`（order 100） | 浮动余额看板：视口内拖动/角吸附/缩放/折叠过渡、滚动金额、趋势箭头、单/多账户视图（**已登录官方 DeepSeek 账号的钱包行同时出现在单账户视图下方、多账户列表；无 provider 余额时胶囊与卡片也回退显示；主余额随当前会话模型路由切换——官方账号路由 `deepseek-account` → 钱包即主余额，厂商路由 → 厂商余额 + 钱包补充行**）；面板/胶囊/悬停提示为**液态玻璃**材质（与彩虹流光输入框同一配方） |
 | 7 | 余额供应商配置面板 `BalanceSettings` | Web 配置弹窗 | `@dsh-plugins/balance` | `widgets.config`（管理器「配置」弹窗） | 管理插件自身 Config 条目（settings 命名空间 = profile 条目原始 id `balance`）的 `bindings` volatile 字段——用户绑定（provider/vendor/凭据/baseURL） |
 | 8 | `BalanceController` + `useBalance` | 客户端数据层 | `@dsh-plugins/balance` | 注入 hook | 跟随当前 session + model，固定 30s 轮询刷新，暴露 `refresh()`；每轮另经 `remote.account`（延迟绑定，0.2.1）读取官方账号充值 + 赠送钱包，按币种折算成合成行（`account-balance.ts`） |
 | 9 | balance 视图 store | 客户端状态 | `@dsh-plugins/balance` | 注入 store | 缩放 / 吸附 / 折叠视图状态（`createBalanceViewStore`） |
@@ -124,8 +124,13 @@
     立即刷新；未登录返回 null、读取抛错都只产生 0 行，绝不影响厂商列表）。每个
     出现的币种一行：`total = 充值 + 赠送`、`toppedUp = 充值`、`granted = 赠送`，
     `vendor = 'deepseek-account'`、`provider = 'deepseek-account:<币种>'`（widget 用
-    locale key `accountVendor` 本地化显示名）。账号钱包不依赖会话 / 模型选择：
-    「无会话」「未选择模型」两态也会带上这些行。请求身份
+    locale key `accountVendor` 本地化显示名）。钱包行的存在不依赖会话 / 模型选择
+    （「无会话」「未选择模型」两态也会带上），但**单账户主余额随当前会话的模型路由
+    切换**：路由为官方账号路由 `deepseek-account`（harness 官方账号模型的 provider 名，
+    Host 余额表里没有对应厂商绑定）时，`accountRouteResult()` 把首条钱包投影成
+    `bound: true` 的单账户结果（标题「DeepSeek 账号」）；切回厂商路由则主余额恢复为
+    该厂商余额，钱包行降为下方补充行；多账户视图在该路由下把官方行标为「当前」。
+    请求身份
     `{ version: 包版本, locale: 当前 UI 语言, timezoneOffsetSeconds }` 由
     `accountClientMetadata()` 生成；结构类型自持（无 type-only peer），account
     插件缺席时自动跳过。

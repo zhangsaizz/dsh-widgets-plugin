@@ -490,11 +490,22 @@ pack → git diff 干净」。
     里用 `ctx.inject(['remote.account'], …)` 唤醒一次立即刷新，之后随 30s 轮询；无
     type-only peer（结构类型自持），未登录时只读本地凭据、不发网络请求。widget 对
     `vendor === 'deepseek-account'` 的行用 locale key `accountVendor` 本地化显示名。
+    **模型路由联动**：单账户主余额始终跟随当前会话所选模型的路由（`ctx.modelDirectories`
+    订阅 + 30s 轮询）；当路由是官方账号路由 **`deepseek-account`**（harness 官方账号
+    模型的 provider 名，Host 余额表里没有对应的厂商绑定、原本会显示「未绑定」）时，
+    `accountRouteResult()` 把首条钱包投影成单账户结果，标题显示「DeepSeek 账号」；
+    切回厂商路由（如 `deepseek-official`）则主余额恢复为该厂商余额，钱包行退为下方
+    补充行。多账户视图在该路由下把官方行标记为「当前」。
   - **本批验收**：`account-balance` 纯映射单测（CNY/USD 折算与拆分、坏账本丢弃、
-    null/failed/空钱包 → 0 行、metadata 形状）→ PASS；隔离实例临时 debug 追踪确认
-    `remote.account` present、`ctx.inject` 唤醒触发 refresh、`getBalance` 返回
+    null/failed/空钱包 → 0 行、metadata 形状、`accountRouteResult` 只认
+    `deepseek-account` 且无钱包/其他路由返回 undefined）→ PASS；隔离实例临时 debug 追踪
+    确认 `remote.account` present、`ctx.inject` 唤醒触发 refresh、`getBalance` 返回
     `{ ok: true, value: null }`（未登录）、多账户视图无合成行、控制台零 error；追踪日志
-    已移除，最终构建产物不含 `balance-debug`。
+    已移除，最终构建产物不含 `balance-debug`。**模型路由切换实测**（隔离实例 + 临时复制
+    的本机官方账号凭据，事后已还原）：把会话模型投影临时 patch 成
+    `deepseek-account/deepseek-flash` 时，默认单账户视图主余额显示「DeepSeek 账号 67.x
+    CNY」（不再「未绑定」）；patch 成 `deepseek-official/deepseek-chat` 后主余额变回
+    「DeepSeek 67.x CNY」，官方钱包行退为下方补充行，多账户视图列表随之切换。
   - **底部状态栏（0.2.1 `shell.bottom`）**：token-crit 注册 root 作用域 single 槽
     `shell.bottom`（**`priority: 1`**）→ `BottomMeter`：窗口底部通栏显示当前会话的
     词元总量与输入/缓存/输出拆分，数据仍走 `tokenUsage` 投影（无 RPC/轮询）。默认
