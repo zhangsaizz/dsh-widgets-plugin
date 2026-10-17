@@ -18,12 +18,14 @@ import type {} from '@deepseek-ai/dsh-client-ui-renderer/client'
 import type {} from '@dsh-plugins/client-ui-card-container/client'
 import { TokenCritWidget } from './TokenCritWidget.tsx'
 import type { TokenCritInject } from './TokenCritWidget.tsx'
+import { BottomMeter } from './BottomMeter.tsx'
 import { CardContainerAvailability } from './container-dock.ts'
 import { TokenCritCard } from './cards.tsx'
 
 // Type surface, mirroring the sibling widget packages (balance /
 // session-monitor both re-export their inject + widget-props types).
 export type { TokenCritInject, TokenCritWidgetProps } from './TokenCritWidget.tsx'
+export type { BottomMeterProps } from './BottomMeter.tsx'
 
 /** Required services: the slot system and the timer mixin. */
 export const inject = ['slots']
@@ -61,4 +63,16 @@ export function apply(ctx: ClientContext): void {
     priority: 0,
     locale: 'card-container',
   }, TokenCritCard))
+
+  // Root-scope `shell.bottom` status bar (harness 0.2.1): full-width token usage
+  // for the current session. It renders null while the badge's `bottomBar`
+  // option is off (default) or no session is selected, so the row reserves no
+  // height. `priority: 1` is deliberate: `shell.bottom` is a SINGLE slot and the
+  // official experimental inspector registers the same cell at the default
+  // priority 0 — a second registration at 0 throws, while 1 lets the inspector
+  // own the row when that bundle is present and this bar render otherwise.
+  ctx.slots.inject('shell.bottom', () => ctx.slots.register({
+    name: 'shell.bottom',
+    priority: 1,
+  }, BottomMeter))
 }

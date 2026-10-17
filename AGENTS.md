@@ -493,6 +493,17 @@ pack → git diff 干净」。
     `remote.account` present、`ctx.inject` 唤醒触发 refresh、`getBalance` 返回
     `{ ok: true, value: null }`（未登录）、多账户视图无合成行、控制台零 error；追踪日志
     已移除，最终构建产物不含 `balance-debug`。
+  - **底部状态栏（0.2.1 `shell.bottom`）**：token-crit 注册 root 作用域 single 槽
+    `shell.bottom`（**`priority: 1`**）→ `BottomMeter`：窗口底部通栏显示当前会话的
+    词元总量与输入/缓存/输出拆分，数据仍走 `tokenUsage` 投影（无 RPC/轮询）。默认
+    **关**（徽标 ⚙ 设置面板「底部状态栏」开关，持久化 `dsh.tcrit.settings` 的
+    `bottomBar`），关闭或无当前会话时渲染 `null`（槽空 = 不占高度）；徽标与底栏不共享
+    React 树，通过 `settings.ts` 的共享存储键 + `dsh.tcrit.settings-change` 窗口事件
+    （外加跨标签 `storage`）同步。**priority 必须是 1**：single 槽里官方实验性
+    inspector 以默认 0 占同一 cell，同 priority 二次注册会抛错；1 让 inspector 在时
+    遮蔽本栏。实测：面板勾选后 `[data-shell-bottom]` 高度 0→**26px**、文案
+    「词元 3.1M 输入 3.1M · 缓存 3M · 输出 44.5K」，取消勾选回到 0，控制台零 error
+    （仅既有 `/favicon.ico` 404）。
 - **本机 dsh 必须 ≥ 0.2.1-rc.2**：浏览器端 bundle 的 `require()` 只认两种来源——壳的**种子
   模块表**（staticModules，写在 `packages/client/web/src/seed.ts` 里）和引导图里的插件行。
   0.2.1 的种子表 = 0.1.7/0.2.0 那张 + `zod` + `@tanstack/react-virtual`：

@@ -1,0 +1,69 @@
+/* Root-scope shell.bottom status bar: one compact full-width row below the
+   three columns. Uses the shell's semantic tokens with web-safe fallbacks so it
+   reads correctly in both themes and on plain Web. */
+
+.bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  box-sizing: border-box;
+  height: 26px;
+  padding: 0 14px;
+  font-size: 11.5px;
+  line-height: 1;
+  color: var(--dsw-alias-label-secondary, rgba(232, 234, 240, 0.72));
+  background: color-mix(in srgb, var(--dsw-alias-bg-layer-2, #151922) 88%, transparent);
+  border-top: 1px solid var(--dsw-alias-border-l1, rgba(255, 255, 255, 0.08));
+  user-select: none;
+}
+
+.dot {
+  flex: none;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--dsw-alias-label-tertiary, rgba(232, 234, 240, 0.4));
+}
+
+.dot[data-active] {
+  background: var(--dsw-alias-state-success-primary, #3dd68c);
+  box-shadow: 0 0 6px color-mix(in srgb, var(--dsw-alias-state-success-primary, #3dd68c) 60%, transparent);
+}
+
+.label {
+  flex: none;
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  opacity: 0.6;
+}
+
+.value {
+  flex: none;
+  font-size: 12.5px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: var(--dsw-alias-label-primary, rgba(232, 234, 240, 1));
+}
+
+.breakdown {
+  flex: none;
+  font-variant-numeric: tabular-nums;
+  opacity: 0.75;
+  white-space: nowrap;
+}
+
+.spacer {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.brand {
+  flex: none;
+  opacity: 0.45;
+  white-space: nowrap;
+}
+
+@media (max-width: 720px) {
+  .breakdown { display: none; }
+}

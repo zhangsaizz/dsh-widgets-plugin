@@ -17,6 +17,12 @@ real time and triggers game-style crit animations as usage grows.
   (input + cached read + cached write + output) through the standard
   `useSessions` prop — no Host RPC, no polling (the projection push frames are
   reactive).
+- **Bottom status bar (harness 0.2.1)**: the ⚙ settings panel can add a
+  full-width `shell.bottom` row under the three columns with the current
+  session's total and its input / cache / output split. It is off by default,
+  renders nothing without a selected session, and yields to the official
+  bottom-panel plugin when that one is enabled (the slot is single-occupant;
+  this plugin registers at a lower precedence).
 - **Crit animations**: on growth — screen shake + flash + floating `+N` damage
   numbers split by input/output, particle bursts, combo counter; large deltas
   trigger a neon magenta `暴击!` / `CRIT!`, edge glow, optional sound effects.

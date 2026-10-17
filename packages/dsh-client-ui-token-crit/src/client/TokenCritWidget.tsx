@@ -33,6 +33,10 @@ import type { TokenUsageProjection } from '@deepseek-ai/dsh-token-meter/client'
 import { currentSessionId } from './session-selection.ts'
 import { overlayTopInset } from './overlay-inset.ts'
 import { TokenCritFx, fmt } from './TokenCritFx'
+import { compact } from './format.ts'
+import {
+  DEFAULT_SETTINGS, TOKEN_CRIT_SETTINGS_CHANGED, TOKEN_CRIT_SETTINGS_KEY, loadSettings,
+} from './settings.ts'
 import css from './TokenCritWidget.module.css'
 
 /** Pointer-drag state. */
@@ -44,13 +48,6 @@ interface DragState {
   originLeft: number
   originTop: number
   startScale: number
-}
-
-function compact(n: number): string {
-  if (n >= 1e9) return (n / 1e9).toFixed(1).replace(/\.0$/, '') + 'B'
-  if (n >= 1e6) return (n / 1e6).toFixed(1).replace(/\.0$/, '') + 'M'
-  if (n >= 1e4) return (n / 1e3).toFixed(1).replace(/\.0$/, '') + 'K'
-  return String(Math.round(n))
 }
 
 function clamp(v: number, lo: number, hi: number): number {
@@ -103,75 +100,6 @@ function computePanelPos(rect: DOMRect, panelW: number, panelH: number): { x: nu
   return {
     x: Math.round(clamp(Math.round(rect.left), m, Math.max(m, window.innerWidth - panelW - m))),
     y: Math.round(clamp(Math.round(rect.bottom + 10), top, Math.max(top, window.innerHeight - panelH - m))),
-  }
-}
-
-/** Every panel option, persisted to localStorage as one JSON blob. */
-interface WidgetSettings {
-  critAbs: number
-  critRatio: number
-  lang: string
-  showTags: boolean
-  soundOn: boolean
-  edgeOn: boolean
-  ambientOn: boolean
-  ambientCount: number
-  particleColor: string
-  numSize: number
-  numFormat: string
-  comboOn: boolean
-  /** Background adaptation: auto-detect, or force light/dark. */
-  themeMode: 'auto' | 'light' | 'dark'
-  /** Neon flicker intensity: off / low / med / high. */
-  flickerLevel: 'off' | 'low' | 'med' | 'high'
-  /** Glitch (random chars) intensity: off / low / med / high. */
-  glitchLevel: 'off' | 'low' | 'med' | 'high'
-}
-
-const DEFAULT_SETTINGS: WidgetSettings = {
-  critAbs: 4000,
-  critRatio: 0.12,
-  lang: 'zh',
-  showTags: true,
-  soundOn: false,
-  edgeOn: true,
-  ambientOn: true,
-  ambientCount: 7,
-  particleColor: 'cyan',
-  numSize: 14,
-  numFormat: 'full',
-  comboOn: true,
-  themeMode: 'auto',
-  flickerLevel: 'med',
-  glitchLevel: 'med',
-}
-
-/** Read persisted settings, validating types and clamping ranges. */
-function loadSettings(): WidgetSettings {
-  try {
-    const raw = window.localStorage.getItem('dsh.tcrit.settings')
-    if (!raw) return DEFAULT_SETTINGS
-    const s: any = JSON.parse(raw)
-    if (!s || typeof s !== 'object') return DEFAULT_SETTINGS
-    const out: WidgetSettings = { ...DEFAULT_SETTINGS }
-    if (typeof s.critAbs === 'number') out.critAbs = clamp(Math.round(s.critAbs), 500, 20000)
-    if (typeof s.critRatio === 'number') out.critRatio = clamp(s.critRatio, 0.02, 0.3)
-    if (s.lang === 'zh' || s.lang === 'en') out.lang = s.lang
-    if (typeof s.showTags === 'boolean') out.showTags = s.showTags
-    if (typeof s.soundOn === 'boolean') out.soundOn = s.soundOn
-    if (typeof s.edgeOn === 'boolean') out.edgeOn = s.edgeOn
-    if (typeof s.ambientOn === 'boolean') out.ambientOn = s.ambientOn
-    if (typeof s.ambientCount === 'number') out.ambientCount = clamp(Math.round(s.ambientCount), 3, 16)
-    if (['gold', 'cyan', 'purple', 'multi'].includes(s.particleColor)) out.particleColor = s.particleColor
-    if (typeof s.numSize === 'number') out.numSize = clamp(Math.round(s.numSize), 10, 22)
-    if (s.numFormat === 'full' || s.numFormat === 'compact') out.numFormat = s.numFormat
-    if (typeof s.comboOn === 'boolean') out.comboOn = s.comboOn
-    if (s.themeMode === 'auto' || s.themeMode === 'light' || s.themeMode === 'dark') out.themeMode = s.themeMode
-    if (s.flickerLevel === 'off' || s.flickerLevel === 'low' || s.flickerLevel === 'med' || s.flickerLevel === 'high') out.flickerLevel = s.flickerLevel
-    if (s.glitchLevel === 'off' || s.glitchLevel === 'low' || s.glitchLevel === 'med' || s.glitchLevel === 'high') out.glitchLevel = s.glitchLevel
-    return out
-  } catch {
-    return DEFAULT_SETTINGS
   }
 }
 
@@ -269,6 +197,8 @@ const panelI18n = {
     med: '中',
     high: '高',
     showTags: '显示标签',
+    bottomBar: '底部状态栏',
+    hintBottomBar: '在窗口底部通栏常驻显示当前会话的词元用量（官方底部面板插件启用时自动让位）。',
     combo: '连击',
     edgeOn: '边缘泛光',
     ambientOn: '常驻粒子',
@@ -314,6 +244,8 @@ const panelI18n = {
     med: 'Med',
     high: 'High',
     showTags: 'Show labels',
+    bottomBar: 'Bottom status bar',
+    hintBottomBar: 'Keep the current session token usage in a full-width bar at the window bottom (yields to the official bottom-panel plugin when enabled).',
     combo: 'Combo',
     edgeOn: 'Edge glow',
     ambientOn: 'Ambient',
@@ -436,6 +368,9 @@ export function TokenCritWidget(props: TokenCritWidgetProps) {
   const [themeMode, setThemeMode] = useState<'auto' | 'light' | 'dark'>(initial.themeMode)
   const [flickerLevel, setFlickerLevel] = useState<'off' | 'low' | 'med' | 'high'>(initial.flickerLevel)
   const [glitchLevel, setGlitchLevel] = useState<'off' | 'low' | 'med' | 'high'>(initial.glitchLevel)
+  /** Root-scope `shell.bottom` status bar (0.2.1): default off — the panel's
+   *  toggle persists it and notifies the separately mounted bottom bar. */
+  const [bottomBar, setBottomBar] = useState(initial.bottomBar)
 
   // Panel label set, following the badge's language switch.
   const PI = lang === 'en' ? panelI18n.en : panelI18n.zh
@@ -586,16 +521,20 @@ export function TokenCritWidget(props: TokenCritWidgetProps) {
     }
   }, [pos, viewport])
 
-  // Persist every panel option as one JSON blob (survives page reloads).
+  // Persist every panel option as one JSON blob (survives page reloads) and
+  // notify the separately mounted `shell.bottom` bar, which re-reads the blob.
   useEffect(() => {
     try {
-      window.localStorage.setItem('dsh.tcrit.settings', JSON.stringify({
+      window.localStorage.setItem(TOKEN_CRIT_SETTINGS_KEY, JSON.stringify({
         critAbs, critRatio, lang, showTags, soundOn, edgeOn, ambientOn,
         ambientCount, particleColor, numSize, numFormat, comboOn, themeMode,
-        flickerLevel, glitchLevel,
+        flickerLevel, glitchLevel, bottomBar,
       }))
     } catch { /* storage unavailable */ }
-  }, [critAbs, critRatio, lang, showTags, soundOn, edgeOn, ambientOn, ambientCount, particleColor, numSize, numFormat, comboOn, themeMode, flickerLevel, glitchLevel])
+    try {
+      window.dispatchEvent(new CustomEvent(TOKEN_CRIT_SETTINGS_CHANGED))
+    } catch { /* events unavailable */ }
+  }, [critAbs, critRatio, lang, showTags, soundOn, edgeOn, ambientOn, ambientCount, particleColor, numSize, numFormat, comboOn, themeMode, flickerLevel, glitchLevel, bottomBar])
 
   useEffect(() => () => {
     if (comboTimerRef.current !== null) clearTimeout(comboTimerRef.current)
@@ -854,9 +793,13 @@ export function TokenCritWidget(props: TokenCritWidgetProps) {
     setThemeMode(DEFAULT_SETTINGS.themeMode)
     setFlickerLevel(DEFAULT_SETTINGS.flickerLevel)
     setGlitchLevel(DEFAULT_SETTINGS.glitchLevel)
+    setBottomBar(DEFAULT_SETTINGS.bottomBar)
     try {
-      window.localStorage.removeItem('dsh.tcrit.settings')
+      window.localStorage.removeItem(TOKEN_CRIT_SETTINGS_KEY)
     } catch { /* storage unavailable */ }
+    try {
+      window.dispatchEvent(new CustomEvent(TOKEN_CRIT_SETTINGS_CHANGED))
+    } catch { /* events unavailable */ }
   }
 
   const anchorStyle: CSSProperties = {
@@ -1025,6 +968,13 @@ export function TokenCritWidget(props: TokenCritWidgetProps) {
                 </div>
               </label>
               <div className={css.hint}>{PI.hintNumSize}</div>
+              <label className={css.srow}>
+                <span className={css.slabel}>{PI.bottomBar}</span>
+                <div className={css.sctl}>
+                  <input type="checkbox" checked={bottomBar} onChange={(e) => setBottomBar(e.target.checked)} />
+                </div>
+              </label>
+              <div className={css.hint}>{PI.hintBottomBar}</div>
             </div>
 
             <div className={css.sgroup}>

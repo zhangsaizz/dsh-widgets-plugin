@@ -25,7 +25,7 @@
 | 8 | `BalanceController` + `useBalance` | 客户端数据层 | `@dsh-plugins/balance` | 注入 hook | 跟随当前 session + model，固定 30s 轮询刷新，暴露 `refresh()`；每轮另经 `remote.account`（延迟绑定，0.2.1）读取官方账号充值 + 赠送钱包，按币种折算成合成行（`account-balance.ts`） |
 | 9 | balance 视图 store | 客户端状态 | `@dsh-plugins/balance` | 注入 store | 缩放 / 吸附 / 折叠视图状态（`createBalanceViewStore`） |
 | 10 | 字典 NS `balance` | 客户端 i18n | `@dsh-plugins/balance` | client locale | zh / en 双语文案 |
-| 11 | Token 暴击挂件 `TokenCritWidget` | Web 挂件 | `@dsh-plugins/client-ui-token-crit` | `shell.overlay`（order 50） | 透明可拖动/缩放的 token 用量计数器 + 暴击动效 + 设置面板 |
+| 11 | Token 暴击挂件 `TokenCritWidget` | Web 挂件 | `@dsh-plugins/client-ui-token-crit` | `shell.overlay`（order 50） | 透明可拖动/缩放的 token 用量计数器 + 暴击动效 + 设置面板；**0.2.1 另注册 `shell.bottom`**（priority 1）底部通栏 `BottomMeter`——当前会话词元总量 + 输入/缓存/输出拆分，默认关、设置面板可开，官方 inspector 占位时自动让位 |
 | 12 | 会话监控看板 `SessionMonitorWidget` | Web 挂件 | `@dsh-plugins/client-ui-session-monitor` | `shell.overlay`（order 90） | 列出运行中/空闲/本轮完成的会话（子代理默认过滤、可配置时间范围默认 1h），完成一轮主动弹提醒（按状态配色：完成/待处理/出错/中止/阻塞/token 上限等，可自动消失或需确认），点击行一键跳转；**任务进度显示**（有任务在执行的会话带动画进度条 + 「第 N 轮 · 正在执行 <工具>」/子代理/后台任务标签，**多种活动并存时颜色与标签轮换**，工具与轮次由 Host 半折叠；**目标模式会话升级为确定进度条**「目标 第 X/Y 轮」，读 `projectionValues.goal` 实时百分比）；**行内 `cwd` chip**（0.2.1 `workingDirectory` 投影，basename + 全路径 tooltip）；**未读 inbox 徽标**（头部 + 收起胶囊，5s 轮询 `/notifications`，点击跳最新未读会话并标记已读）；可收起为胶囊、拖角缩放；面板/胶囊/提醒条为**液态玻璃**材质（与彩虹流光输入框同一配方） |
 | 13 | 会话监控 Host 半 + 状态路由 + 通知 inbox | Host 插件 + Web 路由 | `@dsh-plugins/client-ui-session-monitor` | `/_dsh/session-monitor/status` 等 9 条路由 | 监听 `turn/end` 记录结束原因（completed/aborted/blocked/error/max-tokens/interrupted）+ **`tool/call`→`tool/result` 折叠每会话执行中的工具**（`tools` 表）+ 累计轮次（`rounds` 表）+ **0.2.1 持久 job 事件折叠**（`job/registered` / `job/settled` → 快照行 `jobs { running, failed }`），浏览器半 3s 轮询取回；另把会话事件折叠为**持久化通知 inbox**（审批/回答/计划/出错/阻塞/token 上限/完成一轮/子代理完成/**后台任务失败 `job-failed`** 等，已读状态存 Host，桌面与网页共享） |
 | 14 | 会话监控配置面板 `SessionSettings` | Web 配置弹窗 | `@dsh-plugins/client-ui-session-monitor` | `widgets.config`（管理器「配置」弹窗） | 提醒开关/关闭方式/秒数/音效/提醒范围与列表显示选项 + **「桌面端会话监控」开关**（默认关，打开时经 `dsh-smon://` 拉起桌面应用并开始监控，关闭后桌面挂件暂停），localStorage 持久化；**按环境过滤（组件 31）**：Tauri 挂件专属的三项（该开关 + 桌面 inbox 的「处理后自动已读」「打开时自动全部已读」）只在 **web** 环境渲染（该挂件只与网页版部署 127.0.0.1:3080 通信），官方 Electron 桌面端**整段「桌面」区只留说明文案**（窗口即看板，后台提醒用「浏览器通知」）；`Notification` / WebAudio 缺席时对应的「浏览器通知」「提示音」行整行省略，不留永远打不开的开关 |
@@ -207,6 +207,14 @@
 - Host 半（`src/index.ts`）：空 apply（surface 占位）。
 - Client 半（`src/client/index.ts`）：`inject = ['slots']`，注册
   `shell.overlay`，id `token-crit`，order **50** → `TokenCritWidget`。
+  **0.2.1 另注册 `shell.bottom`**（`priority: 1`，无 `id`）→ `BottomMeter`：root 作用域
+  的底部通栏状态栏，显示当前会话词元总量 + 输入/缓存/输出拆分；默认**关**（设置面板
+  「底部状态栏」，持久化到 `dsh.tcrit.settings` 的 `bottomBar`），关闭或无当前会话时
+  渲染 `null`（槽空 = 不占高度）。`priority` 必须是 **1**：`shell.bottom` 是 single 槽，
+  官方实验性 inspector 以默认 0 占同一 cell，同 priority 二次注册会抛错；1 让 inspector
+  在时遮蔽本栏（优雅降级）。`BottomMeter` 与徽标不共享 React 树，二者通过
+  `./settings.ts` 的存储键 + `dsh.tcrit.settings-change` 窗口事件（外加跨标签 `storage`
+  事件）同步开关与语言。
 - 数据来源：标准 `useSessions` 会话投影 `tokenUsage`（uncachedInput / output /
   cacheRead / cacheWrite 分桶）——**无 Host RPC、无轮询**，运行时响应式推送。
   投影键的类型来自 `@deepseek-ai/dsh-token-meter/client`（`TokenUsageProjection`，
@@ -1016,6 +1024,7 @@ Host 半用 esbuild，浏览器半用 **Vite library mode**（与官方 deepseek
 |---|---|---|---|---|
 | `shell.overlay` | `balance` | 100 | balance | `BalanceWidget` |
 | `shell.overlay` | `token-crit` | 50 | client-ui-token-crit | `TokenCritWidget` |
+| `shell.bottom` | —（single 槽无 id） | priority **1** | client-ui-token-crit | `BottomMeter`（当前会话词元用量底栏，默认关；官方 inspector 以 priority 0 占位时被遮蔽） |
 | `shell.overlay` | `session-monitor` | 90 | client-ui-session-monitor | `SessionMonitorWidget` |
 | `shell.overlay` | `card-container` | 20 | client-ui-card-container | `CardContainerWidget`（声明子槽 `widgets.card`） |
 | `shell.overlay` | `balance` / `token-crit` / `session-monitor` | priority -1（影子） | client-ui-widget-manager | `ShadowWidget`（禁用时隐藏挂件） |
