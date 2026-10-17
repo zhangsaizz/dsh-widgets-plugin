@@ -84,11 +84,18 @@ export function accountClientMetadata(locale: string): AccountClientMetadataLike
 
 /**
  * Parse one wallet amount; a malformed string makes the whole wallet disappear.
+ *
+ * `Number('')` and `Number(' ')` are `0`, so a blank string must be rejected
+ * before the numeric parse — otherwise a broken projection would fabricate a
+ * zero-balance wallet instead of dropping it.
  * @param wallet - Platform wallet projection.
  * @returns the numeric amount, or undefined when the string is not a finite number.
  */
 function walletAmount(wallet: AccountWalletLike): number | undefined {
-  const value = Number(wallet.balance)
+  if (typeof wallet.balance !== 'string') return undefined
+  const text = wallet.balance.trim()
+  if (text === '') return undefined
+  const value = Number(text)
   return Number.isFinite(value) ? value : undefined
 }
 
@@ -146,7 +153,10 @@ export function accountBalanceEntries(
   for (const currency of ['CNY', 'USD'] as const) {
     const recharge = sumWallets(balance.value, currency)
     const bonus = sumWallets(balance.bonusWallets, currency)
-    if (!recharge.present && !bonus.present) continue
+    // A recharge wallet makes the currency row exist even at zero (the official
+    // account page shows `¥0.00`); a ZERO bonus-only currency is noise (the
+    // official UI filters `bonus <= 0` the same way).
+    if (!recharge.present && (!bonus.present || bonus.sum === 0)) continue
     const account: BalanceAccount = {
       vendor: ACCOUNT_VENDOR,
       displayName: 'DeepSeek',

@@ -510,7 +510,10 @@ handler: (req, res) => {
 
 - **loopback 放行**（`127.0.0.1` / `localhost` / `::1`，任意端口）：本地桌面壳、独立
   Tauri 挂件页（`tauri://localhost` → 127.0.0.1）与本地探针没有浏览器会话 cookie，必须
-  保持可用。
+  保持可用。**例外**：loopback authority 上带了反代转发头（`Forwarded` /
+  `X-Forwarded-For` / `X-Forwarded-Host` / `X-Forwarded-Proto` / `X-Real-IP`）时视为
+  「反代把 Host 改写成 loopback」，不再放行，照常走 `requestRejection` 的浏览器 cookie
+  判定——否则一个改写 Host 的反代会把匿名请求伪装成本地调用。
 - **其他 authority** 交给 `ctx.connection.requestRejection({ headers: req.headers })`：
   先 Host/Origin 栅栏（403），再要求浏览器认证 cookie（401）；与官方 `/api` 同一套判定。
 - **没有 `connection` 的组合**（headless）自动跳过门禁，保持旧行为。
@@ -518,7 +521,8 @@ handler: (req, res) => {
 
 实测判据（隔离实例，带 `--trusted-host app.example`）：loopback 无 cookie → 200；
 `Host: app.example` 无 cookie → 401；同一 authority 带 index 换到的 session cookie → 200；
-不可信 `Host: example.com` → 403；`tauri://localhost`/`Origin: null` 的本地挂件页 → 200。
+不可信 `Host: example.com` → 403；`tauri://localhost`/`Origin: null` 的本地挂件页 → 200；
+loopback + `X-Forwarded-For` 无 cookie → **401**（反代改写 Host 的绕过已关闭）。
 
 ---
 

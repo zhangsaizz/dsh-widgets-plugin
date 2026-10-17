@@ -1687,6 +1687,9 @@ export function SessionMonitorWidget(props: SessionMonitorWidgetProps) {
               // 0.2.1: the session's effective working directory (the `cd`
               // tool), shown as a basename chip; the full path is the tooltip.
               const cwd = workingDirectoryOf(row)
+              // A path that is only separators (filesystem root) has no basename;
+              // rendering an empty chip would read as a layout glitch, so skip it.
+              const cwdBase = cwd === undefined ? '' : baseName(cwd)
               // A session that is not in a turn but still has subagents (or
               // background jobs) executing is "busy", not idle: label it so
               // instead of showing 空闲 next to a 子×N / 后×N badge. The busy
@@ -1836,8 +1839,8 @@ export function SessionMonitorWidget(props: SessionMonitorWidgetProps) {
                       {jobsRunning > 0
                         ? <span className={[css.badge, css.jobsBadge].filter(Boolean).join(' ')}>{t('jobsRunning', { n: String(jobsRunning) })}</span>
                         : null}
-                      {cwd !== undefined
-                        ? <span className={[css.badge, css.cwdBadge].filter(Boolean).join(' ')} title={cwd}>{baseName(cwd)}</span>
+                      {cwdBase !== ''
+                        ? <span className={[css.badge, css.cwdBadge].filter(Boolean).join(' ')} title={cwd}>{cwdBase}</span>
                         : null}
                       {/* Harness 0.2.1 list-row diagnostic: a session whose log
                           format predates the current one opens by migrating on

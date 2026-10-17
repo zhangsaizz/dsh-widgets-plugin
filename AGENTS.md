@@ -440,9 +440,9 @@ pack → git diff 干净」。
     裸路由不在栅栏内，反代转发后匿名可读会话标题/inbox、可改设置。balance 的
     `/_dsh/balance/settings` 与 session-monitor 的 9 条路由现在都先过
     `rejectRouteRequest()`：两份逐字节相同的 `src/route-trust.ts`（build.mjs 断言同步），
-    loopback 放行（本地壳 / Tauri 挂件页 / 开发探针），其他 authority 交给
+    loopback 放行（本地壳 / Tauri 挂件页 / 开发探针；带 `Forwarded` / `X-Forwarded-*` / `X-Real-IP` 转发头的 loopback 请求不在此列，照常走 cookie 判定——关闭「反代改写 Host 冒充本地」的绕过），其他 authority 交给
     `ctx.connection.requestRejection`（不可信 Host/Origin 403、未认证 401、带浏览器
-    session cookie 200）。实测：`--trusted-host app.example` 下无 cookie 401、index 换到
+    session cookie 200）。实测：`--trusted-host app.example` 下无 cookie 401、带 `X-Forwarded-For` 的 loopback 请求无 cookie 401、index 换到
     的 cookie 200、不可信 `Host: example.com` 403、loopback 200、`Origin: null` 的 widget
     页 200。新增 Host 路由必须照此门禁（WIDGET-DEVELOPMENT.md §2.8）。
   - **后台任务可见性（0.2.1 持久 job 事件）**：`session-monitor` 的 Host 半折叠

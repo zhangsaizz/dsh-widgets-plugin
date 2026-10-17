@@ -169,7 +169,7 @@
   凭据 = 保留原值）；写入按插件自己的原始 entry id 在 `settings.describe()` 里找条目，
   经 `settings.update(id, { bindings })`（merge；`replace` 会把其他 volatile 字段
   重置回 base）。**0.2.1 起先过认证门禁**：`src/route-trust.ts` 的
-  `rejectRouteRequest()` 放行 loopback（本地壳 / Tauri 挂件页 / 探针），其他
+  `rejectRouteRequest()` 放行 loopback（本地壳 / Tauri 挂件页 / 探针；带反代转发头的 loopback 请求照常走 cookie 判定），其他
   authority 交给 `ctx.connection.requestRejection`（公开部署 / 反代下不可信 Host 403、
   未认证 401、带浏览器 session cookie 200）。该文件与 session-monitor 的拷贝逐字节
   一致，`pnpm build` 断言同步。
@@ -384,7 +384,7 @@
   可选挂载九条路由（webServer 缺席时跳过；`sessions`/`settings` 不注入会抛
   "cannot get property without inject"——踩过）。九条路由全部经 `guardedRoute` 注册、
   先过 `rejectRouteRequest()`（`src/route-trust.ts`，与 balance 的拷贝逐字节一致、
-  `pnpm build` 断言同步）：loopback 放行（本地壳 / Tauri 挂件页 / 探针），其他
+  `pnpm build` 断言同步）：loopback 放行（本地壳 / Tauri 挂件页 / 探针；带反代转发头的 loopback 请求照常走 cookie 判定），其他
   authority 走 `ctx.connection.requestRejection`——0.2.1 公开部署/反代下匿名请求
   因此读不到会话标题与 inbox（不可信 Host 403、未认证 401、带浏览器 cookie 200）：
   - `/_dsh/session-monitor/status`（GET → `{ ok, value: { sessions: { id: {

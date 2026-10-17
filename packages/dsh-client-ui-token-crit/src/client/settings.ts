@@ -74,8 +74,9 @@ export function loadSettings(): WidgetSettings {
   try {
     const raw = window.localStorage.getItem(TOKEN_CRIT_SETTINGS_KEY)
     if (!raw) return DEFAULT_SETTINGS
-    const s: any = JSON.parse(raw)
-    if (!s || typeof s !== 'object') return DEFAULT_SETTINGS
+    const parsed: unknown = JSON.parse(raw)
+    if (parsed === null || typeof parsed !== 'object') return DEFAULT_SETTINGS
+    const s = parsed as Record<string, unknown>
     const out: WidgetSettings = { ...DEFAULT_SETTINGS }
     if (typeof s.critAbs === 'number') out.critAbs = clamp(Math.round(s.critAbs), 500, 20000)
     if (typeof s.critRatio === 'number') out.critRatio = clamp(s.critRatio, 0.02, 0.3)
@@ -85,7 +86,10 @@ export function loadSettings(): WidgetSettings {
     if (typeof s.edgeOn === 'boolean') out.edgeOn = s.edgeOn
     if (typeof s.ambientOn === 'boolean') out.ambientOn = s.ambientOn
     if (typeof s.ambientCount === 'number') out.ambientCount = clamp(Math.round(s.ambientCount), 3, 16)
-    if (['gold', 'cyan', 'purple', 'multi'].includes(s.particleColor)) out.particleColor = s.particleColor
+    const particleColor = s.particleColor
+    if (typeof particleColor === 'string' && ['gold', 'cyan', 'purple', 'multi'].includes(particleColor)) {
+      out.particleColor = particleColor
+    }
     if (typeof s.numSize === 'number') out.numSize = clamp(Math.round(s.numSize), 10, 22)
     if (s.numFormat === 'full' || s.numFormat === 'compact') out.numFormat = s.numFormat
     if (typeof s.comboOn === 'boolean') out.comboOn = s.comboOn
