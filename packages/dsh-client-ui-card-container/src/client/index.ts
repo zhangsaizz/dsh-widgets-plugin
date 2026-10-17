@@ -27,10 +27,14 @@ import type {} from '@deepseek-ai/dsh-client-locale/client'
 // Type-only: pulls the `widgets.config` SlotMap merge declared by the widget
 // manager (the config panel lives in its "Configure" dialog).
 import type {} from '@dsh-plugins/client-ui-widget-manager/client'
+// Type-only: pulls the `plugins.row.config` SlotMap merge declared by the
+// harness plugin manager (the row's own configuration page, 0.2.1).
+import type {} from '@deepseek-ai/dsh-client-ui-plugin-manager/client'
 import { CardContainerWidget } from './CardContainerWidget.tsx'
 import type { CardContainerInject } from './CardContainerWidget.tsx'
 import { CardContainerSettings } from './CardContainerSettings.tsx'
 import type { CardContainerSettingsInjected } from './CardContainerSettings.tsx'
+import { CardContainerRowConfig, CARD_CONTAINER_ROW_CONFIG_KEY } from './RowConfig.tsx'
 import { CardContainerController, DOCK_REQUEST_EVENT, UNDOCK_REQUEST_EVENT } from './controller.ts'
 import { cardSpecOf, widgetLabelOf } from './cards.tsx'
 import { en, zh } from './locales.ts'
@@ -177,4 +181,14 @@ export function apply(ctx: ClientContext): void {
     order: 0,
     inject: (): CardContainerSettingsInjected => ({ t }),
   }, CardContainerSettings))
+
+  // The same panel as the `ui-card-container` row's own configuration page on
+  // the harness **Plugins** page (0.2.1 plugin UI): `plugins.row.config` is keyed
+  // by `<bundle package>#<row id>`, so registering here puts a Configure control
+  // on our bundle's row. Registered only while that page declares the slot.
+  ctx.slots.inject('plugins.row.config', () => ctx.slots.register({
+    name: 'plugins.row.config',
+    key: CARD_CONTAINER_ROW_CONFIG_KEY,
+    inject: (): CardContainerSettingsInjected => ({ t }),
+  }, CardContainerRowConfig))
 }

@@ -29,6 +29,7 @@ export type RainbowFlowKey =
   | 'off'
   | 'percent'
   | 'reset'
+  | 'rowConfigSummary'
 
 /** Simplified Chinese dictionary. */
 export const zh: Record<RainbowFlowKey, string> = {
@@ -52,6 +53,7 @@ export const zh: Record<RainbowFlowKey, string> = {
   off: '关',
   percent: '%',
   reset: '重置默认',
+  rowConfigSummary: '透明度、速度、思考色调、命令上色与最新行动扫字',
 }
 
 /** English dictionary. */
@@ -76,4 +78,5 @@ export const en: Record<RainbowFlowKey, string> = {
   off: 'Off',
   percent: '%',
   reset: 'Reset to defaults',
+  rowConfigSummary: 'Opacity, speed, thinking tint, command colours and the latest-action sweep',
 }

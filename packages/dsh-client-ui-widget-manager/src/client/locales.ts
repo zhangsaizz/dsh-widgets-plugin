@@ -42,6 +42,10 @@ export type WidgetManagerLocaleKey =
   | 'cardContainerDescription'
   | 'rainbowFlowName'
   | 'rainbowFlowDescription'
+  | 'pluginsTabLabel'
+  | 'pluginsTabIntro'
+  | 'pluginsTabHint'
+  | 'openBundlePage'
 
 /** Simplified Chinese dictionary. */
 export const zh: Record<WidgetManagerLocaleKey, string> = {
@@ -82,6 +86,10 @@ export const zh: Record<WidgetManagerLocaleKey, string> = {
   cardContainerDescription: '把其他小组件拖进一个整齐、等间距的卡片网格中集中摆放，浮窗自动收起。',
   rainbowFlowName: '彩虹流光',
   rainbowFlowDescription: '输入框变成通透的液态玻璃，一圈柔和的彩虹光晕像呼吸一样明暗脉动，节奏随输出 token 速率变化。',
+  pluginsTabLabel: '小组件',
+  pluginsTabIntro: '本项目的小组件：可直接启用/停用（只影响本浏览器的浮窗显隐）。单项配置在「设置 → 小组件管理」里打开，或在本 bundle 的插件行上点「配置」。',
+  pluginsTabHint: '安装/停用插件行、更新版本请用「已安装」标签页；这里改的是本浏览器的浮窗影子状态。',
+  openBundlePage: '查看 DSH 小组件集',
 }
 
 /** English dictionary. */
@@ -123,4 +131,8 @@ export const en: Record<WidgetManagerLocaleKey, string> = {
   cardContainerDescription: 'Dock other widgets into a tidy, evenly-gapped card grid; their floating panels hide while docked.',
   rainbowFlowName: 'Rainbow flow',
   rainbowFlowDescription: 'Turns the composer into translucent liquid glass with a soft rainbow halo breathing around it, its rhythm sped by the output-token rate.',
+  pluginsTabLabel: 'Widgets',
+  pluginsTabIntro: 'This project\'s widgets: enable/disable them here (this only hides or shows floating panels in THIS browser). Per-widget configuration lives in Settings → Widgets, or the Configure control on this bundle\'s plugin rows.',
+  pluginsTabHint: 'Use the Installed tab to install/disable plugin rows or update versions; this tab only toggles the local floating-panel shadows.',
+  openBundlePage: 'Open the DSH widgets bundle',
 }

@@ -32,16 +32,16 @@
 | 15 | 卡片容器 `CardContainerWidget` | Web 挂件 | `@dsh-plugins/client-ui-card-container` | `shell.overlay`（order 20） | 浮动容器面板：**多分组**（顶部分组标签 + ⋯ 管理菜单），托盘列出可停靠挂件，拖入网格即停靠（影子条目隐藏浮窗）、渲染紧凑卡片视图；卡片**实时换位**（ghost 跟随 + 其余让位，拖出网格=移出）、键盘可达（Enter/空格移出、方向键排序）、触屏常显、列数可配、状态持久化；面板/卡片/胶囊/分组菜单为**液态玻璃**材质（与彩虹流光输入框同一配方） |
 | 16 | 卡片容器控制器 `CardContainerController` | 客户端数据层 | `@dsh-plugins/client-ui-card-container` | 注入 hook | 多分组停靠（groups/active 持久化，旧单列表自动迁移）+ 可用托盘投影，注册/释放 priority -2 停靠影子，针对 overlay 台账自我修复；**自身被管理页关闭时用组件 32 的探针判定并释放全部停靠影子**（挂件恢复浮动，重新启用按持久化顺序恢复） |
 | 17 | 卡片视图 | Web 卡片视图 | `@dsh-plugins/client-ui-token-crit` / `client-ui-session-monitor` / `balance` | `widgets.card`（容器声明子槽，**容器无内置卡片**） | **token-crit、session-monitor、balance 各自注册自己的紧凑卡片**（priority 0：token 用量 / 忙碌会话数 / 实时余额，见各自包源码）；**标准接入规范**（`WidgetCardProps` + 槽级注入面 `CardSlotInject`，见 WIDGET-DEVELOPMENT.md §2.5）：挂件自己注册进 `widgets.card`（id = shell.overlay id、priority 默认 0、显示名优先读 shell.overlay 的 label）即渲染，不注册则用占位卡；卡片可声明**规格**（静态 `spec`：small 1 列 / medium 2 列 / large 整行） |
-| 18 | 卡片容器配置面板 `CardContainerSettings` | Web 配置弹窗 | `@dsh-plugins/client-ui-card-container` | `widgets.config`（管理器「配置」弹窗） | 列数（自适应/2/3/4）+ 清空停靠/重置，localStorage 持久化 |
+| 18 | 卡片容器配置面板 `CardContainerSettings` | Web 配置弹窗 | `@dsh-plugins/client-ui-card-container` | `widgets.config`（管理器「配置」弹窗）+ `plugins.row.config`（bundle 行配置页，0.2.1） | 列数（自适应/2/3/4）+ 清空停靠/重置，localStorage 持久化 |
 | 19 | 安装 bundle | 分发层 | `@dsh-plugins/dsh-widgets-plugin` | `cordis.patch.yml` | 一次插入 6 个插件，一键挂载全部组件 |
-| 20 | 小组件管理页 `WidgetManagerSettings` | Web 设置页 | `@dsh-plugins/client-ui-widget-manager` | `settings.section`（order 10） | 实时列出小组件，支持「添加/关闭」，并为带配置的挂件提供「配置」弹窗；**未安装挂件提供「安装指引」弹窗**（装包命令 + `cordis.yml`/`cordis.patch.yml` 挂载行 + 重启提示，**按环境只显示适用的一套（组件 31）**：Web = web profile + 重启 `dsh web`；官方桌面端 = 固定 desktop profile/应用内「插件」页 + 完全退出重开）；**支持非 overlay 组件**（`configOnly`，如 rainbow-flow——启用/停用经 window 事件桥控制其自身开关 store，与工具栏圆点双向同步） |
+| 20 | 小组件管理页 `WidgetManagerSettings` | Web 设置页 | `@dsh-plugins/client-ui-widget-manager` | `settings.section`（order 10） | 实时列出小组件，支持「添加/关闭」，并为带配置的挂件提供「配置」弹窗；**未安装挂件提供「安装指引」弹窗**（装包命令 + `cordis.yml`/`cordis.patch.yml` 挂载行 + 重启提示，**按环境只显示适用的一套（组件 31）**：Web = web profile + 重启 `dsh web`；官方桌面端 = 固定 desktop profile/应用内「插件」页 + 完全退出重开）；**支持非 overlay 组件**（`configOnly`，如 rainbow-flow——启用/停用经 window 事件桥控制其自身开关 store，与工具栏圆点双向同步）；**另注册 `plugins.tab`**（id `widgets`，order 50）→ 官方 Plugins 页「小组件」tab（同一列表 + 启用/停用 + 深链 bundle 详情页，0.2.1） |
 | 21 | 会话监控桌面快照路由 | Host Web 路由 | `@dsh-plugins/client-ui-session-monitor` | `/_dsh/session-monitor/sessions` | 把实时会话存储折叠成紧凑 JSON 行（running/title/pending/子代理计数等），`tools`/`rounds` 与行级 `goal`（`goal/change` 折叠）同车返回（桌面挂件任务/目标进度条数据），桌面挂件 2s 轮询 |
 | 22 | 会话监控独立挂件页 | Host 托管的独立 Web 页 | `@dsh-plugins/client-ui-session-monitor` | `/_dsh/session-monitor/widget` | 自包含 HTML（无框架）：**「待处理」通知列表（主视图，未读徽标 + 处理/忽略/全部已读 + 级别开关）+ 「会话」列表副 Tab** + 完成一轮 toast + 置顶/隐藏/设置，供桌面壳加载 |
 | 23 | 会话监控桌面悬浮窗壳（可选） | 桌面应用（Tauri 2） | `desktop/dsh-session-desktop` | Windows 桌面 | 无边框/透明/置顶/无任务栏小窗 + 托盘（显示/退出），加载挂件页；启动时探测本机 web 服务、外部导航交系统浏览器。**官方 Electron 桌面端出现之前自建，与官方桌面端互不影响**：官方桌面端里看板就在主窗口内，该壳只在「要一块独立于 Harness 窗口的常驻置顶小窗」时才有意义 |
 | 24 | 彩虹流光 `RainbowFlowGlow` | Web 输入框装饰 | `@dsh-plugins/client-ui-rainbow-flow` | `conversation.input.left`（order 99） | **整个输入框通透玻璃 + 呼吸彩虹光晕（无边框）**：开关开启时输入卡变**通透玻璃**面板（**两段白色玻璃渐变**（淡光穿过玻璃）+ 卡片 `::before` **轻磨砂层 `blur(5px) saturate(1.35)`**——轻模糊让背后内容清晰、强增饱和让背后色彩透出发光；**上下边缘各一条 1px 细反光线**（box-shadow inset，顶部亮 0.40 / 底部柔 0.26）让玻璃边缘有存在感、无大片高光弧，`--rf-glass-*` token 主题感知亮/暗两套调色板，伪元素方案避免破坏 fixed Tooltip）——**无可见环带/边框**，唯一边缘装饰是 **一圈贴合卡片圆角的彩虹柔光**（**16 方向 box-shadow + `mix-blend-mode: screen` 加色混合**——每方向一个纯彩虹色相（间隔 22.5°、完整色轮：红→橙→黄→绿→青→蓝→紫→粉，两两之间有中间色），小偏移 7px + 宽 blur 34px 让每个色相与左右相邻色都重叠成**平滑连续彩虹渐变（完全无分段）**（普通堆叠会混成单色脏团）；box-shadow 天然在**元素外侧**（卡片内部完全干净、输入框从不被染色）且**跟随 `border-radius`**（光晕沿卡片圆角弯折，mask 挖环做不到会切直角）；**发光层精确对齐卡片边缘**（`.glow` inset 5px = flow 外扩量，border-radius 22px = 卡片圆角 27−5，阴影峰值正好落在卡片边缘上）；**所有阴影 spread 0**（正 spread 会在边缘切出全强度核心 = 可见的「内部轮廓」亮线；spread 0 让 blur 承担全部衰减、峰值在边缘向内外双向渐变）+ **柔和 inset 内发光**（读起来像**卡片本身发光**）；screen 混合让颜色在深色页面上保持亮丽鲜明（普通混合会塌成暗影）；亮色主题回退 normal 混合 + 低 alpha），**像呼吸一样脉动**：rAF 循环积分呼吸相位，每帧只写两层（暖彩虹 `.glow` + 冷蓝紫 `.glowCool`）的 **opacity（0.18↔0.38 纯明暗呼吸）**——**刻意不用 scale**（缩放会让发光层边缘脱离未缩放的卡片、峰值时重新露出内部轮廓；光晕层始终钉在卡片边缘，2.1 倍亮度落差表现「光随呼吸扩张」）——合成器友好（静态 box-shadow 层只栅格化一次，**无重栅格化**），呼吸频率由 token 速率驱动（5s↔1s，指数缓动平滑过渡、相位不跳）；**另加 CSS `hue-rotate` 色相缓慢流动**（48s/圈：8 方向位置不变、每个色相漂移成下一个——红→橙→黄→…→粉→红，几何不动；`prefers-reduced-motion` 冻结）；**心情感知色调 = 双层交叉淡化**（思考/工具调用时 mood 因子缓动到 1，opacity 从暖层移到冷层——纯 opacity 动画）；**不支持 `mix-blend-mode: screen` 的浏览器回退普通混合**（变暗但完整） |
 | 25 | 彩虹流光开关 `RainbowFlowToggle` | Web 输入框控制 | `@dsh-plugins/client-ui-rainbow-flow` | `conversation.input.left`（order 100） | 输入框工具行左端液态玻璃质感彩虹小圆点开关（半透明渐变 + blur + 高光，开/关持久化 localStorage），右上角状态点随会话运行变绿 |
 | 26 | 发送/停止按钮美化 `RainbowFlowSend` | Web 输入框控制 | `@dsh-plugins/client-ui-rainbow-flow` | `conversation.input.right`（order 150） | 对输入框主操作发送/停止按钮做**液态玻璃**图标美化 + 动态效果：`conversation.input.right` 探针把按钮有效状态镜像到输入卡 `data-rf-send`，全局样式表给按钮做半透明玻璃面板（白色渐变 + backdrop blur + 顶部高光）透出柔和彩虹 + 细玻璃描边——空闲有草稿时呼吸光晕、运行中彩虹旋转 + 扩散雷达脉冲环；与开关共用开关状态、禁用态不生效、`prefers-reduced-motion` 冻结动画；选择器锚定 `[data-composer-card]` + `_primary` 后缀，harness 升级后仍生效 |
-| 27 | 彩虹流光配置面板 `RainbowFlowSettings` | Web 配置弹窗 | `@dsh-plugins/client-ui-rainbow-flow` | `widgets.config`（管理器「配置」弹窗） | 可调**透明度**（40/70/100%）、**速度灵敏度**（0.5×/1×/1.5×）、**思考冷色调开关**、**命令按类别上色开关**（`commandColor`，默认开）、**最新行动彩虹扫字开关**（`commandSweep`，默认开）；另含**命令文字颜色**——**每类命令**（shell/read/search/write/edit/code/web/ask/plan/task/memory/think/other）一个取色器 + 单行恢复默认，写入 `--rf-tool-*` CSS 变量经 store 持久化到 localStorage（`dsh.rnglow.settings`），已挂载的光环与已上色的命令卡实时生效 |
+| 27 | 彩虹流光配置面板 `RainbowFlowSettings` | Web 配置弹窗 | `@dsh-plugins/client-ui-rainbow-flow` | `widgets.config`（管理器「配置」弹窗） | 可调**透明度**（40/70/100%）、**速度灵敏度**（0.5×/1×/1.5×）、**思考冷色调开关**、**命令按类别上色开关**（`commandColor`，默认开）、**最新行动彩虹扫字开关**（`commandSweep`，默认开）+ `plugins.row.config`（bundle 行配置页，0.2.1）；另含**命令文字颜色**——**每类命令**（shell/read/search/write/edit/code/web/ask/plan/task/memory/think/other）一个取色器 + 单行恢复默认，写入 `--rf-tool-*` CSS 变量经 store 持久化到 localStorage（`dsh.rnglow.settings`），已挂载的光环与已上色的命令卡实时生效 |
 | 28 | 彩虹流光设置 store `settings.ts` | 客户端状态 | `@dsh-plugins/client-ui-rainbow-flow` | 注入 store | 透明度/速度/冷色调/命令按类别上色（`commandColor`）/最新行动彩虹扫字（`commandSweep`）/命令颜色（`toolColors`，每类一色）的读取/保存/订阅（uSES），与配置面板和光环共享；**启用/停用经 window 事件桥与管理页双向同步**（`dsh.rnglow.manager-toggle` / `enabled-change`，与工具栏圆点同一开关 store）；另含**心情感知色调 = 双层交叉淡化**（思考/工具调用时 mood 因子缓动到 1，暖层→冷层 opacity 纯动画）、**reduced-motion 单帧静态**、**IntersectionObserver 视口外停 rAF**、**零重栅格化**（静态 box-shadow 层只栅格化一次） |
 | 29 | 彩虹流光命令卡上色 `toolAccent` | Web 输入框装饰（会话记录命令卡） | `@dsh-plugins/client-ui-rainbow-flow` | 非插槽（`MutationObserver` + `[data-tool]`/`[data-variant="bash"]`/`[data-variant="think"]` 装饰） | 会话记录里模型每个**工具调用（命令）卡片**按工具名启发式分类（shell/read/search/write/edit/code/web/ask/plan/task/memory/other，另 **「Think」思考推理行** `data-variant="think"` 归入 `think` 淡紫类别）：卡片左侧亮起**对应颜色边条**，**相关文字也按类别上色**——**标题用主题感知渐变**（`background-clip: text`）、**前导图标**类别色、**摘要**柔和色调、**读/写/编辑类文件的路径链接（`_fileLink`）**用纯类别色（悬停显示类别名）；读卡片稳定 `data-tool` 属性（**shell 卡是例外**：它由专用卡片组件渲染，只带 `data-variant="bash"`、没有 `data-tool`，故按变体归入 `shell`）→ `classify.ts` 分类 → `data-rf-tool-cat` 属性 + `ToolAccent.css` 上色；**不重渲染卡片、不改产品 DOM**，harness 升级后仍生效（文字按 CSS-module 本地名后缀 `_title`/`_leading`/`_summary` 选中，同发送按钮 `_primary`），未知工具归入"命令"默认色（**读取/规划/编辑**三个家族的边界用 `(_|$)` 而非 `\b`，因此 `read_image`/`str_replace_editor` 会落到本家族；**任务类**（`todo_write`/目标/`schedule_*`/`team_task_*`/`job_*`/`workflow`/`ralph`）统一归入新增的 **task（任务）** 类别，不再落默认色；智能体/团队协作类如 `subagent`/`send_message`/`wait_agent`、以及 `present`/`skill`/`lsp` 按设计仍为默认色。**可见性前提**：行是否可见由工作详情模式决定——`compact`/`standard`（0.1.7 默认）收起每一轮的过程分组，需**展开分组**才可见；`detailed`（0.2.0 默认）只收起已结束轮次，运行中可见；`verbose` 从不折叠。装饰器从不给隐藏行上色）；斜杠命令卡（`conversation.chat.commandview` 的 `GenericCommandCard`，`data-variant="others"`、无 `data-tool`）**不在**上色范围；**每类颜色可按用户配置自定义**（把设置里的 `toolColors` 写成 `<html>` 内联 `--rf-tool-*`，覆盖样式表 `:root` 默认，实时生效）；**折叠父行也上色**（命令行被过程分组收起后 harness 显示两条父行之一：分组标题行 / 已结束轮次的整轮控制行；二者都不是命令行，故 `applyFoldAccents` 分别盖 `data-rf-group-cat` / `data-rf-turn-cat` + 内联 `--rf-tool-accent`，取「其隐藏的最新子命令」类别，图标/文字继承该色；关掉上色开关即移除；最新行动被折叠隐藏时扫字转标该父行 `data-rf-latest-fold`，并与行标记同规则地在正文回复出现后熄灭；不给更旧的可见行打标）；**最新行动（命令/思考）被彩虹扫过（正文除外）**（会话里**最新的一条**——工具卡、shell 卡或 `data-variant="think"` 思考行，`setLatest` 在 `ROW_SELECTOR` 并集里取最晚标 `data-rf-latest`——其 `_title`/`_summary`/`_fileLink` 被**流动的彩虹渐变**（`background-clip: text`）扫过每个字符，输出正文不参与；**跟随最新行动持续**（read/edit 等秒完的命令也亮，不依赖 running），直到**其后出现正文回复**（只按 flow-item 结构判定，0.1.7 下沿嵌套 `[data-chat-flow]` 层级向上找整组之后的正文；被过程折叠策略 `hidden` 的隐藏行不标、隐藏正文不算，不误判 composer）才熄灭）——纯 CSS、不重渲染 DOM、`prefers-reduced-motion` 冻结；**受 `commandSweep` 开关控制**，经本模块写成 `<html>` 的 `data-rf-sweep='on'|'off'` 门控）；命令上色本身**受 `commandColor` 开关控制**（关掉时本模块停止打标签并清除已有 `data-rf-tool-cat`/`title`，命令卡恢复原厂外观；两者均独立于输入框光晕开关） |
 
@@ -222,6 +222,9 @@
   `shell.overlay`，id `card-container`，order **20** → `CardContainerWidget`，
   并在同一注册中**声明 `widgets.card` 子槽**（list，条目 id = 挂件 id，
   容器是唯一渲染方）；再注册 `widgets.config`，id `card-container` → 配置面板。
+  **0.2.1**：同一面板另注册 `plugins.row.config`（key
+  `@dsh-plugins/dsh-widgets-plugin#ui-card-container`）→ 官方 Plugins 页 bundle 行的
+  配置页（`view: 'summary' | 'page'`）。
 - **停靠机制**（`controller.ts`，`CardContainerController`，经 inject hooks 暴露
   `useContainer`）：停靠一个挂件 = 向 `shell.overlay` 注册同 id、`priority: -2`
   的影子条目（list 槽最低优先级胜出；-2 避开 widget-manager 的 -1，同 id 同
@@ -278,6 +281,12 @@
 - Client 半（`src/client/index.ts`）：`inject = ['slots', 'locale']`，注册
   `settings.section`，id `widgets`，order **10** → `WidgetManagerSettings`（「小组件管理」页），
   并在同一注册中**声明 `widgets.config` 子槽**（list，条目 id = 挂件 id）。
+  **0.2.1 另注册 `plugins.tab`**（id `widgets`，order **50**，label「小组件」）→
+  `WidgetsPluginsTab`：官方 Plugins 页「已安装」之后的第三个 tab，复用同一个控制器列表
+  （启用/停用/移出容器 + 安装指引），顶部按钮经 tab owner props 的
+  `openPackage('@dsh-plugins/dsh-widgets-plugin')` 深链到 bundle 详情页。该 tab
+  **不声明** `widgets.config`（一个 slot 只能有一个声明者，设置页是唯一声明者），
+  配置入口文案指向设置页与行配置。
 - 列表数据：`WidgetManagerController` 订阅 `shell.overlay` 与 `widgets.config` 台账
   （`ctx.slots.subscribe` + `entries`），结合内置目录（`widgets.ts`：balance /
   token-crit / session-monitor / card-container / **rainbow-flow**）投影每行的
@@ -676,6 +685,9 @@
     幅度、速度缩放 `rateToDuration` 映射、冷色调开关控制暖层→冷层交叉淡化）；
     命令颜色经 `mountToolAccent()` 写成 `<html>` 内联 `--rf-tool-*` 覆盖样式表
     `:root` 默认，已上色的命令卡实时变色。
+  - **0.2.1**：同一面板另注册 `plugins.row.config`（key
+    `@dsh-plugins/dsh-widgets-plugin#ui-rainbow-flow`）→ 官方 Plugins 页 bundle 行的
+    配置页（`view: 'summary' | 'page'`；summary 用 `rowConfigSummary`）。
   - 另在 `conversation.input.right`（order **150**）注册 id `rainbow-flow-send`
     → `RainbowFlowSend`：**发送/停止按钮液态玻璃美化 + 动态效果**——主操作按钮
     （空闲=发送箭头、运行中=停止方块）是产品自带 chrome 不是插槽，故探针
@@ -950,7 +962,7 @@ graph LR
 | `@deepseek-ai/dsh-client-locale` | balance、client-ui-session-monitor、client-ui-card-container、client-ui-widget-manager |
 | `@deepseek-ai/dsh-session` | client-ui-session-monitor（Host 半 `session/event` 类型） |
 | `@deepseek-ai/dsh-client-ui-settings` | client-ui-widget-manager（`settings.section`） |
-| `@deepseek-ai/dsh-client-ui-plugin-manager` | balance、client-ui-session-monitor（type-only：官方 Plugins 页的 `plugins.row.config` 槽契约，把各自配置面板挂到 bundle 行的「配置」页；注册 key 为 `<bundle 包名>#<行 id>`） |
+| `@deepseek-ai/dsh-client-ui-plugin-manager` | balance、client-ui-session-monitor、client-ui-card-container、client-ui-rainbow-flow（type-only：官方 Plugins 页的 `plugins.row.config` 槽契约，把各自配置面板挂到 bundle 行配置页，key 为 `<bundle 包名>#<行 id>`）、client-ui-widget-manager（type-only：`plugins.tab` 槽契约，贡献「小组件」tab） |
 | `@deepseek-ai/dsh-client-ui-slots` | balance、client-ui-token-crit、client-ui-session-monitor、client-ui-card-container、client-ui-rainbow-flow、client-ui-widget-manager |
 | `react` | balance、client-ui-token-crit、client-ui-session-monitor、client-ui-card-container、client-ui-rainbow-flow、client-ui-widget-manager |
 

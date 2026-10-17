@@ -44,6 +44,7 @@ export type CardContainerKey =
   | 'dropToGroup'
   | 'dropToUndock'
   | 'dropToReorder'
+  | 'rowConfigSummary'
 
 /** Simplified Chinese dictionary. */
 export const zh: Record<CardContainerKey, string> = {
@@ -85,6 +86,7 @@ export const zh: Record<CardContainerKey, string> = {
   dropToGroup: '放入「{name}」',
   dropToUndock: '移出容器',
   dropToReorder: '松手排序',
+  rowConfigSummary: '卡片容器的列数与已停靠的小组件',
 }
 
 /** English dictionary. */
@@ -127,4 +129,5 @@ export const en: Record<CardContainerKey, string> = {
   dropToGroup: 'Drop into "{name}"',
   dropToUndock: 'Undock',
   dropToReorder: 'Drop to reorder',
+  rowConfigSummary: 'Card container columns and docked widgets',
 }

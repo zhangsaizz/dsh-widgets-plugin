@@ -139,6 +139,23 @@
   background: color-mix(in srgb, var(--dsw-alias-brand-primary) 14%, transparent);
 }
 
+/* Plugins-page tab: intro + bundle deep-link share one toolbar row; the footer
+   hint explains the local-shadow vs installed-row distinction. */
+.tabToolbar {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.tabHint {
+  margin: 0;
+  font-size: 11px;
+  line-height: 1.5;
+  opacity: 0.65;
+}
+
 /* Install-guide dialog content. */
 .guideIntro {
   margin: 8px 0 14px;

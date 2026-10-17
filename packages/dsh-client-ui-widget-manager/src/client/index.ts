@@ -23,9 +23,13 @@ import type {} from '@deepseek-ai/dsh-client-ui-renderer/client'
 import type {} from '@deepseek-ai/dsh-client-ui-settings/client'
 // Type-only: pulls the locale plugin's Context merge (ctx.locale).
 import type {} from '@deepseek-ai/dsh-client-locale/client'
+// Type-only: pulls the `plugins.tab` SlotMap merge from the harness plugin manager.
+import type {} from '@deepseek-ai/dsh-client-ui-plugin-manager/client'
 import { WidgetManagerController } from './controller.ts'
 import { WidgetManagerSettings } from './WidgetManagerSettings.tsx'
 import type { WidgetManagerSettingsInjected } from './WidgetManagerSettings.tsx'
+import { WidgetsPluginsTab } from './PluginsTab.tsx'
+import type { WidgetsPluginsTabInjected } from './PluginsTab.tsx'
 import { en, zh } from './locales.ts'
 import type { WidgetManagerLocaleKey } from './locales.ts'
 
@@ -78,4 +82,22 @@ export function apply(ctx: ClientContext): void {
       'widgets.config': { kind: 'list', scope: 'root' },
     },
   }, WidgetManagerSettings))
+
+  // The same list as a tab on the harness **Plugins** page (0.2.1 `plugins.tab`
+  // list slot). `label` names the tab; the slot's owner props add `openPackage`
+  // so the tab can deep-link to this bundle's detail page. The tab does NOT
+  // declare `widgets.config` (a slot has exactly one declarer — the settings
+  // page above), so per-widget configuration stays on the settings page and on
+  // the bundle rows' Configure controls.
+  ctx.slots.inject('plugins.tab', () => ctx.slots.register({
+    name: 'plugins.tab',
+    id: 'widgets',
+    order: 50,
+    label: () => t('pluginsTabLabel'),
+    locale: NS,
+    inject: (): WidgetsPluginsTabInjected => ({
+      hooks: { widgets: controller },
+      toggle: (id) => { controller.toggle(id) },
+    }),
+  }, WidgetsPluginsTab))
 }

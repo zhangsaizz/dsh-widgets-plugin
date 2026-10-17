@@ -464,6 +464,21 @@ pack → git diff 干净」。
     `/sessions` 行带 `cwd`、桌面挂件页渲染 `📁 dsh-balance-plugin` chip（打开已复制会话
     并 POST `{desktopMonitor:true,timeWindowMin:0}` 后）；控制台仅一个无害的
     `/favicon.ico` 404（页面只声明 favicon.svg）。
+  - **Plugins 页一体化（0.2.1 新槽）**：widget-manager 注册 `plugins.tab`
+    （id `widgets`，order 50）为官方 Plugins 页贡献「小组件」tab：复用同一个
+    `WidgetManagerController` 列表（启用/停用/移出容器），顶部「查看 DSH 小组件集」
+    经 tab owner props 的 `openPackage()` 深链到 bundle 详情页；tab **不声明**
+    `widgets.config`（一个 slot 只能有一个声明者，设置页仍是唯一声明者），配置入口
+    文案指向设置页与行配置。card-container 与 rainbow-flow 补了 `plugins.row.config`
+    （key `<bundle package>#<row id>`，`view: 'summary' | 'page'` 复用各自设置面板），
+    bundle 详情页的对应行因此能打开配置页；token-crit 的设置是浮窗内嵌面板、没有独立
+    面板，故暂不提供 row config。三个包各新增 **type-only peer**
+    `@deepseek-ai/dsh-client-ui-plugin-manager`（**不进 `dsh.client.inject`**——页面由
+    harness 的 plugin-manager 行提供，缺席时 `ctx.slots.inject` 自动跳过）。
+  - **本批验收**：Plugins 页出现「已安装 / 小组件」两个 tab，tab 列出 5 个挂件 +
+    启用状态 + 停用按钮 + 深链按钮；点击深链落到 bundle 详情页；点 `卡片容器` 行进入
+    配置页（列数/清空停靠/重置设置可见）、点 `彩虹流光` 行进入配置页（透明度/速度/
+    思考冷色调/命令上色/每类颜色可见）；控制台零 error。
 - **本机 dsh 必须 ≥ 0.2.1-rc.2**：浏览器端 bundle 的 `require()` 只认两种来源——壳的**种子
   模块表**（staticModules，写在 `packages/client/web/src/seed.ts` 里）和引导图里的插件行。
   0.2.1 的种子表 = 0.1.7/0.2.0 那张 + `zod` + `@tanstack/react-virtual`：

@@ -45,10 +45,14 @@ import type {} from '@deepseek-ai/dsh-client-locale/client'
 // Type-only: pulls the `widgets.config` SlotMap merge declared by the widget
 // manager (the config panel lives in its "Configure" dialog).
 import type {} from '@dsh-plugins/client-ui-widget-manager/client'
+// Type-only: pulls the `plugins.row.config` SlotMap merge declared by the
+// harness plugin manager (the row's own configuration page, 0.2.1).
+import type {} from '@deepseek-ai/dsh-client-ui-plugin-manager/client'
 import { RainbowFlowGlow, RainbowFlowSend, RainbowFlowToggle, mountManagerBridge } from './RainbowFlow.tsx'
 import type { RainbowFlowToggleInjected } from './RainbowFlow.tsx'
 import { RainbowFlowSettings } from './SettingsPanel.tsx'
 import type { RainbowFlowSettingsInjected } from './SettingsPanel.tsx'
+import { RainbowFlowRowConfig, RAINBOW_FLOW_ROW_CONFIG_KEY } from './RowConfig.tsx'
 import { en, zh } from './locales.ts'
 import type { RainbowFlowKey } from './locales.ts'
 import { mountToolAccent } from './toolAccent.ts'
@@ -125,4 +129,13 @@ export function apply(ctx: ClientContext): void {
     order: 0,
     inject: (): RainbowFlowSettingsInjected => ({ t }),
   }, RainbowFlowSettings))
+
+  // The same panel as the `ui-rainbow-flow` row's own configuration page on the
+  // harness **Plugins** page (0.2.1 plugin UI): `plugins.row.config` is keyed by
+  // `<bundle package>#<row id>`; registered only while that page declares it.
+  ctx.slots.inject('plugins.row.config', () => ctx.slots.register({
+    name: 'plugins.row.config',
+    key: RAINBOW_FLOW_ROW_CONFIG_KEY,
+    inject: (): RainbowFlowSettingsInjected => ({ t }),
+  }, RainbowFlowRowConfig))
 }
