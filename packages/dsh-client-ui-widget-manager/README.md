@@ -2,23 +2,26 @@
 
 English | [中文](README.zh.md)
 
-A web settings page plugin: adds a "Widgets" page to the web settings that
-lists this project's widgets and lets you **Add (enable)** or **Close
-(disable)** each one at runtime.
+A browser-side plugin that adds a **Widgets** tab to the harness **Plugins**
+page. It lists this project's widgets and lets you **Add (enable)**, **Close
+(disable)**, **Configure** and — for one that is not mounted yet — open an
+**install guide**. Widget management lives only in the plugin surface: it is
+deliberately **not** a Settings page.
 
 ## Preview
 
-![Widget manager settings page: widget list with Add / Disable / Configure](../../docs/previews/widget-manager-settings.png)
+![Widget manager tab: widget list with Add / Disable / Configure](../../docs/previews/widget-manager-settings.png)
 
 ## Features
 
-- **Widget list**: the page live-projects the `shell.overlay` registration
+- **Widget list**: the tab live-projects the `shell.overlay` registration
   ledger and, combined with a built-in catalog, shows each widget's state —
-  Enabled / Disabled / Not installed (with package name and description).
+  Enabled / Disabled / Docked / Not installed (with package name and
+  description).
 - **This project's widgets only**: `shell.overlay` is shared, so the ledger also
   carries *other* plugins' overlays (the harness keyboard-shortcut reference,
   the session rename / archive dialogs, the workspace notice, the chat quota
-  notice, …). Those are filtered out — the page lists, shadows, and toggles only
+  notice, …). Those are filtered out — the tab lists, shadows, and toggles only
   the ids in the built-in catalog. Since the shadow mechanism works on any list
   id, listing them would both mislabel them as unknown-source widgets and let one
   click hide official UI. An id an older build had disabled is released on sight
@@ -41,11 +44,14 @@ lists this project's widgets and lets you **Add (enable)** or **Close
   (ui-slots shadowing) and the widget stops rendering — the plugin is NOT
   unmounted and its code is untouched; disabling is fully reversible.
 - **Configure dialog**: widgets that carry configuration (e.g. the balance
-  dashboard's provider bindings) show a **Configure** button on their row;
-  clicking it opens a separate dialog. The config content is contributed by
-  the widget's own package into the manager-declared `widgets.config` child
-  slot (keyed by the widget id) — no settings-menu page involved. The button
-  is hidden while the widget is disabled.
+  dashboard's provider bindings) are marked "Configurable" and show a
+  **Configure** button on their row; clicking it opens a separate dialog. The
+  config content is contributed by the widget's own package into the
+  `widgets.config` child slot this tab declares (keyed by the widget id). The
+  button is hidden while the widget is disabled.
+- **Bundle deep link**: a **Open the DSH widgets bundle** button in the toolbar
+  switches to the official Installed tab and opens this bundle's detail page,
+  where each row also offers its own Configure control.
 - **Persistent state**: the disabled set is kept in browser `localStorage`
   and survives a reload; if a widget mounts after this manager, the overlay
   subscription shadows it the moment its entry appears.
@@ -57,13 +63,13 @@ lists this project's widgets and lets you **Add (enable)** or **Close
 
 ```
 src/index.ts                  # Host empty apply (pure UI plugin)
-src/client/index.ts           # Browser apply + inject (registers settings.section)
+src/client/index.ts           # Browser apply + inject (registers plugins.tab, declares widgets.config)
 src/client/controller.ts      # Runtime toggling: shadow registration / ledger projection / localStorage
 src/client/widgets.ts         # Static catalog of the project widgets
 src/client/environment.ts     # Hosting-shell classification (web / official desktop / Tauri)
 src/client/locales.ts         # Dictionary namespace `widgets` (zh/en)
-src/client/WidgetManagerSettings.tsx
-src/client/WidgetManagerSettings.module.css
+src/client/PluginsTab.tsx     # Plugins-page tab: list, enable/disable, Configure + install-guide dialogs
+src/client/PluginsTab.module.css
 lib/index.js                  # Host build artifact (static)
 lib/client.js                 # Browser build artifact (ModuleLoader CJS bundle)
 ```
@@ -84,17 +90,18 @@ pnpm build   # equivalent to `node scripts/build.mjs` from the repo root
 A pure client-side surface plugin: once it (together with the dependencies
 declared in its `dsh.client`) is added to the deployed web plugin table / host
 `cordis.yml`, the browser loads `lib/client.js` through
-`exports["./client"]` and the "Widgets" page appears in the web settings.
+`exports["./client"]` and the "Widgets" tab appears on the Plugins page.
 Installing `@dsh-plugins/dsh-widgets-plugin` (once published:
 `dsh plugin --profile <name> add @dsh-plugins/dsh-widgets-plugin`) mounts this
-page together with every widget; for local development you can `link:` the
+tab together with every widget; for local development you can `link:` the
 bundle directory from this repo (see "安装" in the root README).
 
 ## Usage
 
-1. Open Web settings → "Widgets".
+1. Open the **Plugins** page (sidebar) and switch to the **Widgets** tab.
 2. Each widget shows its current state: **Enabled** (on the page),
-   **Disabled** (hidden by this page), **Not installed** (package not
+   **Disabled** (hidden by this tab), **Docked** (hidden by the card
+   container — the action is **Undock**), **Not installed** (package not
    mounted — an **Install guide** button offers the steps to install it);
    configurable widgets are marked "Configurable" and show a **Configure**
    button.

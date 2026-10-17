@@ -8,8 +8,9 @@ the balance dashboard (`@dsh-plugins/balance`), the token-crit widget
 (`@dsh-plugins/client-ui-token-crit`), the session monitor dashboard
 (`@dsh-plugins/client-ui-session-monitor`), the card container
 (`@dsh-plugins/client-ui-card-container`), rainbow-flow
-(`@dsh-plugins/client-ui-rainbow-flow`) and the widgets manager settings
-page (`@dsh-plugins/client-ui-widget-manager`).
+(`@dsh-plugins/client-ui-rainbow-flow`) and the widget manager
+(`@dsh-plugins/client-ui-widget-manager`, which contributes the **Widgets** tab
+on the Plugins page).
 
 ## Installation (published, recommended)
 

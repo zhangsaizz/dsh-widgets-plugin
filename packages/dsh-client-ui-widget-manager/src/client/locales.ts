@@ -1,13 +1,10 @@
 /**
- * Locale dictionaries for the widget manager page (namespace `widgets`).
+ * Locale dictionaries for the widget manager tab (namespace `widgets`).
  * Product copy is Chinese-first; the en dictionary is the paired translation.
  */
 
 /** Dictionary keys of the `widgets` namespace (the LocaleNamespaceMap merge is declared at registration). */
 export type WidgetManagerLocaleKey =
-  | 'navLabel'
-  | 'pageTitle'
-  | 'pageSubtitle'
   | 'add'
   | 'close'
   | 'configure'
@@ -49,9 +46,6 @@ export type WidgetManagerLocaleKey =
 
 /** Simplified Chinese dictionary. */
 export const zh: Record<WidgetManagerLocaleKey, string> = {
-  navLabel: '小组件管理',
-  pageTitle: '小组件',
-  pageSubtitle: '本项目的小组件列表：添加（启用）会把挂件挂到页面上，停用（禁用）会把它从页面上移除。带配置的挂件可通过「配置」按钮在弹窗中单独设置。状态保存在本机浏览器，刷新后保持。只列出本项目的挂件——harness 自带浮层由各自的插件管理，不在此处显示。',
   add: '添加',
   close: '停用',
   configure: '配置',
@@ -87,16 +81,13 @@ export const zh: Record<WidgetManagerLocaleKey, string> = {
   rainbowFlowName: '彩虹流光',
   rainbowFlowDescription: '输入框变成通透的液态玻璃，一圈柔和的彩虹光晕像呼吸一样明暗脉动，节奏随输出 token 速率变化。',
   pluginsTabLabel: '小组件',
-  pluginsTabIntro: '本项目的小组件：可直接启用/停用（只影响本浏览器的浮窗显隐）。单项配置在「设置 → 小组件管理」里打开，或在本 bundle 的插件行上点「配置」。',
-  pluginsTabHint: '安装/停用插件行、更新版本请用「已安装」标签页；这里改的是本浏览器的浮窗影子状态。',
+  pluginsTabIntro: '本项目的小组件都在这里：添加（启用）会把挂件挂到页面上，停用（禁用）会把它从页面上移除；带配置的挂件行上会出现「配置」按钮，点开即在本弹窗里单独设置。状态保存在本机浏览器，刷新后保持。只列出本项目的挂件——harness 自带浮层由各自的插件管理，不在此处显示。',
+  pluginsTabHint: '安装/停用插件行、更新版本请用「已安装」标签页；这里改的是本浏览器的浮窗影子状态，配置弹窗只影响对应挂件本身。',
   openBundlePage: '查看 DSH 小组件集',
 }
 
 /** English dictionary. */
 export const en: Record<WidgetManagerLocaleKey, string> = {
-  navLabel: 'Widgets',
-  pageTitle: 'Widgets',
-  pageSubtitle: 'The project widget list: Add (enable) mounts a widget onto the page, Close (disable) removes it. Widgets with configuration expose it through a "Configure" button in a separate dialog. State is kept in this browser and survives a reload. This project\'s widgets only — harness overlays are managed by their own plugins and are not listed here.',
   add: 'Add',
   close: 'Disable',
   configure: 'Configure',
@@ -132,7 +123,7 @@ export const en: Record<WidgetManagerLocaleKey, string> = {
   rainbowFlowName: 'Rainbow flow',
   rainbowFlowDescription: 'Turns the composer into translucent liquid glass with a soft rainbow halo breathing around it, its rhythm sped by the output-token rate.',
   pluginsTabLabel: 'Widgets',
-  pluginsTabIntro: 'This project\'s widgets: enable/disable them here (this only hides or shows floating panels in THIS browser). Per-widget configuration lives in Settings → Widgets, or the Configure control on this bundle\'s plugin rows.',
-  pluginsTabHint: 'Use the Installed tab to install/disable plugin rows or update versions; this tab only toggles the local floating-panel shadows.',
+  pluginsTabIntro: 'This project\'s widgets all live here: Add (enable) mounts a widget onto the page and Disable removes it; widgets with configuration show a "Configure" button on their row that opens their own settings in a dialog. State is kept in this browser and survives a reload. This project\'s widgets only — harness overlays are managed by their own plugins and are not listed here.',
+  pluginsTabHint: 'Use the Installed tab to install/disable plugin rows or update versions; this tab toggles the local floating-panel shadows, and a Configure dialog only affects its own widget.',
   openBundlePage: 'Open the DSH widgets bundle',
 }

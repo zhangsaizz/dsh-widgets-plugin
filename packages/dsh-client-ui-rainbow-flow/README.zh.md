@@ -4,7 +4,7 @@
 
 纯 UI 的 web 端插件：会话运行时，输入框变成透明液态玻璃面板，一圈柔和的**彩虹
 光晕**像呼吸一样**明暗脉动**——吸入、呼出——呼吸节奏随每秒输出 token 数动态
-变化；输入框工具行里有一个开/关开关，小组件管理页提供**配置面板**（透明度/
+变化；输入框工具行里有一个开/关开关，「插件」页 →「小组件」tab 提供**配置面板**（透明度/
 速度/冷色调），并对输入框的主操作**发送/停止按钮**做**液态玻璃**图标美化 +
 动态效果。
 
@@ -66,8 +66,8 @@
   就能看出"工作中"还是"输出中"。
 - **减少动态**：`prefers-reduced-motion` 下光晕渲染为**单帧静态中间呼吸位**
   （可见但不脉动），而不是完全消失。
-- **可配置**：小组件管理页把彩虹流光当成普通挂件——**启用/停用**开关与工具栏
-  圆点**双向同步**（window 事件桥），「配置」弹窗（`widgets.config`）可调
+- **可配置**：「插件」页 →「小组件」tab 把彩虹流光当成普通挂件——**启用/停用**开关与工具栏
+  圆点**双向同步**（window 事件桥），行上的「配置」弹窗（`widgets.config`）可调
   **整体透明度**（40/70/100%）、**速度灵敏度**（0.5×/1×/1.5×）、**思考冷色调
   开关**、**最新行动彩虹扫字开关**，外加**命令文字颜色**——其区标题行右侧是
   **「命令按类别上色」总开关**（关掉时色板灰化待命，仅保存颜色、不上色）；下方为
@@ -136,7 +136,7 @@
 src/index.ts                      # Host 空 apply（纯 UI 插件）
 src/client/index.ts               # 浏览器 apply + inject（四个条目，含配置面板）
 src/client/RainbowFlow.tsx        # 开关 + 呼吸光晕 + 发送/停止探针
-src/client/SettingsPanel.tsx      # 小组件管理页配置面板（widgets.config）
+src/client/SettingsPanel.tsx      # 「小组件」tab 行上的配置面板（widgets.config）
 src/client/SettingsPanel.module.css # 配置面板样式
 src/client/settings.ts            # 设置 store（透明度/速度/冷色调，localStorage）
 src/client/locales.ts             # `rainbow-flow` 字典命名空间（zh / en）

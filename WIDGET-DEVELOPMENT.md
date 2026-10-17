@@ -1,7 +1,7 @@
-# 小组件开发与面板管理接入指南
+# 小组件开发与「小组件」tab 接入指南
 
 本文面向要为本仓库新增小组件（widget）的开发者：先讲如何三步做出一个可发布的小组件，
-再讲它如何**自动接入「小组件管理」面板**（`@dsh-plugins/client-ui-widget-manager`）——
+再讲它如何**自动接入「插件」页的「小组件」tab**（`@dsh-plugins/client-ui-widget-manager`）——
 出现在列表、可添加/关闭、带独立配置弹窗。仓库级约定（作用域、版本、构建、双语文档）
 见 [AGENTS.md](AGENTS.md)，组件登记见 [COMPONENTS.md](COMPONENTS.md)。
 
@@ -173,10 +173,11 @@ export function ClockWidget({ t }: ClockWidgetProps) {
 
 ---
 
-## 2. 接入「小组件管理」面板
+## 2. 接入「小组件管理」（「插件」页的「小组件」tab）
 
-面板（`@dsh-plugins/client-ui-widget-manager`，Web 设置 → 小组件管理）**实时投影
-`shell.overlay` 台账**，所以：
+管理界面（`@dsh-plugins/client-ui-widget-manager`）只以**「插件」页 → 「小组件」tab**
+的形式存在（`plugins.tab`，id `widgets`；设置里没有任何小组件管理入口）。该 tab
+**实时投影 `shell.overlay` 台账**，所以：
 
 ### 2.1 自动出现（零配置）
 
@@ -197,13 +198,13 @@ export function ClockWidget({ t }: ClockWidgetProps) {
 
 ### 2.2 必须登记目录（登记后才被列出与管理）
 
-**登记是必须的**：面板只投影目录里的 id（`controller.ts` 的 `WIDGET_CATALOG` /
-`isOwnWidgetId`）。只注册 `shell.overlay` 而不登记的挂件在管理页**完全不出现**——既看不到
+**登记是必须的**：tab 只投影目录里的 id（`controller.ts` 的 `WIDGET_CATALOG` /
+`isOwnWidgetId`）。只注册 `shell.overlay` 而不登记的挂件在「小组件」tab**完全不出现**——既看不到
 也无法启用/停用。之所以不再列出「目录外的台账条目」：`shell.overlay` 是共享槽，harness 自己
 也往里注册浮层（快捷键速查、会话重命名/归档对话框、工作区提示、额度提醒等），而影子机制
 对任何 list id 都生效，列出它们既会把官方浮层误标成挂件，也会让一次误点隐藏官方 UI。
 
-登记方式：在面板包的 `src/client/widgets.ts` 目录里加一条，并在 `locales.ts`（NS `widgets`）
+登记方式：在管理包的 `src/client/widgets.ts` 目录里加一条，并在 `locales.ts`（NS `widgets`）
 补两个键（行 id 用挂件的 `shell.overlay` id；`installRowId` 用于 bundle 挂载行 id 与 overlay id
 不一致的情况）：
 
@@ -231,7 +232,8 @@ export const WIDGET_CATALOG: readonly WidgetDescriptor[] = [
 
 ### 2.4 配置弹窗：注册进 `widgets.config` 槽
 
-面板在它的设置页注册中声明了子槽 `widgets.config`（list，条目 `id` = 挂件 id）。
+管理 tab 在它的 `plugins.tab` 注册中声明了子槽 `widgets.config`（list，条目 `id` = 挂件 id），
+该注册是**唯一声明者**（设置页那条 `settings.section` 注册已删除）。
 **带配置的挂件**把自己的配置面板注册进去，面板即自动在行上显示「配置」按钮，
 点击后在**独立弹窗**里渲染（`renderSlot('widgets.config', {}, { only: 挂件id })`）；
 挂件被关闭时配置按钮自动隐藏。
@@ -325,7 +327,7 @@ window.dispatchEvent(new CustomEvent('dsh.card-container.dock', { detail: 'clock
 ```
 
 **按钮必须按容器可用性隐藏（必做）**：上面那个请求在容器**收不下**挂件时是静默
-no-op，有两种情况——容器插件没装/没挂载，或容器在**小组件管理页被「关闭」**（关闭 =
+no-op，有两种情况——容器插件没装/没挂载，或容器在**「小组件」tab 被「关闭」**（关闭 =
 注册一条 priority -1 的影子条目赢下容器自己的 overlay 单元，容器仍然挂载、只是不
 渲染）。一个点了没反应的按钮比没有按钮更糟，所以「放入容器」按钮只在容器**真正可用**
 时渲染。判定不要自己另写一套：把容器包的 `src/client/container-dock.ts` 整份拷进你的
@@ -362,7 +364,7 @@ export function ClockWidget(props: ClockWidgetProps) {
 
 探针读的是 overlay 台账里 `card-container` 单元的胜者
 （`entriesOfSlot('shell.overlay')`）——与容器控制器自己判断「我被关闭了、释放全部
-停靠影子」用的是同一个投影，所以按钮和容器永远不会互相矛盾；管理页上实时开关也无需
+停靠影子」用的是同一个投影，所以按钮和容器永远不会互相矛盾；「小组件」tab 上实时开关也无需
 刷新即可跟随。**注意**：拷贝文件时只有模块 docblock 的 `@module` 行可以不同。
 
 **容器侧交互（挂件无需感知）**：
@@ -476,7 +478,7 @@ const canChime = supportsAudioChime()
   更好。
 - **能力探针缺失就省略整行**（连它旁边的权限提示行一起省略）：一个永远打不开的开关
   比没有这个选项更糟。权限「被拒」不算缺失（要保留授权引导）。
-- **文案也可以按环境切换**：小组件管理页的安装指引按壳选 `installStep*NoteWeb` /
+- **文案也可以按环境切换**：「小组件」tab 的安装指引按壳选 `installStep*NoteWeb` /
   `installStep*NoteDesktop`（profile 名与重启方式不同）。
 - **拷贝必须逐字节一致**（只有模块 docblock 可不同），`scripts/build.mjs` 会扫描
   `packages/*/src/client/environment.ts` 并在漂移时让构建失败；少于两份拷贝时构建也会
@@ -600,7 +602,7 @@ export const zh: Record<ClockKey, string> = { title: '时钟', secondsLabel: '�
 export const en: Record<ClockKey, string> = { title: 'Clock', secondsLabel: 'Show seconds' }
 ```
 
-效果：面板列表出现「时钟（@dsh-plugins/client-ui-clock，已启用）」行，右侧有
+效果：「插件」页 →「小组件」tab 出现「时钟（@dsh-plugins/client-ui-clock，已启用）」行，右侧有
 **配置**与**关闭**按钮；点配置弹出时钟自己的设置弹窗；点关闭后挂件消失、配置按钮
 随之隐藏；再点添加恢复。
 
@@ -621,7 +623,7 @@ export const en: Record<ClockKey, string> = { title: 'Clock', secondsLabel: 'Sho
 - [ ] 若要在卡片容器里显示自己的紧凑卡片：按第 2.5 节注册 `widgets.card`
       （id = `shell.overlay` id、priority 默认 0），并在 peerDependencies 加
       `@dsh-plugins/client-ui-card-container`（type-only）
-- [ ] **目录登记（必做）**：`widgets.ts` + `locales.ts` 键（未登记则管理页不列出）
+- [ ] **目录登记（必做）**：`widgets.ts` + `locales.ts` 键（未登记则「小组件」tab 不列出）
       + `COMPONENTS.md` 各表更新
 - [ ] 可选：`plugins.row.config` 接入官方 Plugins 页（key `<bundle 包名>#<行 id>`；
       peer 声明 `@deepseek-ai/dsh-client-ui-plugin-manager`，**不进 `dsh.client.inject`**）
@@ -631,7 +633,7 @@ export const en: Record<ClockKey, string> = { title: 'Clock', secondsLabel: 'Sho
 
 ## 5. 常见问题
 
-- **面板里看不到我的挂件？** 插件没挂载，或没注册 `shell.overlay`（`ctx.slots.inject`
+- **「小组件」tab 里看不到我的挂件？** 插件没挂载，或没注册 `shell.overlay`（`ctx.slots.inject`
   会等槽声明，日志里查 `slots` 服务是否就绪）。
 - **关闭后刷新又出现？** 检查 `shell.overlay` 的 `id` 是否改动过（关闭状态按 id 持久化）。
 - **「配置」按钮不显示？** `widgets.config` 没有该 id 的条目（注册被跳过，通常是

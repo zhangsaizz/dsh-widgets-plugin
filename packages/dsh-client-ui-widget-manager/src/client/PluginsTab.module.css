@@ -1,16 +1,13 @@
+/* Styles of the Plugins-page "Widgets" tab (`plugins.tab`, id `widgets`):
+   the widget list with per-row status / Configure / enable-disable / install
+   guide, plus the Configure and install-guide dialogs. */
+
 .page {
   display: flex;
   flex-direction: column;
   gap: 12px;
   padding: 16px 0;
   max-width: 560px;
-}
-
-.title {
-  margin: 0;
-  font-size: 16px;
-  font-weight: 600;
-  line-height: 1.4;
 }
 
 .subtitle {

@@ -7,8 +7,8 @@ rainbow halo** while the session runs: the input card becomes a translucent
 liquid-glass panel, a soft rainbow glow around it pulses like a breath —
 inhale, exhale — with the breathing rhythm driven by the live output-token
 rate, plus an on/off toggle in the composer tool row, a configurable effect
-panel, and a matching liquid-glass beautification of the composer's primary
-send/stop button with dynamic effects.
+panel reachable from the Plugins page → Widgets tab, and a matching liquid-glass
+beautification of the composer's primary send/stop button with dynamic effects.
 
 ## Preview
 
@@ -100,9 +100,9 @@ send/stop button with dynamic effects.
 - **Reduced motion**: with `prefers-reduced-motion`, the halo renders as a
   single static mid-breath frame (visible but not animating) instead of
   disappearing.
-- **Configurable**: the widget manager lists the rainbow flow like any other
+- **Configurable**: the Widgets tab on the Plugins page lists the rainbow flow like any other
   widget — **Enable/Disable** toggles the effect (bidirectionally synced with
-  the toolbar dot), and **Configure** opens a panel to adjust the overall
+  the toolbar dot), and the row's **Configure** button opens a panel to adjust the overall
   opacity (40/70/100%), token-rate speed sensitivity (0.5×/1×/1.5×), the
   thinking cool-shift palette on/off, the **latest-action rainbow sweep**
   on/off, and the **command text colours** — its section header carries the
@@ -243,7 +243,7 @@ send/stop button with dynamic effects.
 src/index.ts                      # Host empty apply (pure UI plugin)
 src/client/index.ts               # browser apply + inject (four entries incl. config panel)
 src/client/RainbowFlow.tsx        # toggle + breathing glow + send/stop probe
-src/client/SettingsPanel.tsx      # widget-manager configuration panel (widgets.config)
+src/client/SettingsPanel.tsx      # per-row configuration panel on the Widgets tab (widgets.config)
 src/client/SettingsPanel.module.css # config panel styles
 src/client/settings.ts            # settings store (opacity/speed/mood, localStorage)
 src/client/locales.ts             # `rainbow-flow` dictionary namespace (zh / en)

@@ -41,7 +41,7 @@ export const SHADOW_PRIORITY = -1
 /** Registrant stamp placed on shadow entries so the ledger can tell them apart. */
 export const REGISTRANT = 'widget-manager'
 /** Registrant stamp the card container places on its DOCK shadows — a widget
- *  hidden by the container is "docked", not "disabled": the manager page must
+ *  hidden by the container is "docked", not "disabled": the widget tab must
  *  not offer to re-enable it (the dock shadow still wins), but offer to
  *  undock instead. */
 export const DOCKED_REGISTRANT = 'card-container'
@@ -87,11 +87,11 @@ export function isOwnWidgetId(id: string): boolean {
   return OWN_WIDGET_IDS.has(id)
 }
 
-/** One row of the widget list page. */
+/** One row of the widget list tab. */
 export interface WidgetRow {
   /** The `shell.overlay` entry id (also the toggle key). */
   id: string
-  /** Shipping package name. Always present on the catalog rows this page
+  /** Shipping package name. Always present on the catalog rows this tab
    *  lists; the type keeps it optional for the renderer's fallback branch. */
   packageName: string | undefined
   /** Composition row id used when mounting the plugin (from the catalog's

@@ -1,6 +1,6 @@
 {
   "name": "@dsh-plugins/client-ui-widget-manager",
-  "description": "Web widget manager settings page: lists the project widgets with runtime Add (enable) / Close (disable) over the shell.overlay",
+  "description": "Widget management tab on the harness Plugins page: lists the project widgets with runtime Add (enable) / Close (disable) over the shell.overlay, the per-widget Configure dialog and the install guide",
   "version": "0.1.0",
   "icon": "./icon.svg",
   "license": "MIT",
@@ -26,8 +26,7 @@
       "inject": [
         "@deepseek-ai/dsh-client-ui-renderer",
         "@deepseek-ai/dsh-client-locale",
-        "@deepseek-ai/dsh-client-ui-layout",
-        "@deepseek-ai/dsh-client-ui-settings"
+        "@deepseek-ai/dsh-client-ui-layout"
       ],
       "platform": "web"
     }
@@ -43,7 +42,6 @@
     "@deepseek-ai/dsh-client-ui-layout": "^0.2.1-rc.2",
     "@deepseek-ai/dsh-client-ui-plugin-manager": "^0.2.1-rc.2",
     "@deepseek-ai/dsh-client-ui-renderer": "^0.2.1-rc.2",
-    "@deepseek-ai/dsh-client-ui-settings": "^0.2.1-rc.2",
     "@deepseek-ai/dsh-client-ui-slots": "^0.2.1-rc.2",
     "react": "^18.2.0"
   }

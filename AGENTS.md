@@ -7,7 +7,7 @@
 
 `dsh-widgets-plugin` 是一个 **DeepSeek Harness 小组件（widgets）monorepo**：
 制作可独立发布、可安装到任意 Harness 实例的插件。浏览器端以 `shell.overlay`
-浮动挂件或 Web 设置页呈现。当前五个小组件 + 两个支撑包：
+浮动挂件、输入框装饰或「插件」页 tab 呈现。当前五个小组件 + 两个支撑包：
 
 | 小组件 | 包 |
 |---|---|
@@ -17,7 +17,7 @@
 | 卡片容器 | `@dsh-plugins/client-ui-card-container` |
 | 彩虹流光 | `@dsh-plugins/client-ui-rainbow-flow` |
 
-支撑包：`@dsh-plugins/client-ui-widget-manager`（小组件管理设置页）、
+支撑包：`@dsh-plugins/client-ui-widget-manager`（小组件管理，「插件」页的「小组件」tab）、
 `@dsh-plugins/dsh-widgets-plugin`（可安装 bundle，一层挂载全部插件）。
 
 ## 各包主要功能
@@ -29,11 +29,11 @@
 | `@dsh-plugins/client-ui-session-monitor` | **双半插件行** | Host：9 条 `/_dsh/session-monitor/*` 路由（`turn/end` 结束原因、执行中工具 `tools`、累计轮次 `rounds`、桌面快照 `buildDesktopSnapshot`（含行级 `archived`、读取时隐去归档会话的 inbox 记录）、共享设置、`/jump` 跳转队列 + `/jump/poll` 长轮询、inbox 通知存储、独立挂件页 HTML）。客户端：`shell.overlay`（order 90）+ `widgets.config`，用 `useSessions` 投影列表（过滤已归档会话，经 `ctx.workspaces` 桥接）+ `running` 边沿检测「完成一轮」提醒 + 点击跳转会话 |
 | `@dsh-plugins/client-ui-card-container` | 纯 UI（浏览器端） | `shell.overlay`（id `card-container`，order 20）+ `widgets.config` 配置面板；声明 `widgets.card` 子槽把其他挂件停靠进卡片网格（影子条目隐藏浮窗），**不注册任何内置卡片** |
 | `@dsh-plugins/client-ui-rainbow-flow` | 纯 UI（浏览器端） | `conversation.input.left`（`rainbow-flow-glow` 呼吸光晕 order 99 + `rainbow-flow-toggle` 开关 order 100）、`conversation.input.right`（`rainbow-flow-send` 按钮美化 order 150）、`widgets.config` 配置面板；另用 `MutationObserver` 给会话命令卡按类别上色（`toolAccent`） |
-| `@dsh-plugins/client-ui-widget-manager` | 设置页（纯 UI） | `settings.section`（id `widgets`，order 10）列出小组件、支持添加/关闭；声明 `widgets.config` 子槽，为带配置的挂件提供「配置」弹窗 |
+| `@dsh-plugins/client-ui-widget-manager` | 插件界面（纯 UI，无设置页） | `plugins.tab`（id `widgets`，order 50，label「小组件」）在官方「插件」页列出小组件、支持添加/关闭与安装指引；同一注册声明 `widgets.config` 子槽，为带配置的挂件提供每行的「配置」弹窗 |
 | `@dsh-plugins/dsh-widgets-plugin` | bundle | `cordis.patch.yml` 一次插入 6 个插件行（balance / ui-token-crit / ui-session-monitor / ui-card-container / ui-rainbow-flow / ui-widget-manager） |
 
 > 完整组件登记册（组件明细、插槽注册、构建产物、依赖关系、维护清单）见
-> [COMPONENTS.md](COMPONENTS.md)。开发新小组件并接入管理面板（含配置弹窗）见
+> [COMPONENTS.md](COMPONENTS.md)。开发新小组件并接入「小组件」tab（含配置弹窗）见
 > [WIDGET-DEVELOPMENT.md](WIDGET-DEVELOPMENT.md)。
 
 ## 工作区结构
@@ -51,7 +51,8 @@ packages/
                              停靠影子条目隐藏浮窗，挂件自己注册紧凑卡片）
   dsh-client-ui-rainbow-flow/ 彩虹流光（纯 UI，浏览器端：conversation.input.left
                              + .right + widgets.config，呼吸光晕随 token 速率）
-  dsh-client-ui-widget-manager/ 小组件管理设置页（声明 widgets.config 子槽）
+  dsh-client-ui-widget-manager/ 小组件管理：「插件」页的「小组件」tab（plugins.tab，
+                             声明 widgets.config 子槽；无设置页）
 desktop/
   dsh-session-desktop/       自建 Tauri 2 会话悬浮窗（可选，不属于官方桌面端，
                              不在 pnpm workspace 内；见「DSH 桌面端（Electron）」）
@@ -170,7 +171,7 @@ pack → git diff 干净」。
   `ctx.get('remote.balance')` 按 store 直读。
 - 已**废弃对 deepseek-harness 的同步**（`sync.mjs` 已删）：余额源码手工维护。
 - 包内跨模块一律相对 import；`@dsh-plugins/balance/types` 等子路径保留给外部类型消费者。
-- 小组件管理页目录（`dsh-client-ui-widget-manager/src/client/widgets.ts`）把余额看板
+- 小组件管理目录（`dsh-client-ui-widget-manager/src/client/widgets.ts`）把余额看板
   `packageName` 标为 `@dsh-plugins/balance`——新增/重命名包时同步更新。
 
 ### 6. 包管理（与官方 deepseek-harness 架构对齐）
@@ -404,7 +405,7 @@ pack → git diff 干净」。
   - **其余消费面逐字节未变**：`useSessions` / `useSessionStatus` / `SessionListState` /
     `TokenUsageProjection` / `ctx.jobs` / `ctx.uiWorkspace.openSession` /
     `WorkspaceSource` 归档集 / `conversation.input.left|right` 槽与 props /
-    `widgets.config` / `settings.section` / `shell.overlay` / `PluginConfigViewProps` +
+    `widgets.config` / `shell.overlay` / `PluginConfigViewProps` +
     `plugins.row.config` / `webServer.register` / `SettingsForms` / `credentialRef` /
     `ProjectionDefinition` / `turn/end`·`tool/call`·`tool/result` payload / HMR 帧 /
     ModuleLoader 契约；`lib/typert.*` 手写 codec 仍被 0.2.1 registry 接受（strict codec
@@ -427,7 +428,7 @@ pack → git diff 干净」。
     打开一个含 114 条工具/思考行（68 个 tool-call）的会话后：`data-rf-tool-cat` 114、
     `data-rf-group-cat` 6、`data-rf-turn-cat` 1，而 **`data-rf-latest` /
     `data-rf-latest-fold` 均为 0**（正文回复落地后扫字正确退休，即 chat-flow 锚点修复
-    生效）；设置页「小组件管理」列出 5 个挂件与 4 个「配置」入口。
+    生效）；「插件」页的「小组件」tab 列出 5 个挂件与 4 个「配置」入口。
 - **0.2.1 新能力的采用（本仓库已做）**：
   - **插件展示元数据**：7 个包都补了 `icon.svg` + `locale/{en,zh}.json`
     （`meta.title` / `meta.description`），`exports` 增加 `./locale/en.json` 与
@@ -467,9 +468,12 @@ pack → git diff 干净」。
   - **Plugins 页一体化（0.2.1 新槽）**：widget-manager 注册 `plugins.tab`
     （id `widgets`，order 50）为官方 Plugins 页贡献「小组件」tab：复用同一个
     `WidgetManagerController` 列表（启用/停用/移出容器），顶部「查看 DSH 小组件集」
-    经 tab owner props 的 `openPackage()` 深链到 bundle 详情页；tab **不声明**
-    `widgets.config`（一个 slot 只能有一个声明者，设置页仍是唯一声明者），配置入口
-    文案指向设置页与行配置。card-container 与 rainbow-flow 补了 `plugins.row.config`
+    经 tab owner props 的 `openPackage()` 深链到 bundle 详情页；每行还有「配置」与
+    「安装指引」入口（前者打开 `widgets.config` 弹窗，未安装的挂件给出装包命令）。
+    **小组件管理只存在于这个 tab**：`settings.section` 注册（id `widgets`）已删除，
+    设置里没有任何小组件管理入口；`widgets.config` 子槽由这条 `plugins.tab` 注册**声明**
+    （它是唯一声明者，一个 slot 只能有一个声明者）。card-container 与 rainbow-flow 补了
+    `plugins.row.config`
     （key `<bundle package>#<row id>`，`view: 'summary' | 'page'` 复用各自设置面板），
     bundle 详情页的对应行因此能打开配置页；token-crit 的设置是浮窗内嵌面板、没有独立
     面板，故暂不提供 row config。三个包各新增 **type-only peer**
@@ -716,7 +720,7 @@ $env:DSH_HOME="$env:TEMP\dsh-preflight"; "…/dsh.cmd" widgettest --from-default
     （127.0.0.1:3080）通信，官方桌面端里**整段「桌面」区只留说明文案**（窗口即看板，后台提醒交给
     既有的「浏览器通知」开关）。`Notification` / WebAudio 缺失时，对应的「浏览器通知」「提示音」
     行整行省略，不留一个永远打不开的开关。
-  - **小组件管理页**：安装指引按壳切换文案——Web 用 web profile + 重启 `dsh web`；官方桌面端用
+  - **小组件管理（「插件」页的「小组件」tab）**：安装指引按壳切换文案——Web 用 web profile + 重启 `dsh web`；官方桌面端用
     固定的 desktop profile（或应用内「插件」页安装）+ 完全退出重开。
   新增挂件按 `WIDGET-DEVELOPMENT.md` §2.7 照做。
 - **会话监控跳转**：跳转仍走 `ctx.uiWorkspace.openSession`（客户端服务，桌面端可用）；
@@ -780,8 +784,8 @@ $env:DSH_HOME="$env:TEMP\dsh-preflight"; "…/dsh.cmd" widgettest --from-default
    `@dsh-plugins/*` 行；六个 `plugins/??@dsh-plugins/*/client.js` 全 200（
    251KB/130KB/88KB/84KB/82KB/35KB）；`/_dsh/session-monitor/{status,sessions,settings,
    notifications}` 与 `/_dsh/balance/settings` 全 200；`[data-widget-id]` 三个浮窗 +
-   卡片容器挂载（其托盘列出 12 个可停靠组件）；token-crit 显示 3,094,526 词元；设置页
-   「小组件管理」列出 5 个挂件与 4 个「配置」入口；打开 114 行会话后
+   卡片容器挂载（其托盘列出 12 个可停靠组件）；token-crit 显示 3,094,526 词元；「插件」页
+   「小组件」tab 列出 5 个挂件与 4 个「配置」入口；打开 114 行会话后
    `data-rf-tool-cat` 114 / `data-rf-group-cat` 6 / `data-rf-turn-cat` 1，而
    `data-rf-latest` 与 `data-rf-latest-fold` 均为 0；控制台零 error / 零 pageerror /
    零 4xx（探针需先点掉「预览版说明」与 API Key 两个 Modal，并临时隐藏

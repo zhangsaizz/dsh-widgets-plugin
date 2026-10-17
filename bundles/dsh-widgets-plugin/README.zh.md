@@ -7,8 +7,8 @@ DeepSeek Harness 小组件集合的可安装**组合包**（bundle）：一个 `
 （`@dsh-plugins/client-ui-token-crit`）、会话监控看板
 （`@dsh-plugins/client-ui-session-monitor`）、卡片容器
 （`@dsh-plugins/client-ui-card-container`）、彩虹流光
-（`@dsh-plugins/client-ui-rainbow-flow`）与小组件管理设置页
-（`@dsh-plugins/client-ui-widget-manager`）。
+（`@dsh-plugins/client-ui-rainbow-flow`）与小组件管理
+（`@dsh-plugins/client-ui-widget-manager`：在「插件」页贡献「小组件」tab）。
 
 ## 安装（发布版，推荐）
 

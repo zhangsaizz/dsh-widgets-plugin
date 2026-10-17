@@ -20,7 +20,7 @@ English | [中文](README.zh.md)
   **dock** the widget into the active group. The empty grid offers a
   **Dock all** action.
 - Docking hides the widget's floating panel (a shadow entry wins its overlay
-  cell — the same mechanism the Widgets manager uses to disable widgets) and
+  cell — the same mechanism the Widgets tab uses to disable widgets) and
   renders the widget's compact **card view** inside the grid. Undock (the ×
   button, or dragging the card out of the grid) restores the floating panel.
 - Cards reorder **live**: dragging a card lifts it into a ghost that follows
@@ -38,11 +38,11 @@ English | [中文](README.zh.md)
   reloads.
 - Touch devices (no hover): the chrome stays fully visible so the dock remains
   reachable.
-- While the container itself is disabled (hidden by the Widgets manager), the
+- While the container itself is disabled (closed on the Widgets tab), the
   dock shadows are released so the widgets float again; re-enabling the
   container restores the dock from the persisted groups.
 - The widgets' own **put into container** buttons follow the container's state:
-  they are hidden while the container is closed on the Widgets manager page or
+  they are hidden while the container is closed on the Widgets tab or
   not installed at all, because the dock request is a silent no-op then.
 
 ## Card views (adapter contract)
@@ -87,7 +87,7 @@ container's dock-request window event (`detail` = its `shell.overlay` id) to
 dock itself — decoupled, no-op when the container is absent:
 `window.dispatchEvent(new CustomEvent('dsh.card-container.dock', { detail: 'my-widget' }))`.
 Since that request is a SILENT no-op whenever the container cannot receive the
-widget (not installed, or closed on the Widgets manager page — its shadow entry
+widget (not installed, or closed on the Widgets tab — its shadow entry
 wins the overlay cell), a widget that offers the button must hide it unless the
 container is really available. The shared probe for that lives in
 `client/container-dock.ts` (`CardContainerAvailability`, handed to the widget as
@@ -105,10 +105,10 @@ falls back to the generic placeholder in the grid cell.
 
 ## Usage
 
-From the **小组件管理** (Widgets) settings page, click **添加** on the
+From the **Plugins page → Widgets tab** (「插件」→「小组件」), click **添加** on the
 **卡片容器** row. The panel appears (top-left by default; drag the header to
 move it). Drag tray chips into the grid to dock, drag cards to reorder, click
-× to undock, and use **配置** to change the column count or reset the layout.
+× to undock, and use **配置** on the row to change the column count or reset the layout.
 The official Electron desktop paints its own window chrome at the top of the
 document (a 40 px caption strip on Windows, the 48 px traffic-light band on
 macOS); the panel's position and drag are clamped below that band through

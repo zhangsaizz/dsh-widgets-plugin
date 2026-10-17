@@ -1,9 +1,9 @@
 /**
- * Static catalog of the project widgets the manager page lists. Each entry
+ * Static catalog of the project widgets the widgets tab lists. Each entry
  * names the `shell.overlay` registration id of a widget and its localized
  * copy keys (the dictionaries live in ./locales.ts, namespace `widgets`).
- * Widgets not present in this catalog but registered into the overlay are
- * listed generically so the page always mirrors the live ledger.
+ * The catalog is what the tab iterates — the overlay ledger only supplies each
+ * row's live state.
  *
  * @module @dsh-plugins/client-ui-widget-manager/client/widgets
  */

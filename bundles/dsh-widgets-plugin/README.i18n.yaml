@@ -3,5 +3,5 @@
 # editing either side, bring the other along and re-record with:
 #   git hash-object bundles/dsh-widgets-plugin/README.md
 #   git hash-object bundles/dsh-widgets-plugin/README.zh.md
-README.md: c83520b5ac2c2a43d0dace4a751a57293858fbd4
-README.zh.md: d5e7adcda83897486c6797095163122e98ded2fd
+README.md: 133d99d846efce76b88275f39692d863690ce1d1
+README.zh.md: 78219b890f5d3d389bd80026ebd6875185537063

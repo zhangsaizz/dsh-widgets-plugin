@@ -51,15 +51,15 @@ hover tooltip / loading states, light & dark themes](../../docs/previews/balance
   (`/_dsh/balance/settings`) serves a
   redacted GET snapshot and POST save (blank credential keeps the stored value;
   a `credentialClear` flag removes it explicitly). The config panel in the
-  widget manager's "Configure" dialog supports add, inline edit (provider route,
+  **Configure** dialog on the Balance row of the Plugins page → Widgets tab supports add, inline edit (provider route,
   vendor, credential source, base URL) and two-step delete. This
   is how self-hosted or custom routes get balance queries without code changes.
 - **Web dashboard** — the browser half (`exports["./client"]`, discovered
   through `dsh.client`) mounts the balance Remote into `ctx.remote`, then
   registers the floating `BalanceWidget` into `shell.overlay` (id `balance`,
   order 100) with its view-settings store (zoom/dock/collapse, persisted under
-  `dsh.balance.view`), and the providers config panel into the widget
-  manager's "Configure" dialog (`widgets.config` slot). A single
+  `dsh.balance.view`), and the providers config panel into the row's
+  "Configure" dialog on the Widgets tab (`widgets.config` slot). A single
   `BalanceController` follows the current session + model and refreshes on a
   fixed 30 s interval. When the shell has the official **DeepSeek account** signed in
   (the `account` Remote, harness 0.2.1), each refresh also reads its recharge +
@@ -88,7 +88,8 @@ hover tooltip / loading states, light & dark themes](../../docs/previews/balance
 ## Installation
 
 Recommended: install the bundle, which mounts this plugin together with the
-token-crit widget, the session monitor dashboard and the widgets manager page.
+token-crit widget, the session monitor dashboard and the widget manager (the
+**Widgets** tab on the Plugins page).
 Once published to npm, install it into the target profile with the official
 `dsh plugin` command (it installs dependencies and appends the bundle to
 `dsh.profile.bundles`):
@@ -128,7 +129,7 @@ the credential reference (DeepSeek → `DEEPSEEK_API_KEY`, Moonshot →
 `SILICONFLOW_API_KEY`, New API → `NEW_API_KEY`). To query additional or
 self-hosted routes, add a binding in the harness **Plugins** page (the
 `@dsh-plugins/dsh-widgets-plugin` bundle → the `balance` row → **Configure**),
-or in Web settings → Widgets manager → Balance → **Configure**; both open this
+or on the Plugins page → **Widgets** tab → the Balance row → **Configure**; both open this
 package's provider panel. Store the token there (the provider route
 dropdown mirrors the model list — only providers that expose models — or the
 route can be typed freely); the next dashboard refresh picks it up without a

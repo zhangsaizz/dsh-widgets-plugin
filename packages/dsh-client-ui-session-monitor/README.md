@@ -325,8 +325,8 @@ No configuration is needed after mounting:
    (auto-dismiss or confirm-required per the settings). Click **跳转** to jump,
    **知道了** to dismiss.
 5. **Configure** — open the harness **Plugins** page (`@dsh-plugins/dsh-widgets-plugin`
-   bundle → the `ui-session-monitor` row → **Configure**) or Web settings →
-   Widgets → Session monitor → **Configure** — both open this package's options
+   bundle → the `ui-session-monitor` row → **Configure**) or the Plugins page →
+   **Widgets** tab → Session monitor → **Configure** — both open this package's options
    panel — to tune notifications (on/off, dismissal, seconds, sound, current-session
    scope), whether to show subagent sessions (off by default), and the list
    (busy-only, done marks).

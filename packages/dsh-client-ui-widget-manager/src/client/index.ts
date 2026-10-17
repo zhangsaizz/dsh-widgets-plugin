@@ -1,15 +1,16 @@
 /**
- * Widget manager plugin, browser half: one `settings.section` registration
- * (`id` "widgets") contributes the project widget list page, whose controller
- * enables / disables the `shell.overlay` widgets at runtime (shadow entries
- * win the widget cells while disabled). State persists to localStorage and
- * reconciles against the live overlay ledger.
+ * Widget manager plugin, browser half: one `plugins.tab` registration (id
+ * "widgets") contributes a "Widgets" tab to the harness Plugins page, whose
+ * controller enables / disables the `shell.overlay` widgets at runtime (shadow
+ * entries win the widget cells while disabled). State persists to localStorage
+ * and reconciles against the live overlay ledger.
  *
- * The section also DECLARES the `widgets.config` child slot: a widget's own
- * package registers its configuration panel there (keyed by the widget id),
- * and the manager page opens it in a dialog through a "Configure" button on
- * the matching row. Widget config therefore lives with the widget in the
- * manager — not as a separate settings-menu page.
+ * The tab also DECLARES the `widgets.config` child slot: a widget's own package
+ * registers its configuration panel there (keyed by the widget id), and the tab
+ * opens it in a dialog through a "Configure" button on the matching row. Widget
+ * management therefore lives entirely inside the plugin surface — it is not a
+ * Settings page, and its per-widget configuration is not a separate
+ * settings-menu page either.
  *
  * @module @dsh-plugins/client-ui-widget-manager/client
  */
@@ -19,15 +20,11 @@ import type { Context as ClientContext } from '@deepseek-ai/cordis'
 import type {} from '@deepseek-ai/dsh-client-ui-layout/client'
 // Type-only: pulls the `ctx.slots` (SlotRegistry) Context merge from ui-renderer.
 import type {} from '@deepseek-ai/dsh-client-ui-renderer/client'
-// Type-only: pulls the settings.section SlotMap merge from ui-settings.
-import type {} from '@deepseek-ai/dsh-client-ui-settings/client'
 // Type-only: pulls the locale plugin's Context merge (ctx.locale).
 import type {} from '@deepseek-ai/dsh-client-locale/client'
 // Type-only: pulls the `plugins.tab` SlotMap merge from the harness plugin manager.
 import type {} from '@deepseek-ai/dsh-client-ui-plugin-manager/client'
 import { WidgetManagerController } from './controller.ts'
-import { WidgetManagerSettings } from './WidgetManagerSettings.tsx'
-import type { WidgetManagerSettingsInjected } from './WidgetManagerSettings.tsx'
 import { WidgetsPluginsTab } from './PluginsTab.tsx'
 import type { WidgetsPluginsTabInjected } from './PluginsTab.tsx'
 import { en, zh } from './locales.ts'
@@ -59,7 +56,7 @@ const NS = 'widgets'
 export const inject = ['slots', 'locale']
 
 /**
- * Client plugin body: the widget manager settings page and its controller.
+ * Client plugin body: the widget list tab on the Plugins page and its controller.
  * @param ctx - client root context.
  */
 export function apply(ctx: ClientContext): void {
@@ -68,27 +65,12 @@ export function apply(ctx: ClientContext): void {
   const t = ctx.locale.bind(NS)
   const controller = new WidgetManagerController(ctx)
 
-  ctx.slots.inject('settings.section', () => ctx.slots.register({
-    name: 'settings.section',
-    id: 'widgets',
-    order: 10,
-    label: () => t('navLabel'),
-    locale: NS,
-    inject: (): WidgetManagerSettingsInjected => ({
-      hooks: { widgets: controller },
-      toggle: (id) => { controller.toggle(id) },
-    }),
-    children: {
-      'widgets.config': { kind: 'list', scope: 'root' },
-    },
-  }, WidgetManagerSettings))
-
-  // The same list as a tab on the harness **Plugins** page (0.2.1 `plugins.tab`
+  // The widget list as a tab on the harness **Plugins** page (`plugins.tab`
   // list slot). `label` names the tab; the slot's owner props add `openPackage`
-  // so the tab can deep-link to this bundle's detail page. The tab does NOT
-  // declare `widgets.config` (a slot has exactly one declarer — the settings
-  // page above), so per-widget configuration stays on the settings page and on
-  // the bundle rows' Configure controls.
+  // so the tab can deep-link to this bundle's detail page. The tab DECLARES
+  // `widgets.config` — a slot has exactly one declarer — so the per-widget
+  // configuration panels other packages contribute render in this tab's
+  // Configure dialog.
   ctx.slots.inject('plugins.tab', () => ctx.slots.register({
     name: 'plugins.tab',
     id: 'widgets',
@@ -99,5 +81,8 @@ export function apply(ctx: ClientContext): void {
       hooks: { widgets: controller },
       toggle: (id) => { controller.toggle(id) },
     }),
+    children: {
+      'widgets.config': { kind: 'list', scope: 'root' },
+    },
   }, WidgetsPluginsTab))
 }

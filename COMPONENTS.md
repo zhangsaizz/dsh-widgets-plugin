@@ -5,9 +5,9 @@
 明细 → 插槽 → 产物 → 维护清单），发布前按第 7 节过一遍。
 
 > 术语约定：
-> - **组件**：一个可独立识别的最小可交付单元（服务、Provider、挂件、设置页、bundle）。
+> - **组件**：一个可独立识别的最小可交付单元（服务、Provider、挂件、插件页 tab、bundle）。
 > - **包**：发布到 npm 的容器（`@dsh-plugins/*`），一个包可含多个组件。
-> - **插槽（slot）**：Harness 浏览器端/宿主的扩展点（`shell.overlay`、`settings.section`、`remote`、`webServer`）。
+> - **插槽（slot）**：Harness 浏览器端/宿主的扩展点（`shell.overlay`、`plugins.tab`、`remote`、`webServer`）。
 
 ---
 
@@ -19,7 +19,7 @@
 | 2 | balance Remote 挂载（Client） | 客户端服务 | `@dsh-plugins/balance` | client `remote` 服务 | 把生成的 balance Remote（`balance/query` + `balance/list`）挂进 client 的 `remote` |
 | 3 | 余额厂商 Provider ×5 | Host 插件 | `@dsh-plugins/balance` | Host | deepseek / moonshot / openrouter / siliconflow / new-api 五个真实余额查询 |
 | 4 | 不支持厂商占位 ×5 | Host 插件 | `@dsh-plugins/balance` | Host | openai / anthropic / google / xai / mistral 的「无公开余额接口」占位 |
-| 5 | 余额设置 Web 后端 | Host Web 路由 | `@dsh-plugins/balance` | `/_dsh/balance/settings` | 设置页的 GET 快照（脱敏）与 POST 持久化 |
+| 5 | 余额设置 Web 后端 | Host Web 路由 | `@dsh-plugins/balance` | `/_dsh/balance/settings` | 供应商配置面板的 GET 快照（脱敏）与 POST 持久化 |
 | 6 | 余额看板挂件 `BalanceWidget` | Web 挂件 | `@dsh-plugins/balance` | `shell.overlay`（order 100） | 浮动余额看板：视口内拖动/角吸附/缩放/折叠过渡、滚动金额、趋势箭头、单/多账户视图（**已登录官方 DeepSeek 账号的钱包行同时出现在单账户视图下方、多账户列表；无 provider 余额时胶囊与卡片也回退显示；主余额随当前会话模型路由切换——官方账号路由 `deepseek-account` → 钱包即主余额，厂商路由 → 厂商余额 + 钱包补充行**）；面板/胶囊/悬停提示为**液态玻璃**材质（与彩虹流光输入框同一配方） |
 | 7 | 余额供应商配置面板 `BalanceSettings` | Web 配置弹窗 | `@dsh-plugins/balance` | `widgets.config`（管理器「配置」弹窗） | 管理插件自身 Config 条目（settings 命名空间 = profile 条目原始 id `balance`）的 `bindings` volatile 字段——用户绑定（provider/vendor/凭据/baseURL） |
 | 8 | `BalanceController` + `useBalance` | 客户端数据层 | `@dsh-plugins/balance` | 注入 hook | 跟随当前 session + model，固定 30s 轮询刷新，暴露 `refresh()`；每轮另经 `remote.account`（延迟绑定，0.2.1）读取官方账号充值 + 赠送钱包，按币种折算成合成行（`account-balance.ts`） |
@@ -30,11 +30,11 @@
 | 13 | 会话监控 Host 半 + 状态路由 + 通知 inbox | Host 插件 + Web 路由 | `@dsh-plugins/client-ui-session-monitor` | `/_dsh/session-monitor/status` 等 9 条路由 | 监听 `turn/end` 记录结束原因（completed/aborted/blocked/error/max-tokens/interrupted）+ **`tool/call`→`tool/result` 折叠每会话执行中的工具**（`tools` 表）+ 累计轮次（`rounds` 表）+ **0.2.1 持久 job 事件折叠**（`job/registered` / `job/settled` → 快照行 `jobs { running, failed }`），浏览器半 3s 轮询取回；另把会话事件折叠为**持久化通知 inbox**（审批/回答/计划/出错/阻塞/token 上限/完成一轮/子代理完成/**后台任务失败 `job-failed`** 等，已读状态存 Host，桌面与网页共享） |
 | 14 | 会话监控配置面板 `SessionSettings` | Web 配置弹窗 | `@dsh-plugins/client-ui-session-monitor` | `widgets.config`（管理器「配置」弹窗） | 提醒开关/关闭方式/秒数/音效/提醒范围与列表显示选项 + **「桌面端会话监控」开关**（默认关，打开时经 `dsh-smon://` 拉起桌面应用并开始监控，关闭后桌面挂件暂停），localStorage 持久化；**按环境过滤（组件 31）**：Tauri 挂件专属的三项（该开关 + 桌面 inbox 的「处理后自动已读」「打开时自动全部已读」）只在 **web** 环境渲染（该挂件只与网页版部署 127.0.0.1:3080 通信），官方 Electron 桌面端**整段「桌面」区只留说明文案**（窗口即看板，后台提醒用「浏览器通知」）；`Notification` / WebAudio 缺席时对应的「浏览器通知」「提示音」行整行省略，不留永远打不开的开关 |
 | 15 | 卡片容器 `CardContainerWidget` | Web 挂件 | `@dsh-plugins/client-ui-card-container` | `shell.overlay`（order 20） | 浮动容器面板：**多分组**（顶部分组标签 + ⋯ 管理菜单），托盘列出可停靠挂件，拖入网格即停靠（影子条目隐藏浮窗）、渲染紧凑卡片视图；卡片**实时换位**（ghost 跟随 + 其余让位，拖出网格=移出）、键盘可达（Enter/空格移出、方向键排序）、触屏常显、列数可配、状态持久化；面板/卡片/胶囊/分组菜单为**液态玻璃**材质（与彩虹流光输入框同一配方） |
-| 16 | 卡片容器控制器 `CardContainerController` | 客户端数据层 | `@dsh-plugins/client-ui-card-container` | 注入 hook | 多分组停靠（groups/active 持久化，旧单列表自动迁移）+ 可用托盘投影，注册/释放 priority -2 停靠影子，针对 overlay 台账自我修复；**自身被管理页关闭时用组件 32 的探针判定并释放全部停靠影子**（挂件恢复浮动，重新启用按持久化顺序恢复） |
+| 16 | 卡片容器控制器 `CardContainerController` | 客户端数据层 | `@dsh-plugins/client-ui-card-container` | 注入 hook | 多分组停靠（groups/active 持久化，旧单列表自动迁移）+ 可用托盘投影，注册/释放 priority -2 停靠影子，针对 overlay 台账自我修复；**自身在「小组件」tab 被关闭时用组件 32 的探针判定并释放全部停靠影子**（挂件恢复浮动，重新启用按持久化顺序恢复） |
 | 17 | 卡片视图 | Web 卡片视图 | `@dsh-plugins/client-ui-token-crit` / `client-ui-session-monitor` / `balance` | `widgets.card`（容器声明子槽，**容器无内置卡片**） | **token-crit、session-monitor、balance 各自注册自己的紧凑卡片**（priority 0：token 用量 / 忙碌会话数 / 实时余额，见各自包源码）；**标准接入规范**（`WidgetCardProps` + 槽级注入面 `CardSlotInject`，见 WIDGET-DEVELOPMENT.md §2.5）：挂件自己注册进 `widgets.card`（id = shell.overlay id、priority 默认 0、显示名优先读 shell.overlay 的 label）即渲染，不注册则用占位卡；卡片可声明**规格**（静态 `spec`：small 1 列 / medium 2 列 / large 整行） |
 | 18 | 卡片容器配置面板 `CardContainerSettings` | Web 配置弹窗 | `@dsh-plugins/client-ui-card-container` | `widgets.config`（管理器「配置」弹窗）+ `plugins.row.config`（bundle 行配置页，0.2.1） | 列数（自适应/2/3/4）+ 清空停靠/重置，localStorage 持久化 |
 | 19 | 安装 bundle | 分发层 | `@dsh-plugins/dsh-widgets-plugin` | `cordis.patch.yml` | 一次插入 6 个插件，一键挂载全部组件 |
-| 20 | 小组件管理页 `WidgetManagerSettings` | Web 设置页 | `@dsh-plugins/client-ui-widget-manager` | `settings.section`（order 10） | 实时列出小组件，支持「添加/关闭」，并为带配置的挂件提供「配置」弹窗；**未安装挂件提供「安装指引」弹窗**（装包命令 + `cordis.yml`/`cordis.patch.yml` 挂载行 + 重启提示，**按环境只显示适用的一套（组件 31）**：Web = web profile + 重启 `dsh web`；官方桌面端 = 固定 desktop profile/应用内「插件」页 + 完全退出重开）；**支持非 overlay 组件**（`configOnly`，如 rainbow-flow——启用/停用经 window 事件桥控制其自身开关 store，与工具栏圆点双向同步）；**另注册 `plugins.tab`**（id `widgets`，order 50）→ 官方 Plugins 页「小组件」tab（同一列表 + 启用/停用 + 深链 bundle 详情页，0.2.1） |
+| 20 | 小组件管理 tab `WidgetsPluginsTab` | 「插件」页 tab | `@dsh-plugins/client-ui-widget-manager` | `plugins.tab`（order 50；同一注册声明子槽 `widgets.config`） | 官方「插件」页的「小组件」tab，实时列出小组件，支持「添加/关闭/移出容器」，并为带配置的挂件提供行上的「配置」弹窗；**未安装挂件提供「安装指引」弹窗**（装包命令 + `cordis.yml`/`cordis.patch.yml` 挂载行 + 重启提示，**按环境只显示适用的一套（组件 31）**：Web = web profile + 重启 `dsh web`；官方桌面端 = 固定 desktop profile/应用内「插件」页 + 完全退出重开）；**支持非 overlay 组件**（`configOnly`，如 rainbow-flow——启用/停用经 window 事件桥控制其自身开关 store，与工具栏圆点双向同步）；顶部深链 bundle 详情页。**设置里不再有小组件管理入口**（`settings.section` 注册已删除） |
 | 21 | 会话监控桌面快照路由 | Host Web 路由 | `@dsh-plugins/client-ui-session-monitor` | `/_dsh/session-monitor/sessions` | 把实时会话存储 + 持久化冷会话折叠成紧凑 JSON 行（running/title/pending/子代理计数/cwd/jobs/formatStatus 等），`tools`/`rounds` 与行级 `goal`（`goal/change` 折叠）同车返回（桌面挂件任务/目标进度条数据），桌面挂件 2s 轮询；**0.2.1 持久化 API 兼容**：`list()` 快照形状 + `open().read()` body 读取（旧 `readFrom` 亦可） |
 | 22 | 会话监控独立挂件页 | Host 托管的独立 Web 页 | `@dsh-plugins/client-ui-session-monitor` | `/_dsh/session-monitor/widget` | 自包含 HTML（无框架）：**「待处理」通知列表（主视图，未读徽标 + 处理/忽略/全部已读 + 级别开关）+ 「会话」列表副 Tab**（行内 cwd / 后×N / 失败 / **格式待迁移** chip）+ 完成一轮 toast + 置顶/隐藏/设置，供桌面壳加载 |
 | 23 | 会话监控桌面悬浮窗壳（可选） | 桌面应用（Tauri 2） | `desktop/dsh-session-desktop` | Windows 桌面 | 无边框/透明/置顶/无任务栏小窗 + 托盘（显示/退出），加载挂件页；启动时探测本机 web 服务、外部导航交系统浏览器。**官方 Electron 桌面端出现之前自建，与官方桌面端互不影响**：官方桌面端里看板就在主窗口内，该壳只在「要一块独立于 Harness 窗口的常驻置顶小窗」时才有意义 |
@@ -42,12 +42,12 @@
 | 25 | 彩虹流光开关 `RainbowFlowToggle` | Web 输入框控制 | `@dsh-plugins/client-ui-rainbow-flow` | `conversation.input.left`（order 100） | 输入框工具行左端液态玻璃质感彩虹小圆点开关（半透明渐变 + blur + 高光，开/关持久化 localStorage），右上角状态点随会话运行变绿 |
 | 26 | 发送/停止按钮美化 `RainbowFlowSend` | Web 输入框控制 | `@dsh-plugins/client-ui-rainbow-flow` | `conversation.input.right`（order 150） | 对输入框主操作发送/停止按钮做**液态玻璃**图标美化 + 动态效果：`conversation.input.right` 探针把按钮有效状态镜像到输入卡 `data-rf-send`，全局样式表给按钮做半透明玻璃面板（白色渐变 + backdrop blur + 顶部高光）透出柔和彩虹 + 细玻璃描边——空闲有草稿时呼吸光晕、运行中彩虹旋转 + 扩散雷达脉冲环；与开关共用开关状态、禁用态不生效、`prefers-reduced-motion` 冻结动画；选择器锚定 `[data-composer-card]` + `_primary` 后缀，harness 升级后仍生效 |
 | 27 | 彩虹流光配置面板 `RainbowFlowSettings` | Web 配置弹窗 | `@dsh-plugins/client-ui-rainbow-flow` | `widgets.config`（管理器「配置」弹窗） | 可调**透明度**（40/70/100%）、**速度灵敏度**（0.5×/1×/1.5×）、**思考冷色调开关**、**命令按类别上色开关**（`commandColor`，默认开）、**最新行动彩虹扫字开关**（`commandSweep`，默认开）+ `plugins.row.config`（bundle 行配置页，0.2.1）；另含**命令文字颜色**——**每类命令**（shell/read/search/write/edit/code/web/ask/plan/task/memory/think/other）一个取色器 + 单行恢复默认，写入 `--rf-tool-*` CSS 变量经 store 持久化到 localStorage（`dsh.rnglow.settings`），已挂载的光环与已上色的命令卡实时生效 |
-| 28 | 彩虹流光设置 store `settings.ts` | 客户端状态 | `@dsh-plugins/client-ui-rainbow-flow` | 注入 store | 透明度/速度/冷色调/命令按类别上色（`commandColor`）/最新行动彩虹扫字（`commandSweep`）/命令颜色（`toolColors`，每类一色）的读取/保存/订阅（uSES），与配置面板和光环共享；**启用/停用经 window 事件桥与管理页双向同步**（`dsh.rnglow.manager-toggle` / `enabled-change`，与工具栏圆点同一开关 store）；另含**心情感知色调 = 双层交叉淡化**（思考/工具调用时 mood 因子缓动到 1，暖层→冷层 opacity 纯动画）、**reduced-motion 单帧静态**、**IntersectionObserver 视口外停 rAF**、**零重栅格化**（静态 box-shadow 层只栅格化一次） |
+| 28 | 彩虹流光设置 store `settings.ts` | 客户端状态 | `@dsh-plugins/client-ui-rainbow-flow` | 注入 store | 透明度/速度/冷色调/命令按类别上色（`commandColor`）/最新行动彩虹扫字（`commandSweep`）/命令颜色（`toolColors`，每类一色）的读取/保存/订阅（uSES），与配置面板和光环共享；**启用/停用经 window 事件桥与「小组件」tab 双向同步**（`dsh.rnglow.manager-toggle` / `enabled-change`，与工具栏圆点同一开关 store）；另含**心情感知色调 = 双层交叉淡化**（思考/工具调用时 mood 因子缓动到 1，暖层→冷层 opacity 纯动画）、**reduced-motion 单帧静态**、**IntersectionObserver 视口外停 rAF**、**零重栅格化**（静态 box-shadow 层只栅格化一次） |
 | 29 | 彩虹流光命令卡上色 `toolAccent` | Web 输入框装饰（会话记录命令卡） | `@dsh-plugins/client-ui-rainbow-flow` | 非插槽（`MutationObserver` + `[data-tool]`/`[data-variant="bash"]`/`[data-variant="think"]` 装饰） | 会话记录里模型每个**工具调用（命令）卡片**按工具名启发式分类（shell/read/search/write/edit/code/web/ask/plan/task/memory/other，另 **「Think」思考推理行** `data-variant="think"` 归入 `think` 淡紫类别）：卡片左侧亮起**对应颜色边条**，**相关文字也按类别上色**——**标题用主题感知渐变**（`background-clip: text`）、**前导图标**类别色、**摘要**柔和色调、**读/写/编辑类文件的路径链接（`_fileLink`）**用纯类别色（悬停显示类别名）；读卡片稳定 `data-tool` 属性（**shell 卡是例外**：它由专用卡片组件渲染，只带 `data-variant="bash"`、没有 `data-tool`，故按变体归入 `shell`）→ `classify.ts` 分类 → `data-rf-tool-cat` 属性 + `ToolAccent.css` 上色；**不重渲染卡片、不改产品 DOM**，harness 升级后仍生效（文字按 CSS-module 本地名后缀 `_title`/`_leading`/`_summary` 选中，同发送按钮 `_primary`），未知工具归入"命令"默认色（**读取/规划/编辑**三个家族的边界用 `(_|$)` 而非 `\b`，因此 `read_image`/`str_replace_editor` 会落到本家族；**任务类**（`todo_write`/目标/`schedule_*`/`team_task_*`/`job_*`/`workflow`/`ralph`）统一归入新增的 **task（任务）** 类别，不再落默认色；智能体/团队协作类如 `subagent`/`send_message`/`wait_agent`、以及 `present`/`skill`/`lsp` 按设计仍为默认色。**可见性前提**：行是否可见由工作详情模式决定——`compact`/`standard`（0.1.7 默认）收起每一轮的过程分组，需**展开分组**才可见；`detailed`（0.2.0 默认）只收起已结束轮次，运行中可见；`verbose` 从不折叠。装饰器从不给隐藏行上色）；斜杠命令卡（`conversation.chat.commandview` 的 `GenericCommandCard`，`data-variant="others"`、无 `data-tool`）**不在**上色范围；**每类颜色可按用户配置自定义**（把设置里的 `toolColors` 写成 `<html>` 内联 `--rf-tool-*`，覆盖样式表 `:root` 默认，实时生效）；**折叠父行也上色**（命令行被过程分组收起后 harness 显示两条父行之一：分组标题行 / 已结束轮次的整轮控制行；二者都不是命令行，故 `applyFoldAccents` 分别盖 `data-rf-group-cat` / `data-rf-turn-cat` + 内联 `--rf-tool-accent`，取「其隐藏的最新子命令」类别，图标/文字继承该色；关掉上色开关即移除；最新行动被折叠隐藏时扫字转标该父行 `data-rf-latest-fold`，并与行标记同规则地在正文回复出现后熄灭；不给更旧的可见行打标）；**最新行动（命令/思考）被彩虹扫过（正文除外）**（会话里**最新的一条**——工具卡、shell 卡或 `data-variant="think"` 思考行，`setLatest` 在 `ROW_SELECTOR` 并集里取最晚标 `data-rf-latest`——其 `_title`/`_summary`/`_fileLink` 被**流动的彩虹渐变**（`background-clip: text`）扫过每个字符，输出正文不参与；**跟随最新行动持续**（read/edit 等秒完的命令也亮，不依赖 running），直到**其后出现正文回复**（只按 flow-item 结构判定，0.1.7 下沿嵌套 `[data-chat-flow]` 层级向上找整组之后的正文；被过程折叠策略 `hidden` 的隐藏行不标、隐藏正文不算，不误判 composer）才熄灭）——纯 CSS、不重渲染 DOM、`prefers-reduced-motion` 冻结；**受 `commandSweep` 开关控制**，经本模块写成 `<html>` 的 `data-rf-sweep='on'|'off'` 门控）；命令上色本身**受 `commandColor` 开关控制**（关掉时本模块停止打标签并清除已有 `data-rf-tool-cat`/`title`，命令卡恢复原厂外观；两者均独立于输入框光晕开关） |
 
 | 30 | 桌面端顶栏避让 `overlay-inset.ts` | 客户端工具模块（每包一份） | `@dsh-plugins/balance` / `client-ui-token-crit` / `client-ui-session-monitor` / `client-ui-card-container` | 浮窗定位计算 | 读 `<html>` 上壳公布的 `--dsh-frame-top-clearance`（macOS 48px 红绿灯+窗口控件 / Windows 40px 标题条，后者整条是窗口拖动带），把浮窗「顶边」下界取 `max(传入边距, 该带 + 20)`；无该变量（网页端）时原样返回传入边距。**balance 在角停靠样式、拖动钳制、持久化位置钳制、吸附判定四处调用**（停靠传 `DOCK_INSET`、钳制/吸附传 `0`），token-crit 两处（拖动钳制 + 设置面板定位）、session-monitor 与 card-container 各一处（拖动钳制）；**刻意不用壳的 `--dsh-frame-overlay-top`**（全屏降到 20px，会压到全屏仍在的 Windows 标题条菜单 / macOS 折叠侧栏控件）；按平台标记+标题条标记缓存，避免每 pointermove 读 computed style。四份拷贝由 `scripts/build.mjs` 断言逐字节一致 |
-| 31 | 宿主环境判定 `environment.ts` | 客户端工具模块（每包一份） | `@dsh-plugins/client-ui-session-monitor` / `client-ui-widget-manager` | 配置面板/配置页分支 | `detectEnvironment()` 返回 `web` / `official-desktop` / `tauri`（官方 Electron 壳在 `dsh-app://app/` 下暴露 `window.dshDesktop`；自建 Tauri 壳暴露 `window.__TAURI__`，只与网页版部署通信），另含能力探针 `supportsSystemNotifications()` / `supportsAudioChime()`；**只渲染当前环境能生效的配置项**——会话监控的 Tauri 三项只在 web 渲染、官方桌面端整段「桌面」区换成说明文案，小组件管理页的安装指引按 web/官方桌面端切换 profile 与重启文案。两份拷贝由 `scripts/build.mjs` 断言逐字节一致 |
-| 32 | 容器可用性探针 `container-dock.ts` | 客户端工具模块（每包一份） | `@dsh-plugins/client-ui-card-container` / `balance` / `client-ui-token-crit` / `client-ui-session-monitor` | 「放入容器」按钮的显隐 | `isCardContainerIn(winners)` / `isCardContainerAvailable(ctx)` 读 overlay 台账 `entriesOfSlot('shell.overlay')` 里 `card-container` 单元的胜者（`priority ≥ 0` = 容器挂载且未被管理页关闭）；`CardContainerAvailability`（getSnapshot + subscribe）经注册的 inject `hooks` 以 `useCardContainer` 选择器 hook 交给浮窗，**容器不可用时三个挂件的「放入容器」按钮整体不渲染**（此时 `dsh.card-container.dock` 请求是静默 no-op）；容器控制器自己也用同一个投影判断「我被关闭了 → 释放全部停靠影子」。四份拷贝由 `scripts/build.mjs` 断言逐字节一致 |
+| 31 | 宿主环境判定 `environment.ts` | 客户端工具模块（每包一份） | `@dsh-plugins/client-ui-session-monitor` / `client-ui-widget-manager` | 配置面板/配置页分支 | `detectEnvironment()` 返回 `web` / `official-desktop` / `tauri`（官方 Electron 壳在 `dsh-app://app/` 下暴露 `window.dshDesktop`；自建 Tauri 壳暴露 `window.__TAURI__`，只与网页版部署通信），另含能力探针 `supportsSystemNotifications()` / `supportsAudioChime()`；**只渲染当前环境能生效的配置项**——会话监控的 Tauri 三项只在 web 渲染、官方桌面端整段「桌面」区换成说明文案，小组件管理 tab 的安装指引按 web/官方桌面端切换 profile 与重启文案。两份拷贝由 `scripts/build.mjs` 断言逐字节一致 |
+| 32 | 容器可用性探针 `container-dock.ts` | 客户端工具模块（每包一份） | `@dsh-plugins/client-ui-card-container` / `balance` / `client-ui-token-crit` / `client-ui-session-monitor` | 「放入容器」按钮的显隐 | `isCardContainerIn(winners)` / `isCardContainerAvailable(ctx)` 读 overlay 台账 `entriesOfSlot('shell.overlay')` 里 `card-container` 单元的胜者（`priority ≥ 0` = 容器挂载且未在「小组件」tab 被关闭）；`CardContainerAvailability`（getSnapshot + subscribe）经注册的 inject `hooks` 以 `useCardContainer` 选择器 hook 交给浮窗，**容器不可用时三个挂件的「放入容器」按钮整体不渲染**（此时 `dsh.card-container.dock` 请求是静默 no-op）；容器控制器自己也用同一个投影判断「我被关闭了 → 释放全部停靠影子」。四份拷贝由 `scripts/build.mjs` 断言逐字节一致 |
 
 > 1–10 全部由 `@dsh-plugins/balance` 一个包、一个插件行承载（原 `balance` 缝隙 +
 > `balance-vendors` + `client-ui-balance` 三个包已合并）。
@@ -66,7 +66,7 @@
 | `@dsh-plugins/client-ui-session-monitor` | 0.1.0 | 会话监控看板（Host 半：turn/end 原因跟踪 + 通知 inbox + 路由；浏览器端看板） | `lib` | `.`、`./client` | 独立维护 |
 | `@dsh-plugins/client-ui-card-container` | 0.1.0 | 卡片容器（浏览器端，纯 UI：声明 `widgets.card` 子槽、停靠影子，**无内置卡片**） | `lib` | `.`、`./client` | 独立维护 |
 | `@dsh-plugins/client-ui-rainbow-flow` | 0.1.0 | 彩虹流光（浏览器端，纯 UI：`conversation.input.left` 注册光环 + 开关） | `lib` | `.`、`./client` | 独立维护 |
-| `@dsh-plugins/client-ui-widget-manager` | 0.1.0 | 小组件管理设置页（浏览器端，纯 UI） | `lib` | `.`、`./client` | 独立维护 |
+| `@dsh-plugins/client-ui-widget-manager` | 0.1.0 | 小组件管理（浏览器端，纯 UI：「插件」页的「小组件」tab） | `lib` | `.`、`./client` | 独立维护 |
 | `@dsh-plugins/dsh-widgets-plugin` | 0.1.0 | 可安装 bundle | `cordis.patch.yml` | `./cordis.patch.yml` | 独立维护 |
 
 每个包的 `package.json` 还带 `dsh.client` 声明（`inject` 依赖列表 + `platform: "web"`），
@@ -299,19 +299,18 @@
   `ui-token-crit` → `ui-session-monitor` → `ui-card-container` → `ui-rainbow-flow` →
   `ui-widget-manager`。
 
-### 3.5 小组件管理页（`client-ui-widget-manager`）
+### 3.5 小组件管理（`client-ui-widget-manager`）
 
 - 包：`@dsh-plugins/client-ui-widget-manager`（`packages/dsh-client-ui-widget-manager`），**纯 UI**。
 - Host 半（`src/index.ts`）：空 apply（surface 占位）。
 - Client 半（`src/client/index.ts`）：`inject = ['slots', 'locale']`，注册
-  `settings.section`，id `widgets`，order **10** → `WidgetManagerSettings`（「小组件管理」页），
-  并在同一注册中**声明 `widgets.config` 子槽**（list，条目 id = 挂件 id）。
-  **0.2.1 另注册 `plugins.tab`**（id `widgets`，order **50**，label「小组件」）→
-  `WidgetsPluginsTab`：官方 Plugins 页「已安装」之后的第三个 tab，复用同一个控制器列表
-  （启用/停用/移出容器 + 安装指引），顶部按钮经 tab owner props 的
-  `openPackage('@dsh-plugins/dsh-widgets-plugin')` 深链到 bundle 详情页。该 tab
-  **不声明** `widgets.config`（一个 slot 只能有一个声明者，设置页是唯一声明者），
-  配置入口文案指向设置页与行配置。
+  `plugins.tab`（id `widgets`，order **50**，label「小组件」）→ `WidgetsPluginsTab`：
+  官方「插件」页的「小组件」tab，复用同一个控制器列表（启用/停用/移出容器 +
+  行上的「配置」与「安装指引」），顶部按钮经 tab owner props 的
+  `openPackage('@dsh-plugins/dsh-widgets-plugin')` 深链到 bundle 详情页。同一注册
+  **声明 `widgets.config` 子槽**（list，条目 id = 挂件 id）——它是该槽的唯一声明者。
+  **小组件管理只存在于这个 tab**：`settings.section`（原 id `widgets`、order 10）的注册
+  已删除，设置里不再有任何小组件管理入口。
 - 列表数据：`WidgetManagerController` 订阅 `shell.overlay` 与 `widgets.config` 台账
   （`ctx.slots.subscribe` + `entries`），结合内置目录（`widgets.ts`：balance /
   token-crit / session-monitor / card-container / **rainbow-flow**）投影每行的
@@ -696,7 +695,7 @@
     store + `useSyncExternalStore` 与光环共享，持久化到 `localStorage`
     （`dsh.rnglow.enabled`，默认开）。
   - 另注册 `widgets.config`，id **`rainbow-flow`**，order **0** →
-    `RainbowFlowSettings`（`src/client/SettingsPanel.tsx`）：小组件管理页「配置」
+    `RainbowFlowSettings`（`src/client/SettingsPanel.tsx`）：「小组件」tab 行上的「配置」
     弹窗——**透明度**（40/70/100%）、**速度灵敏度**（0.5×/1×/1.5×）、**思考
     冷色调开关**、**命令按类别上色开关**（`commandColor`，默认开）、**最新行动彩虹扫字开关**（`commandSweep`，默认开），外加**命令文字颜色**（**每类命令** shell/read/search/write/
     edit/code/web/ask/plan/task/memory/think/other 一个取色器 + 单行恢复默认；标签
@@ -903,8 +902,8 @@
   `web`（前两者互斥，Tauri 优先），另含能力探针 `supportsSystemNotifications()` /
   `supportsAudioChime()`。**配置面板在渲染任何一项前先问它**：session-monitor 的 Tauri
   三项只在 `web` 渲染、官方桌面端整段「桌面」区换说明文案、`tauri` 内整区不渲染，缺失
-  API 的行整行省略（`SessionSettings.tsx`）；小组件管理页用它切换安装指引的 profile 取值
-  （web 用 `<name>` 占位、桌面端直接写 `desktop`）与重启文案（`WidgetManagerSettings.tsx`）。
+  API 的行整行省略（`SessionSettings.tsx`）；小组件管理 tab 用它切换安装指引的 profile 取值
+  （web 用 `<name>` 占位、桌面端直接写 `desktop`）与重启文案（`PluginsTab.tsx`）。
   两份拷贝（session-monitor / widget-manager）除模块 docblock 外必须逐字节相同，
   `scripts/build.mjs` 同样断言。详见 [WIDGET-DEVELOPMENT.md](WIDGET-DEVELOPMENT.md) §2.7。
 
@@ -914,8 +913,8 @@
   不是独立发布的包，随各包客户端 bundle 一起进 `lib/client.js`，**不新增构建产物、
   不注册任何插槽**（§5、§6 无需加行）。
 - **要解决的问题**：「放入容器」按钮走 window 事件 `dsh.card-container.dock`，而该
-  请求在容器**收不下**挂件时是静默 no-op——容器插件没装/没挂载，或容器在小组件管理页
-  被「关闭」（管理页用 priority **-1** 的影子条目赢下容器自己的 cell，容器插件仍挂载、
+  请求在容器**收不下**挂件时是静默 no-op——容器插件没装/没挂载，或容器在「小组件」tab
+  被「关闭」（tab 用 priority **-1** 的影子条目赢下容器自己的 cell，容器插件仍挂载、
   只是不渲染）。点了没反应的按钮比没有按钮更糟，于是三个挂件在容器不可用时**整体不
   渲染该按钮**。
 - **判定读台账，不读事件通道**：`card-container` 本身就是 `shell.overlay` 的一个条目，
@@ -927,7 +926,7 @@
 - **响应式**：`CardContainerAvailability`（`getSnapshot` + `subscribe` 的
   `HostObservable<boolean>`）在 apply 里建一个实例并订阅 `shell.overlay` 台账
   （订阅随 fiber 销毁），经 `shell.overlay` 注册的 inject `hooks: { cardContainer }`
-  以合成的 `useCardContainer` 选择器 hook 交给浮窗——管理页上实时「关闭/添加」容器时
+  以合成的 `useCardContainer` 选择器 hook 交给浮窗——「小组件」tab 上实时「关闭/添加」容器时
   按钮立即跟随，无需刷新。
 - **四份拷贝**（唯一允许的差异是模块 docblock 的 `@module` 行）从
   `export const CARD_CONTAINER_ID` 起必须逐字节相同，`scripts/build.mjs` 会断言并在
@@ -986,8 +985,7 @@ graph LR
 | `@deepseek-ai/dsh-client-ui-conversation` | client-ui-rainbow-flow（`conversation.input.left` 类型合并） |
 | `@deepseek-ai/dsh-client-locale` | balance、client-ui-session-monitor、client-ui-card-container、client-ui-widget-manager |
 | `@deepseek-ai/dsh-session` | client-ui-session-monitor（Host 半 `session/event` 类型） |
-| `@deepseek-ai/dsh-client-ui-settings` | client-ui-widget-manager（`settings.section`） |
-| `@deepseek-ai/dsh-client-ui-plugin-manager` | balance、client-ui-session-monitor、client-ui-card-container、client-ui-rainbow-flow（type-only：官方 Plugins 页的 `plugins.row.config` 槽契约，把各自配置面板挂到 bundle 行配置页，key 为 `<bundle 包名>#<行 id>`）、client-ui-widget-manager（type-only：`plugins.tab` 槽契约，贡献「小组件」tab） |
+| `@deepseek-ai/dsh-client-ui-plugin-manager` | balance、client-ui-session-monitor、client-ui-card-container、client-ui-rainbow-flow（type-only：官方 Plugins 页的 `plugins.row.config` 槽契约，把各自配置面板挂到 bundle 行配置页，key 为 `<bundle 包名>#<行 id>`）、client-ui-widget-manager（type-only：`plugins.tab` 槽契约，贡献「小组件」tab 并声明 `widgets.config` 子槽） |
 | `@deepseek-ai/dsh-client-ui-slots` | balance、client-ui-token-crit、client-ui-session-monitor、client-ui-card-container、client-ui-rainbow-flow、client-ui-widget-manager |
 | `react` | balance、client-ui-token-crit、client-ui-session-monitor、client-ui-card-container、client-ui-rainbow-flow、client-ui-widget-manager |
 
@@ -1034,11 +1032,11 @@ Host 半用 esbuild，浏览器半用 **Vite library mode**（与官方 deepseek
 | `shell.overlay` | `card-container` | 20 | client-ui-card-container | `CardContainerWidget`（声明子槽 `widgets.card`） |
 | `shell.overlay` | `balance` / `token-crit` / `session-monitor` | priority -1（影子） | client-ui-widget-manager | `ShadowWidget`（禁用时隐藏挂件） |
 | `shell.overlay` | 任意已停靠挂件 | priority -2（影子） | client-ui-card-container | `ShadowWidget`（停靠时隐藏浮窗） |
-| `settings.section` | `widgets` | 10 | client-ui-widget-manager | `WidgetManagerSettings`（声明子槽 `widgets.config`） |
-| `widgets.config` | `balance` | 0 | balance | `BalanceSettings`（管理页「配置」弹窗内容） |
-| `widgets.config` | `session-monitor` | 0 | client-ui-session-monitor | `SessionSettings`（管理页「配置」弹窗内容） |
-| `widgets.config` | `card-container` | 0 | client-ui-card-container | `CardContainerSettings`（管理页「配置」弹窗内容） |
-| `widgets.config` | `rainbow-flow` | 0 | client-ui-rainbow-flow | `RainbowFlowSettings`（管理页「配置」弹窗内容） |
+| `plugins.tab` | `widgets` | 50 | client-ui-widget-manager | `WidgetsPluginsTab`（「插件」页的「小组件」tab；同一注册**声明**子槽 `widgets.config`） |
+| `widgets.config` | `balance` | 0 | balance | `BalanceSettings`（tab 行「配置」弹窗内容） |
+| `widgets.config` | `session-monitor` | 0 | client-ui-session-monitor | `SessionSettings`（tab 行「配置」弹窗内容） |
+| `widgets.config` | `card-container` | 0 | client-ui-card-container | `CardContainerSettings`（tab 行「配置」弹窗内容） |
+| `widgets.config` | `rainbow-flow` | 0 | client-ui-rainbow-flow | `RainbowFlowSettings`（tab 行「配置」弹窗内容） |
 | `widgets.card` | `token-crit` | 0 | client-ui-token-crit | `TokenCritCard`（本包自卡，标准 `useSessions` 读 token 用量） |
 | `widgets.card` | `session-monitor` | 0 | client-ui-session-monitor | `SessionMonitorCard`（本包自卡，标准 `useSessions` 读忙碌会话数） |
 | `widgets.card` | `balance` | 0 | balance | `BalanceCard`（本包自卡，余额控制器 `useBalance` 读实时余额；槽级注入面 `CardSlotInject`：useContainer + dock/undock；标准接入规范见 WIDGET-DEVELOPMENT.md §2.5；容器无内置卡片，未注册的挂件走占位卡） |
@@ -1070,10 +1068,10 @@ Host 半用 esbuild，浏览器半用 **Vite library mode**（与官方 deepseek
 - [ ] 若新增 Provider：更新 3.1 的厂商表（端点/路由/凭据/币种）
 - [ ] 若新增浏览器产物：在 `scripts/build.mjs` 照抄 client bundle 段落，并更新「构建产物」
 - [ ] 若新增带配置的小组件：把配置面板注册进管理器声明的 `widgets.config` 槽
-  （`ctx.slots.inject('widgets.config', …)`，条目 id = 挂件 id），管理页即自动显示
+  （`ctx.slots.inject('widgets.config', …)`，条目 id = 挂件 id），「小组件」tab 即自动显示
   「配置」按钮并在弹窗中渲染
 - [ ] **必做**：在管理器目录（`widget-manager/src/client/widgets.ts` + 其 `locales.ts`
-  键）登记该挂件——管理页只投影目录内的 id，未登记的挂件在页面上**完全不出现**
+  键）登记该挂件——「小组件」tab 只投影目录内的 id，未登记的挂件在页面上**完全不出现**
   （不列出、不能启用/停用，见 `WIDGET-DEVELOPMENT.md` §2.2）
 - [ ] 若要让配置面板也出现在 harness 官方 **Plugins 页**的行上：额外注册
   `plugins.row.config`（key `<bundle 包名>#<行 id>`，`view: 'summary' | 'page'`），
@@ -1086,7 +1084,7 @@ Host 半用 esbuild，浏览器半用 **Vite library mode**（与官方 deepseek
   显示名优先在 `shell.overlay` 注册 `label`（thunk）；需要时实现
   `CardSlotInject`（useContainer / undock）；浮窗加「放入容器」按钮可 dispatch
   `dsh.card-container.dock` 事件，**但必须按组件 32 的 `container-dock.ts` 探针
-  隐藏**（容器没装或在管理页被关闭时该请求是静默 no-op，按钮不能留在那儿点了没反应；
+  隐藏**（容器没装或在「小组件」tab 被关闭时该请求是静默 no-op，按钮不能留在那儿点了没反应；
   拷贝该文件并在 apply 里 `new CardContainerAvailability(ctx)`，经 inject
   `hooks` 用 `useCardContainer` 取值，见 `WIDGET-DEVELOPMENT.md` §2.5）；
   不注册卡则容器显示占位卡

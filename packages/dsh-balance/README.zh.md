@@ -41,13 +41,13 @@
   `ctx.settings.update(ns, { bindings })`（merge——`replace` 会重置该条目的其他
   volatile 字段）。同源 Web 路由（`/_dsh/balance/settings`）
   提供脱敏 GET 快照与 POST 保存（留空凭据 = 保留原值；`credentialClear` 标记 =
-  显式清除）。小组件管理「配置」弹窗里的供应商配置面板支持添加、就地编辑（提供商
+  显式清除）。「插件」页 →「小组件」tab 里余额看板行上的「配置」弹窗中的供应商配置面板支持添加、就地编辑（提供商
   路由 / 厂商 / 凭据来源 / Base URL）与两步删除。这是为自托管或自定义
   路由配置余额查询而无需改代码的方式。
 - **Web 看板** — 浏览器半（`exports["./client"]`，经 `dsh.client` 声明被发现）先把
   balance Remote 挂进 `ctx.remote`，再注册浮动 `BalanceWidget` 到 `shell.overlay`
   （id `balance`，order 100）并安置视图设置 store（缩放/吸附/折叠，持久化于
-  `dsh.balance.view`），同时把供应商配置面板注册进小组件管理的「配置」弹窗
+  `dsh.balance.view`），同时把供应商配置面板注册进「插件」页「小组件」tab 行上的「配置」弹窗
   （`widgets.config` 槽）。单个 `BalanceController` 跟随当前会话 + 模型，按固定
   30 秒间隔刷新。壳里已登录官方 **DeepSeek 账号**时（harness 0.2.1 的 `account` Remote），
   每轮刷新还会读取账号的充值 + 赠送钱包（按官方展示取两位小数），在单账户余额下方显示
@@ -65,7 +65,7 @@
 
 ## 安装
 
-推荐安装 bundle——它会连同 Token 暴击挂件、会话监控看板与小组件管理页一起挂载本插件。
+推荐安装 bundle——它会连同 Token 暴击挂件、会话监控看板与「小组件」tab（小组件管理）一起挂载本插件。
 发布到 npm 后，用官方 `dsh plugin` 命令装进目标 profile（自动安装依赖并追加
 `dsh.profile.bundles`）：
 
@@ -100,8 +100,8 @@ dsh plugin --profile <name> add @dsh-plugins/dsh-widgets-plugin
 凭据引用即可（DeepSeek → `DEEPSEEK_API_KEY`、Moonshot → `MOONSHOT_API_KEY`、
 OpenRouter → `OPENROUTER_API_KEY`、SiliconFlow → `SILICONFLOW_API_KEY`、
 New API → `NEW_API_KEY`）。要查询额外或自托管路由，在 harness 的 **Plugins 页**
-（`@dsh-plugins/dsh-widgets-plugin` bundle → `balance` 行 → **配置**）或 Web 设置 →
-「小组件管理」→ 余额看板 → **配置** 中添加绑定并存入令牌——两处打开的是同一个供应商
+（`@dsh-plugins/dsh-widgets-plugin` bundle → `balance` 行 → **配置**）或「插件」页 →
+「小组件」tab → 余额看板行 → **配置** 中添加绑定并存入令牌——两处打开的是同一个供应商
 配置面板（提供商路由的下拉候选与
 模型列表一致——只含有模型的提供商，也可直接输入自定义路由），下一次看板刷新即生效，无需重启。
 绑定支持就地编辑与两步删除；要清除已保存的 Key，编辑该绑定后点「清除已保存的 Key」
