@@ -6,6 +6,7 @@
 /** Dictionary keys of the `balance` namespace (the LocaleNamespaceMap merge is declared at registration). */
 export type BalanceKey =
   | 'title'
+  | 'accountVendor'
   | 'noSession'
   | 'noModel'
   | 'unbound'
@@ -65,6 +66,7 @@ export type BalanceKey =
 /** Simplified Chinese dictionary. */
 export const zh: Record<BalanceKey, string> = {
   title: '余额',
+  accountVendor: 'DeepSeek 账号',
   noSession: '无会话',
   noModel: '未选择模型',
   unbound: '未绑定余额查询',
@@ -125,6 +127,7 @@ export const zh: Record<BalanceKey, string> = {
 /** English dictionary. */
 export const en: Record<BalanceKey, string> = {
   title: 'Balance',
+  accountVendor: 'DeepSeek account',
   noSession: 'No session',
   noModel: 'No model selected',
   unbound: 'No balance provider bound',

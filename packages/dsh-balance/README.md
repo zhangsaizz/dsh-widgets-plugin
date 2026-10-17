@@ -61,7 +61,12 @@ hover tooltip / loading states, light & dark themes](../../docs/previews/balance
   `dsh.balance.view`), and the providers config panel into the widget
   manager's "Configure" dialog (`widgets.config` slot). A single
   `BalanceController` follows the current session + model and refreshes on a
-  fixed 30 s interval. The dashboard panel / collapsed pill / multi-account
+  fixed 30 s interval. When the shell has the official **DeepSeek account** signed in
+  (the `account` Remote, harness 0.2.1), each refresh also reads its recharge +
+  bonus wallets and appends one row per currency to the multi-account view; signed
+  out, on a read failure, or on a shell without the account plugin the wallet rows
+  are simply absent and every provider row is unaffected. The dashboard panel /
+  collapsed pill / multi-account
   hover tip use a **liquid-glass** material — the same recipe as the
   rainbow-flow input box (translucent white glass gradient + light frosted
   backdrop blur + 1 px edge reflections + soft drop shadow, with theme-aware

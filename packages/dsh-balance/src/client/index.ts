@@ -40,6 +40,7 @@ import type {} from '@dsh-plugins/client-ui-card-container/client'
 import { TYPERT_REMOTE } from '../../lib/typert.remote-client.js'
 import { BalanceController } from './controller.ts'
 import type { BalanceRemote, ModelDirectoriesLike } from './controller.ts'
+import type { AccountRemoteLike } from './account-balance.ts'
 import { BalanceWidget } from './BalanceWidget.tsx'
 import type { BalanceInject } from './BalanceWidget.tsx'
 import { BalanceCard } from './BalanceCard.tsx'
@@ -105,6 +106,11 @@ export async function apply(ctx: ClientContext): Promise<void> {
     // controller re-reads it on every bind and reconcile.
     () => ctx.get('modelDirectories') as ModelDirectoriesLike | undefined,
     REFRESH_INTERVAL_MS,
+    // The official DeepSeek account is optional too (an install without the
+    // account plugin has no `remote.account`): read it late-bound on each
+    // refresh so the wallets join the all-accounts view when signed in.
+    () => ctx.get('remote.account') as AccountRemoteLike | undefined,
+    () => ctx.locale.getSnapshot().active,
   )
 
   // Whether the card container can currently receive this widget: the quick-dock
@@ -112,6 +118,15 @@ export async function apply(ctx: ClientContext): Promise<void> {
   // silent no-op when the container is absent or closed on the manager page).
   // One instance per apply; its ledger subscription lives in this fiber.
   const cardContainer = new CardContainerAvailability(ctx)
+
+  // The `account` Remote namespace (official DeepSeek sign-in) installs
+  // asynchronously during client boot. Park on it so one refresh runs the moment
+  // it appears — signed-in wallets then show without waiting for the next
+  // interval — while an install without the account plugin simply never runs
+  // this callback and keeps the dashboard minus wallet rows. The `account`
+  // namespace is never declared in `dsh.client.inject` (that would make this
+  // plugin inactive on shells without the account controller).
+  ctx.inject(['remote.account'], () => { void controller.refresh() })
 
   ctx.effect(() => {
     const disposeRegistration = ctx.slots.register({

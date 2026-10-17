@@ -16,6 +16,8 @@ import { createSnapshotStore } from '@deepseek-ai/dsh-client-store'
 import type { HostObservable } from '@deepseek-ai/dsh-client-ui-slots'
 import type { RemoteResult } from '@deepseek-ai/dsh-typert-protocol'
 import { currentSessionId } from './session-selection.ts'
+import { accountBalanceEntries, accountClientMetadata, mergeAccountRows } from './account-balance.ts'
+import type { AccountRemoteProvider } from './account-balance.ts'
 import type { BalanceListEntry, BalanceListResult, BalanceQueryResult } from '../types.ts'
 
 /** The narrow generated-Remote face this controller reads. */
@@ -92,12 +94,17 @@ export class BalanceController implements HostObservable<BalanceViewState> {
    *   service (authoritative current model for a session; absent when
    *   ui-model-selection is not mounted, and re-read on every use).
    * @param refreshIntervalMs - periodic refresh interval (clamped to ≥ 1s).
+   * @param accountRemote - late-bound lookup for the optional `account` Remote;
+   *   its wallets become extra rows in the all-accounts view (0.2.1).
+   * @param locale - active UI language, sampled for each account call.
    */
   constructor(
     private readonly remote: BalanceRemote,
     private readonly sessions: ISessions,
     private readonly modelDirectories: ModelDirectoriesProvider,
     refreshIntervalMs: number,
+    private readonly accountRemote: AccountRemoteProvider,
+    private readonly locale: () => string,
   ) {
     // Guard against a non-positive interval: setInterval would spin at
     // millisecond frequency. The production caller passes a fixed 30s constant.
@@ -177,9 +184,18 @@ export class BalanceController implements HostObservable<BalanceViewState> {
   /** Resolve the authoritative selection, then query and publish the answer. */
   private async reconcile(): Promise<void> {
     const generation = ++this.generation
+    const previous = this.store.getSnapshot()
+    // The official DeepSeek-account wallets (0.2.1) do NOT depend on a session
+    // or a model selection, so they are read before the early returns: the
+    // "no session" / "no model" views then still show the wallet rows in the
+    // all-accounts mode, and the panel keeps refreshing them on its interval.
+    const accountEntries = await this.readAccountEntries()
+    // oxlint-disable-next-line typescript/no-unnecessary-condition -- re-entrant reconcile/dispose can run during the await.
+    if (this.disposed || generation !== this.generation) return
+    const withAccountRows = mergeAccountRows(previous.accounts, accountEntries)
     const sessionId = currentSessionId(this.sessions.list.getSnapshot())
     if (sessionId === undefined) {
-      this.publish({ phase: 'no-session', provider: null, model: null, result: null, accounts: null })
+      this.publish({ phase: 'no-session', provider: null, model: null, result: null, accounts: withAccountRows })
       return
     }
     // Re-attempt the model subscription here as well: the service may have been
@@ -192,28 +208,27 @@ export class BalanceController implements HostObservable<BalanceViewState> {
       // Selection resolution failed — publish an explicit error state instead
       // of leaving the view stuck on its previous phase.
       if (this.disposed || generation !== this.generation) return
-      const previous = this.store.getSnapshot()
+      const prior = this.store.getSnapshot()
       this.publish({
         phase: 'ready',
-        provider: previous.provider,
-        model: previous.model,
-        result: this.failure(previous.provider ?? '', null),
-        accounts: previous.accounts,
+        provider: prior.provider,
+        model: prior.model,
+        result: this.failure(prior.provider ?? '', null),
+        accounts: withAccountRows,
       })
       return
     }
     if (this.disposed || generation !== this.generation) return
     const provider = selected?.provider ?? null
     const model = selected?.model ?? null
-    const previous = this.store.getSnapshot()
     // No model selected for the session: there is nothing to query. Publish
     // ready (not loading) so the widget stays on its "no model" state, and
     // skip the pointless empty-route query that used to fire every interval.
     if (provider === null) {
-      this.publish({ phase: 'ready', provider: null, model: null, result: null, accounts: previous.accounts })
+      this.publish({ phase: 'ready', provider: null, model: null, result: null, accounts: withAccountRows })
       return
     }
-    this.publish({ phase: 'loading', provider, model, result: previous.result, accounts: previous.accounts })
+    this.publish({ phase: 'loading', provider, model, result: previous.result, accounts: withAccountRows })
 
     // Fire both reads together; the current-account view must not wait on the
     // all-accounts listing (which serially interrogates every configured vendor
@@ -245,10 +260,28 @@ export class BalanceController implements HostObservable<BalanceViewState> {
       phase: 'ready',
       provider,
       model,
-      // A failed listing renders as "no accounts" rather than stuck loading.
-      accounts: listed !== null && listed.ok ? listed.value.accounts : [],
+      // A failed listing renders as "no accounts" rather than stuck loading; the
+      // account wallets are an independent read and keep their rows either way.
+      accounts: [
+        ...(listed !== null && listed.ok ? listed.value.accounts : []),
+        ...accountEntries,
+      ],
       result: this.store.getSnapshot().result,
     })
+  }
+
+  /** Read the signed-in Platform account wallets as dashboard rows, or none. */
+  private async readAccountEntries(): Promise<BalanceListEntry[]> {
+    const remote = this.accountRemote()
+    if (remote === undefined) return []
+    try {
+      const result = await remote.getBalance(accountClientMetadata(this.locale()))
+      if (!result.ok) return []
+      return accountBalanceEntries(result.value, Date.now())
+    } catch {
+      // A failed account read never touches the provider listing.
+      return []
+    }
   }
 
   /** Build a query-failure result for a null carrier or an ok:false reply. */

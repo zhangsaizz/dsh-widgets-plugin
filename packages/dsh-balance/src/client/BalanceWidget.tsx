@@ -12,6 +12,7 @@ import type {
   InjectFace, PropsLocale, PropsRuntime, PropsStore, TranslateNS,
 } from '@deepseek-ai/dsh-client-ui-slots'
 import type { BalanceAccount, BalanceListEntry, BalanceQueryResult, BalanceTrend } from '../types.ts'
+import { ACCOUNT_VENDOR } from './account-balance.ts'
 import type { BalanceController, BalanceViewState } from './controller.ts'
 import type { CardContainerAvailability } from './container-dock.ts'
 import { MAX_SCALE, MIN_SCALE } from './store.ts'
@@ -195,6 +196,12 @@ function BalanceBody(props: {
   }
 }
 
+/** Localized display name: the synthetic official-account row carries a vendor id
+ *  the panel translates, every host provider reports its own display name. */
+function accountDisplayName(account: BalanceAccount, t: TranslateNS<'balance'>): string {
+  return account.vendor === ACCOUNT_VENDOR ? t('accountVendor') : account.displayName
+}
+
 /** Multi-account body: one row per bound provider, current provider pinned first. */
 function AccountList(props: {
   accounts: readonly BalanceListEntry[] | null
@@ -232,7 +239,7 @@ function AccountList(props: {
         return (
           <div key={entry.provider} className={css.accountRow} data-current={isCurrent || undefined}>
             <span className={css.accountName} title={entry.provider}>
-              <span className={css.accountVendor}>{account.displayName}</span>
+              <span className={css.accountVendor}>{accountDisplayName(account, t)}</span>
               {account.label !== '' && account.label.toLowerCase() !== account.displayName.toLowerCase()
                 ? <span className={css.accountLabel}>{account.label}</span>
                 : null}
@@ -632,7 +639,7 @@ export function BalanceWidget(props: BalanceWidgetProps) {
                 return (
                   <div key={entry.provider} className={css.pillTipRow}>
                     <span className={css.pillTipName} title={entry.provider}>
-                      <span className={css.pillTipVendor}>{account.displayName}</span>
+                      <span className={css.pillTipVendor}>{accountDisplayName(account, t)}</span>
                       {account.label !== '' && account.label.toLowerCase() !== account.displayName.toLowerCase()
                         ? <span className={css.pillTipLabel}>{account.label}</span>
                         : null}

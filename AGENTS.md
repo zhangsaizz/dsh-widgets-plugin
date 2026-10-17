@@ -479,6 +479,20 @@ pack → git diff 干净」。
     启用状态 + 停用按钮 + 深链按钮；点击深链落到 bundle 详情页；点 `卡片容器` 行进入
     配置页（列数/清空停靠/重置设置可见）、点 `彩虹流光` 行进入配置页（透明度/速度/
     思考冷色调/命令上色/每类颜色可见）；控制台零 error。
+  - **官方 DeepSeek 账号余额**（0.2.1 `account` Remote）：balance 看板每轮刷新经
+    `ctx.get('remote.account').getBalance({ version, locale, timezoneOffsetSeconds })`
+    读取已登录 Platform 账号的充值 + 赠送钱包，按币种折算成合成行并入**多账户视图**
+    （`total = 充值 + 赠送`，`toppedUp` / `granted` 保留拆分；不依赖会话或模型选择，
+    「无会话」「未选择模型」两态也显示）。未登录（Host 返回 null）、读取抛错、或壳没有
+    account 插件时都是 0 行，绝不影响厂商列表。`account` 命名空间异步安装，故 `apply`
+    里用 `ctx.inject(['remote.account'], …)` 唤醒一次立即刷新，之后随 30s 轮询；无
+    type-only peer（结构类型自持），未登录时只读本地凭据、不发网络请求。widget 对
+    `vendor === 'deepseek-account'` 的行用 locale key `accountVendor` 本地化显示名。
+  - **本批验收**：`account-balance` 纯映射单测（CNY/USD 折算与拆分、坏账本丢弃、
+    null/failed/空钱包 → 0 行、metadata 形状）→ PASS；隔离实例临时 debug 追踪确认
+    `remote.account` present、`ctx.inject` 唤醒触发 refresh、`getBalance` 返回
+    `{ ok: true, value: null }`（未登录）、多账户视图无合成行、控制台零 error；追踪日志
+    已移除，最终构建产物不含 `balance-debug`。
 - **本机 dsh 必须 ≥ 0.2.1-rc.2**：浏览器端 bundle 的 `require()` 只认两种来源——壳的**种子
   模块表**（staticModules，写在 `packages/client/web/src/seed.ts` 里）和引导图里的插件行。
   0.2.1 的种子表 = 0.1.7/0.2.0 那张 + `zod` + `@tanstack/react-virtual`：
