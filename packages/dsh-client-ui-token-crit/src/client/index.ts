@@ -17,7 +17,13 @@ import type {} from '@deepseek-ai/dsh-client-ui-renderer/client'
 // below type-checks against (declared by the card container).
 import type {} from '@dsh-plugins/client-ui-card-container/client'
 import { TokenCritWidget } from './TokenCritWidget.tsx'
+import type { TokenCritInject } from './TokenCritWidget.tsx'
+import { CardContainerAvailability } from './container-dock.ts'
 import { TokenCritCard } from './cards.tsx'
+
+// Type surface, mirroring the sibling widget packages (balance /
+// session-monitor both re-export their inject + widget-props types).
+export type { TokenCritInject, TokenCritWidgetProps } from './TokenCritWidget.tsx'
 
 /** Required services: the slot system and the timer mixin. */
 export const inject = ['slots']
@@ -27,6 +33,12 @@ export const inject = ['slots']
  * @param ctx - client root context.
  */
 export function apply(ctx: ClientContext): void {
+  // Whether the card container can currently receive this widget: the quick-dock
+  // button on the badge is only rendered while it can (the dock request is a
+  // silent no-op when the container is absent or closed on the manager page).
+  // One instance per apply; its ledger subscription lives in this fiber.
+  const cardContainer = new CardContainerAvailability(ctx)
+
   ctx.slots.inject('shell.overlay', () => ctx.slots.register({
     name: 'shell.overlay',
     id: 'token-crit',
@@ -35,6 +47,7 @@ export function apply(ctx: ClientContext): void {
     // label first; token-crit has no locale namespace, so a small thunk keeps
     // the label in sync with the page language.
     label: () => document.documentElement.lang === 'zh' ? 'Token 暴击' : 'Token crit',
+    inject: (): TokenCritInject => ({ hooks: { cardContainer } }),
   }, TokenCritWidget))
 
   // Own compact card in the card container's grid. Registered at priority 0:

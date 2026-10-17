@@ -29,6 +29,8 @@
 - 触屏（无 hover）设备：chrome 始终完整显示，容器不会「找不到」。
 - 容器自身被停用时（被管理页隐藏），停靠的影子全部释放，小组件恢复浮动；重新启用
   容器会按持久化的分组恢复停靠。
+- 其他挂件的**「放入容器」按钮跟随容器状态**：容器在管理页被关闭、或根本没装时按钮
+  隐藏——此时停靠请求是静默 no-op，点它不会有任何效果。
 
 ## 卡片视图（接入规范）
 
@@ -67,6 +69,13 @@ ctx.slots.inject('widgets.card', () => ctx.slots.register({
 （`detail` = 自己的 `shell.overlay` id）把自己停靠进容器——与容器解耦，容器未
 挂载时是 no-op：
 `window.dispatchEvent(new CustomEvent('dsh.card-container.dock', { detail: 'my-widget' }))`。
+这个请求在容器**收不下**挂件时（没装，或在管理页被关闭——关闭是注册一条影子条目赢下
+容器自己的 overlay 单元）是**静默 no-op**，所以提供该按钮的挂件必须在容器真正可用时
+才渲染它；共享探针在 `client/container-dock.ts`（`CardContainerAvailability`，以
+注入的 `useCardContainer` 选择器 hook 交给挂件）：它读 overlay 台账里
+`card-container` 单元的胜者——与容器控制器自己用的是同一个投影——所以按钮与容器
+永远不会互相矛盾，管理页上实时开关也无需刷新即可跟随。详见
+`WIDGET-DEVELOPMENT.md` 第 2.5 节。
 
 本包**不**自带任何内置卡片视图——容器是通用的。每个提供紧凑卡片的挂件都在各自
 包里以 priority 0 注册进 `widgets.card`（token-crit、session-monitor、balance
@@ -91,3 +100,5 @@ macOS 48px 红绿灯带），面板位置与拖动都经 `client/overlay-inset.t
   （`dsh.card-container.settings-changed`）通知。
 - 控制器（`src/client/controller.ts`）管理停靠影子（priority -2，registrant
   `card-container`）、分组增删改/切换，以及针对 overlay 台账的自我修复对账。
+  `src/client/container-dock.ts` 是共享的「容器可用」探针（同样拷贝进每个带
+  快捷停靠按钮的挂件包）；`scripts/build.mjs` 断言这些拷贝逐字节一致。

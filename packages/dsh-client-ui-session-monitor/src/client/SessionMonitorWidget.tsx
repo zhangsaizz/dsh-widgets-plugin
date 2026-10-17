@@ -41,6 +41,7 @@ import type { SessionId } from '@deepseek-ai/dsh-session/types'
 // status snapshot in 0.1.7).
 import type {} from '@deepseek-ai/dsh-client-ui-session/client'
 import { currentSessionId } from './session-selection.ts'
+import type { CardContainerAvailability } from './container-dock.ts'
 import { jobWatchTargets, useWatchedJobRows } from './jobs-bridge.ts'
 import { useArchivedSessions } from './archive-bridge.ts'
 import {
@@ -53,9 +54,12 @@ import css from './SessionMonitorWidget.module.css'
 
 /** Injected business face: the jump-to-session verb (backed by
  *  `ctx.uiWorkspace.openSession` — 0.1.7 moved Session navigation out of the
- *  Session Controller). */
+ *  Session Controller) plus the card container's availability probe (the
+ *  "put into container" button is only rendered while the container can take
+ *  the widget; see ./container-dock.ts). */
 export interface SessionMonitorInject {
   open: (sessionId: string) => void
+  hooks: { cardContainer: CardContainerAvailability }
 }
 
 /** Full composed props for the widget (runtime + inject + locale shares). */
@@ -352,6 +356,10 @@ function orderRows(list: readonly MonitorSessionRow[], doneIds: ReadonlySet<stri
 
 export function SessionMonitorWidget(props: SessionMonitorWidgetProps) {
   const { t, open } = props
+  // The card container must be mounted AND not "closed" on the manager page for
+  // the quick-dock button to have any effect — the dock request event is a
+  // silent no-op otherwise (see ./container-dock.ts).
+  const cardContainerReady = props.useCardContainer((available) => available)
   /** The live session-list snapshot (stable reference between changes). */
   const list = props.useSessions((s: SessionListState) => s)
   /**
@@ -1627,19 +1635,21 @@ export function SessionMonitorWidget(props: SessionMonitorWidgetProps) {
               ✓
             </button>
           )}
-          <button
-            className={css.iconBtn}
-            title={t('dockToContainer')}
-            aria-label={t('dockToContainer')}
-            onPointerDown={(e) => e.stopPropagation()}
-            onClick={() => {
-              try {
-                window.dispatchEvent(new CustomEvent('dsh.card-container.dock', { detail: 'session-monitor' }))
-              } catch { /* events unavailable */ }
-            }}
-          >
-            ⤢
-          </button>
+          {cardContainerReady && (
+            <button
+              className={css.iconBtn}
+              title={t('dockToContainer')}
+              aria-label={t('dockToContainer')}
+              onPointerDown={(e) => e.stopPropagation()}
+              onClick={() => {
+                try {
+                  window.dispatchEvent(new CustomEvent('dsh.card-container.dock', { detail: 'session-monitor' }))
+                } catch { /* events unavailable */ }
+              }}
+            >
+              ⤢
+            </button>
+          )}
           <button
             className={css.iconBtn}
             title={t('collapse')}

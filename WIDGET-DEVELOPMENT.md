@@ -304,12 +304,54 @@ ctx.slots.inject('widgets.card', () => ctx.slots.register({
 
 **浮窗快捷停靠（可选）**：给浮动面板加一个「放入容器」按钮，dispatch
 `window` 事件 `dsh.card-container.dock`（detail = 挂件 id）即可——容器监听并停靠到
-**当前激活分组**，未挂载时为 no-op。事件契约与容器包解耦，无需 import 容器包：
+**当前激活分组**，容器收不下挂件时为 no-op（见下一条）。事件契约与容器包解耦，无需
+import 容器包：
 
 ```ts
 // 浮窗组件里（如头部工具按钮 onClick）
 window.dispatchEvent(new CustomEvent('dsh.card-container.dock', { detail: 'clock' }))
 ```
+
+**按钮必须按容器可用性隐藏（必做）**：上面那个请求在容器**收不下**挂件时是静默
+no-op，有两种情况——容器插件没装/没挂载，或容器在**小组件管理页被「关闭」**（关闭 =
+注册一条 priority -1 的影子条目赢下容器自己的 overlay 单元，容器仍然挂载、只是不
+渲染）。一个点了没反应的按钮比没有按钮更糟，所以「放入容器」按钮只在容器**真正可用**
+时渲染。判定不要自己另写一套：把容器包的 `src/client/container-dock.ts` 整份拷进你的
+包（`balance` / `token-crit` / `session-monitor` 各有一份，`scripts/build.mjs` 断言从
+`CARD_CONTAINER_ID` 起逐字节一致），在 apply 里建一个实例并放进注册的 inject
+`hooks`，组件里用合成的 `useCardContainer` 选择器 hook 取值：
+
+```ts
+// apply 内（一次）：实例的台账订阅随本 fiber 销毁
+import { CardContainerAvailability } from './container-dock.ts'
+
+const cardContainer = new CardContainerAvailability(ctx)
+ctx.slots.inject('shell.overlay', () => ctx.slots.register({
+  name: 'shell.overlay', id: 'clock', order: 0,
+  inject: (): ClockInject => ({ hooks: { cardContainer } }),
+}, ClockWidget))
+```
+
+对应的组件侧（`InjectFace` 把 `hooks` 成员合成为 `useCardContainer`）：
+
+```ts
+import type { InjectFace, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
+import type { CardContainerAvailability } from './container-dock.ts'
+
+interface ClockInject { hooks: { cardContainer: CardContainerAvailability } }
+type ClockWidgetProps = PropsRuntime<'shell.overlay'> & InjectFace<ClockInject>
+
+export function ClockWidget(props: ClockWidgetProps) {
+  // hook 必须无条件调用（不要放进 if / 分支）
+  const cardContainerReady = props.useCardContainer((available) => available)
+  // JSX：{cardContainerReady && <button onClick={dock}>⤢</button>}
+}
+```
+
+探针读的是 overlay 台账里 `card-container` 单元的胜者
+（`entriesOfSlot('shell.overlay')`）——与容器控制器自己判断「我被关闭了、释放全部
+停靠影子」用的是同一个投影，所以按钮和容器永远不会互相矛盾；管理页上实时开关也无需
+刷新即可跟随。**注意**：拷贝文件时只有模块 docblock 的 `@module` 行可以不同。
 
 **容器侧交互（挂件无需感知）**：
 - **多分组**：容器顶部分组标签切换；一个挂件同一时刻只能停靠在一个分组。

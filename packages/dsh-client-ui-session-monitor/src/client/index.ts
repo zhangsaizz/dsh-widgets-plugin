@@ -46,6 +46,7 @@ import { SessionMonitorCard } from './cards.tsx'
 import { MONITOR_ROW_CONFIG_KEY, SessionMonitorRowConfig } from './RowConfig.tsx'
 import { installJobsBridge, uninstallJobsBridge } from './jobs-bridge.ts'
 import { installArchiveBridge, uninstallArchiveBridge } from './archive-bridge.ts'
+import { CardContainerAvailability } from './container-dock.ts'
 import { SETTINGS_REVISION_HEADER } from '../settings-revision.ts'
 import { en, zh } from './locales.ts'
 import type { SessionMonitorKey } from './locales.ts'
@@ -417,6 +418,12 @@ export function apply(ctx: ClientContext): void {
 
   const t = ctx.locale.bind(NS)
 
+  // Whether the card container can currently receive this widget: the quick-dock
+  // button in the panel header is only rendered while it can (the dock request
+  // is a silent no-op when the container is absent or closed on the manager
+  // page). One instance per apply; its ledger subscription lives in this fiber.
+  const cardContainer = new CardContainerAvailability(ctx)
+
   ctx.slots.inject('shell.overlay', () => ctx.slots.register({
     name: 'shell.overlay',
     id: 'session-monitor',
@@ -425,6 +432,7 @@ export function apply(ctx: ClientContext): void {
     locale: NS,
     inject: (): SessionMonitorInject => ({
       open: (sessionId) => { ctx.uiWorkspace.openSession(sessionId as SessionId) },
+      hooks: { cardContainer },
     }),
   }, SessionMonitorWidget))
 

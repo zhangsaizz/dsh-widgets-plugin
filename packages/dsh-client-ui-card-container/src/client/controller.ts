@@ -31,9 +31,12 @@
 
 import type { Context as ClientContext } from '@deepseek-ai/cordis'
 import type { HostObservable, StoredEntry } from '@deepseek-ai/dsh-client-ui-slots'
+import { CARD_CONTAINER_ID, isCardContainerIn } from './container-dock.ts'
 
-/** The container's own `shell.overlay` id (never dockable). */
-export const SELF_ID = 'card-container'
+/** The container's own `shell.overlay` id (never dockable). Aliased from the
+ *  shared availability probe, which every widget that ships a "put into
+ *  container" button also reads (see ./container-dock.ts). */
+export const SELF_ID = CARD_CONTAINER_ID
 /** Dock shadows win at this priority (widgets register at 0, the manager at -1). */
 export const SHADOW_PRIORITY = -2
 /** Registrant stamp on dock shadows so the ledger can tell them apart. */
@@ -483,9 +486,10 @@ export class CardContainerController implements HostObservable<ContainerSnapshot
     }
     // While the container itself is hidden (the manager shadowed its cell),
     // release every dock shadow so the widgets float again; the persisted
-    // order stays, so re-enabling the container re-docks them.
-    const selfWinner = winners.find((entry) => entry.options.id === SELF_ID)
-    const selfEnabled = selfWinner !== undefined && (selfWinner.options.priority ?? 0) >= 0
+    // order stays, so re-enabling the container re-docks them. The read is the
+    // shared availability probe (./container-dock.ts), the same answer the
+    // widgets' own "put into container" buttons are gated on.
+    const selfEnabled = isCardContainerIn(winners)
     if (selfEnabled) {
       for (const id of this.allDocked()) this.reconcileShadow(id)
       // Drop any shadow whose widget is no longer docked anywhere — e.g. the

@@ -13,6 +13,7 @@ import type {
 } from '@deepseek-ai/dsh-client-ui-slots'
 import type { BalanceAccount, BalanceListEntry, BalanceQueryResult, BalanceTrend } from '../types.ts'
 import type { BalanceController, BalanceViewState } from './controller.ts'
+import type { CardContainerAvailability } from './container-dock.ts'
 import { MAX_SCALE, MIN_SCALE } from './store.ts'
 import type { createBalanceViewStore } from './store.ts'
 import type { DockCorner } from './store.ts'
@@ -22,9 +23,11 @@ import {
 import { overlayTopInset } from './overlay-inset.ts'
 import css from './BalanceWidget.module.css'
 
-/** Injected business face: the live balance source and the manual refresh verb. */
+/** Injected business face: the live balance source, the manual refresh verb,
+ *  and the card container's availability probe (the "put into container"
+ *  button is only rendered while the container can take the widget). */
 export interface BalanceInject {
-  hooks: { balance: BalanceController }
+  hooks: { balance: BalanceController; cardContainer: CardContainerAvailability }
   refresh: () => void
 }
 
@@ -257,9 +260,13 @@ function AccountList(props: {
 
 /** The floating balance widget. */
 export function BalanceWidget(props: BalanceWidgetProps) {
-  const { useBalance, useStore, actions, refresh, t } = props
+  const { useBalance, useCardContainer, useStore, actions, refresh, t } = props
   const view = useBalance(s => s)
   const settings = useStore(s => s)
+  // The card container must be mounted AND not "closed" on the manager page for
+  // the quick-dock button to have any effect — the dock request event is a
+  // silent no-op otherwise (see ./container-dock.ts).
+  const cardContainerReady = useCardContainer(available => available)
   const okAccount = resolvedAccount(view)
   // The collapsed pill shows the current account by default, but briefly flips
   // to a CHANGED other provider (multi-account view), then restores.
@@ -561,7 +568,9 @@ export function BalanceWidget(props: BalanceWidgetProps) {
                 if (rect !== undefined) actions.setPosition(rect.left, rect.top)
                 actions.dockTo('free')
               }} aria-label={t('dock')} title={t('dock')} data-active={settings.dock !== 'free' || undefined}><DockIcon size={13} /></button>
-              <button type="button" className={css.iconButton} onClick={() => { requestDockToContainer('balance') }} aria-label={t('dockToContainer')} title={t('dockToContainer')}><DockToCardIcon size={13} /></button>
+              {cardContainerReady && (
+                <button type="button" className={css.iconButton} onClick={() => { requestDockToContainer('balance') }} aria-label={t('dockToContainer')} title={t('dockToContainer')}><DockToCardIcon size={13} /></button>
+              )}
               <button type="button" className={css.iconButton} onClick={() => { actions.setMode(settings.mode === 'current' ? 'all' : 'current') }} aria-label={settings.mode === 'current' ? t('showAll') : t('showCurrent')} title={settings.mode === 'current' ? t('showAll') : t('showCurrent')} data-active={settings.mode === 'all' || undefined}><GridModeIcon size={13} /></button>
               <button type="button" className={css.iconButton} onClick={() => { refresh() }} aria-label={t('refresh')} title={t('refresh')}><RefreshIcon size={13} /></button>
               <button type="button" className={css.iconButton} onClick={() => { actions.toggleCollapsed() }} aria-label={t('collapse')} title={t('collapse')}><CollapseIcon /></button>
