@@ -250,6 +250,12 @@ interface LooseSessionEvent {
       readonly source?: { readonly callId?: string }
       readonly toolCallId?: string
     }
+    /** `job/registered` / `job/settled` (0.2.1 durable job lifecycle). */
+    readonly jobId?: string
+    readonly kind?: string
+    readonly label?: string
+    readonly status?: string
+    readonly finishedAt?: number
   }
 }
 
@@ -509,6 +515,20 @@ export function apply(ctx: Context, config: Config): void {
       return
     }
     if (isSubagent) return // no other inbox kinds for subagent sessions
+
+    if (ev.type === 'job/settled') {
+      // 0.2.1 durable job settlement. A FAILED background job is a durable
+      // "needs attention" fact that outlives the turn — the row chip forgets it
+      // after the turn, so the inbox is where the user can still find it.
+      // Completed / killed jobs stay out (the row chip shows live load).
+      if (ev.data.status !== 'failed') return
+      const jobId = typeof ev.data.jobId === 'string' && ev.data.jobId.length > 0 ? ev.data.jobId : `e${ev.time}`
+      inbox.push('job-failed', session.id, titleOf(session), {
+        id: `${session.id}:job-failed:${jobId}`,
+        at: ev.time,
+      })
+      return
+    }
 
     // Host-side question / plan-review detection: these waits are mux frames
     // (never session-log events), but they are always entered through a model

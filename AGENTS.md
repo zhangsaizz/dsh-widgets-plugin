@@ -445,6 +445,25 @@ pack → git diff 干净」。
     session cookie 200）。实测：`--trusted-host app.example` 下无 cookie 401、index 换到
     的 cookie 200、不可信 `Host: example.com` 403、loopback 200、`Origin: null` 的 widget
     页 200。新增 Host 路由必须照此门禁（WIDGET-DEVELOPMENT.md §2.8）。
+  - **后台任务可见性（0.2.1 持久 job 事件）**：`session-monitor` 的 Host 半折叠
+    `job/registered` / `job/settled`（按 `jobId` 配对）：`/sessions` 快照行新增
+    `jobs { running, failed }`（`failed` 只算**当前轮**内结算的失败，旧轮失败只留在
+    inbox），桌面挂件页显示「后×N / 失败 M」chip 与「N 个后台任务执行中」进度行；
+    非子代理会话的**失败**任务写入 inbox 新 kind `job-failed`（p0，桌面 inbox 可见），
+    id 用 `session:job-failed:<jobId>` 幂等。settlement 缺失（producer 未结算）按
+    running 处理——jobs README 的 settlement 不保证对 teardown 成立。浏览器半的
+    「后×N」badge 仍来自 `ctx.jobs` 实时流，不重复。
+  - **会话工作目录（0.2.1 `workingDirectory` 投影 + `working-directory/change`）**：
+    `/sessions` 行新增 `cwd`（header 原始项目为底、最新 `cd` 覆盖）；桌面挂件页显示
+    `📁 <basename>` chip（tooltip 全路径）；浏览器挂件行从 `row.projectionValues.
+    workingDirectory`（wire 投影，与 `goal` 同路径）读同一个 chip，不新增 Host 轮询。
+  - **这一批的验收**：`desktop-snapshot` 的折叠用 Node 24 类型擦除直接 import 真模块、
+    喂 fake session 事件流断言（`cd` 覆盖 / header 回退 / 当前轮失败计数 / 旧轮失败
+    排除 / running 计数）→ PASS；`NotificationStore` 单测 `job-failed` push → schema
+    → load 往返 → PASS；隔离实例实测浏览器挂件行 chip（title `F:\dsh-balance-plugin`）、
+    `/sessions` 行带 `cwd`、桌面挂件页渲染 `📁 dsh-balance-plugin` chip（打开已复制会话
+    并 POST `{desktopMonitor:true,timeWindowMin:0}` 后）；控制台仅一个无害的
+    `/favicon.ico` 404（页面只声明 favicon.svg）。
 - **本机 dsh 必须 ≥ 0.2.1-rc.2**：浏览器端 bundle 的 `require()` 只认两种来源——壳的**种子
   模块表**（staticModules，写在 `packages/client/web/src/seed.ts` 里）和引导图里的插件行。
   0.2.1 的种子表 = 0.1.7/0.2.0 那张 + `zod` + `@tanstack/react-virtual`：

@@ -498,6 +498,30 @@
     color: #ff9f43;
     font-weight: 600;
   }
+  /* Working directory chip: the newest `working-directory/change` (0.2.1 `cd`)
+     or the header's original project, basename only; the full path is the
+     native tooltip. Capped so a deep path cannot push the badges out. */
+  .cwdBadge {
+    display: inline-block;
+    min-width: 0;
+    max-width: 46%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    background: rgba(232, 234, 240, 0.08);
+  }
+  /* Background-job chips folded from the 0.2.1 durable job events: cyan = still
+     executing, red = failed in the current turn. */
+  .jobsBadge {
+    background: rgba(77, 208, 225, 0.14);
+    color: #4dd0e1;
+    font-weight: 600;
+  }
+  .jobsFailBadge {
+    background: rgba(255, 107, 107, 0.14);
+    color: #ff8f8f;
+    font-weight: 600;
+  }
   .status { font-size: 11px; color: rgba(232, 234, 240, 0.76); }
   .statusSub { color: #b388ff; }
   .time {
@@ -520,6 +544,10 @@
     background: rgba(61, 214, 140, 0.18);
   }
   .progressBar.progressSub { background: rgba(179, 136, 255, 0.18); }
+  .progressBar.progressJobs { background: rgba(77, 208, 225, 0.18); }
+  .progressBar.progressJobs::after {
+    background: linear-gradient(90deg, transparent, #4dd0e1, transparent);
+  }
   .progressBar::after {
     content: '';
     position: absolute;
@@ -879,6 +907,7 @@
     done:          { label: '完成一轮',     icon: '✓',  color: '#f5b544', level: 'p1' },
     aborted:       { label: '已中止',       icon: '⏹',  color: '#9aa0ab', level: 'p1' },
     interrupted:   { label: '已中断',       icon: '⏸',  color: '#7d93c4', level: 'p1' },
+    'job-failed':  { label: '后台任务失败', icon: '⚑',  color: '#ff6b6b', level: 'p0' },
     title:         { label: '标题变更',     icon: '✎',  color: '#8b91a0', level: 'p2' },
     'new-session': { label: '新会话',       icon: '＋', color: '#7d93c4', level: 'p2' },
   }
@@ -1593,9 +1622,11 @@
     var last = Math.max(row.updatedAt, row.lastActive)
     var tool = tools[row.sessionId]
     var goalSig = row.goal ? row.goal.phase + ':' + (row.goal.roundsStarted || 0) + '/' + (row.goal.maxGoalRounds || 0) : ''
+    var jobsSig = row.jobs ? (row.jobs.running || 0) + ':' + (row.jobs.failed || 0) : ''
     return [
       row.sessionId, row.running ? 1 : 0, row.title || '', row.subagents,
       row.pending ? 1 : 0, Math.floor(last / 60000), tool ? tool.name : '', goalSig,
+      row.cwd || '', jobsSig,
     ].join('|')
   }
 
@@ -1645,7 +1676,7 @@
     for (var i = 0; i < live.length; i++) {
       var b = live[i]
       if (b.running) continue
-      if (b.pending || (b.subagents || 0) > 0) busy[b.sessionId] = true
+      if (b.pending || (b.subagents || 0) > 0 || (b.jobs && b.jobs.running > 0)) busy[b.sessionId] = true
     }
 
     // Time window: running and busy sessions are always recent; the rest keep
@@ -1727,6 +1758,14 @@
     var meta = '<span class="status' + statusClass + '">' + esc(statusText) + '</span>'
     if (row.subagents > 0) meta += '<span class="badgeSm subBadge">子×' + row.subagents + '</span>'
     if (row.pending) meta += '<span class="badgeSm pendingBadge">⏳ 待审批</span>'
+    // 0.2.1: effective working directory (basename; full path in the tooltip)
+    // and background-job load from the durable job events.
+    var cwdBase = row.cwd ? baseName(row.cwd) : ''
+    if (cwdBase) meta += '<span class="badgeSm cwdBadge" title="' + esc(row.cwd) + '">📁 ' + esc(cwdBase) + '</span>'
+    var jobsRunning = row.jobs ? row.jobs.running || 0 : 0
+    var jobsFailed = row.jobs ? row.jobs.failed || 0 : 0
+    if (jobsRunning > 0) meta += '<span class="badgeSm jobsBadge">后×' + jobsRunning + '</span>'
+    if (jobsFailed > 0) meta += '<span class="badgeSm jobsFailBadge">失败 ' + jobsFailed + '</span>'
 
     // Task-execution progress: a thin animated bar + a label naming what is
     // executing. Running rows name the current model tool call (Host-tracked)
@@ -1742,7 +1781,7 @@
       ? Math.min(100, Math.round(((goal.roundsStarted || 0) / goal.maxGoalRounds) * 100))
       : undefined
     var progress = ''
-    if (row.running || row.subagents > 0 || goalPausedOrBlocked) {
+    if (row.running || row.subagents > 0 || goalPausedOrBlocked || jobsRunning > 0) {
       var barCls
       var label
       if (goalActive) {
@@ -1777,9 +1816,13 @@
         label = tool
           ? '第 ' + round + ' 轮 · 正在执行 ' + esc(tool.name)
           : '第 ' + round + ' 轮'
-      } else {
+      } else if (row.subagents > 0) {
         barCls = ' progressSub'
         label = row.subagents + ' 个子代理执行中'
+      } else {
+        // Background jobs keep the session "busy" without an agent turn.
+        barCls = ' progressJobs'
+        label = jobsRunning + ' 个后台任务执行中'
       }
       var fill = goalPct !== undefined
         ? '<div class="progressFill" style="width:' + goalPct + '%"></div>'
@@ -1871,6 +1914,12 @@
     return String(text)
       .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
       .replace(/"/g, '&quot;').replace(/'/g, '&#39;')
+  }
+
+  /** Basename of a host filesystem path (both separators; trailing ones dropped). */
+  function baseName(path) {
+    var parts = String(path).split(/[\\/]+/).filter(function (p) { return p.length > 0 })
+    return parts.length > 0 ? parts[parts.length - 1] : ''
   }
 
   function relTime(ts, now) {

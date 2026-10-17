@@ -72,6 +72,20 @@ export interface DesktopSessionRow {
   readonly pending?: 'approval'
   /** Live running subagent children count (parent-row 子×N badge). */
   readonly subagents: number
+  /** The session's effective working directory: the header's original project,
+   *  overridden by the newest `working-directory/change` (the 0.2.1 `cd` tool).
+   *  Absent when no directory is recorded. */
+  readonly cwd?: string
+  /** Background-job load for this session, folded from the 0.2.1 durable
+   *  `job/registered` / `job/settled` events: `running` = registered but not
+   *  settled; `failed` = settled with status `failed` in the current turn.
+   *  Absent when the session has neither. */
+  readonly jobs?: {
+    /** Jobs still executing. */
+    readonly running: number
+    /** Jobs that failed in the current turn. */
+    readonly failed: number
+  }
   /** The session's current task goal (folded from `goal/change` log events),
    *  absent when no goal exists (or after a clear tombstone). Drives the
    *  determinate "目标 第 X/Y 轮" progress bar in the desktop list. */
@@ -116,6 +130,20 @@ interface AnyEvent {
       readonly phase?: string
       readonly maxGoalRounds?: number
     }
+    /** `working-directory/change` mutation: the session's effective directory. */
+    readonly cwd?: string
+    /** `job/registered` / `job/settled` identity (0.2.1 durable job events). */
+    readonly jobId?: string
+    /** Job producer kind (bash / pwsh / terminal / workflow …). */
+    readonly kind?: string
+    /** Producer-supplied job label. */
+    readonly label?: string
+    /** `job/settled` terminal outcome: completed / killed / failed. */
+    readonly status?: string
+    /** Registration time (ms) carried by both job events. */
+    readonly startedAt?: number
+    /** Settlement time (ms) carried only by `job/settled`. */
+    readonly finishedAt?: number
   }
 }
 
@@ -194,6 +222,10 @@ interface FoldedSession {
   readonly updatedAt: number
   /** The latest non-clear `goal/change` state (absent without a goal). */
   readonly goal?: { phase: string; maxGoalRounds: number; roundsStarted: number }
+  /** Newest recorded working directory (absent = use the header's `cwd`). */
+  readonly cwd?: string
+  /** Background-job load (absent when nothing is running or failed). */
+  readonly jobs?: { readonly running: number; readonly failed: number }
 }
 
 /** Single pass over a session's event log folding every derived flag at once —
@@ -208,10 +240,17 @@ function foldSession(events: readonly AnyEvent[], createdAt: number): FoldedSess
   let lastActive = createdAt
   let lastPromptAt: number | undefined
   let goal: { phase: string; maxGoalRounds: number; roundsStarted: number } | undefined
+  /** Newest `working-directory/change` value (the 0.2.1 `cd` tool). */
+  let cwd: string | undefined
+  /** Start of the newest turn: job failures before it belong to older turns. */
+  let lastTurnStartAt = Number.NEGATIVE_INFINITY
+  /** Durable background-job states keyed by the 0.2.1 `jobId`. */
+  const jobState = new Map<string, { status: string; finishedAt: number }>()
   for (const event of events) {
     if (event.type === 'turn/start') {
       running = true
       sawTurnStart = true
+      lastTurnStartAt = event.time
     } else if (event.type === 'turn/end') {
       running = false
     } else if (event.type === 'session/title') {
@@ -237,9 +276,36 @@ function foldSession(events: readonly AnyEvent[], createdAt: number): FoldedSess
           }
         }
       }
+    } else if (event.type === 'working-directory/change') {
+      // 0.2.1 per-session working directory (the `cd` tool). The header keeps
+      // the original project; this event is the effective directory.
+      if (typeof event.data.cwd === 'string' && event.data.cwd.length > 0) cwd = event.data.cwd
+    } else if (event.type === 'job/registered' || event.type === 'job/settled') {
+      // 0.2.1 durable job lifecycle. Pair by the unique jobId; settlement may
+      // be missing when the producer never settled (treated as still running —
+      // the honest state, see the jobs README's settlement caveat).
+      const jobId = event.data.jobId
+      if (typeof jobId === 'string' && jobId.length > 0) {
+        if (event.type === 'job/registered') {
+          jobState.set(jobId, { status: 'running', finishedAt: 0 })
+        } else {
+          jobState.set(jobId, {
+            status: typeof event.data.status === 'string' ? event.data.status : 'completed',
+            finishedAt: typeof event.data.finishedAt === 'number' ? event.data.finishedAt : event.time,
+          })
+        }
+      }
     }
     if (typeof event.time === 'number' && event.time > lastActive) lastActive = event.time
     if (event.type === 'user/message' && event.data.source?.kind === 'user') lastPromptAt = event.time
+  }
+  let jobsRunning = 0
+  let jobsFailed = 0
+  for (const state of jobState.values()) {
+    if (state.status === 'running') jobsRunning++
+    // Only failures from the newest turn: older failures are history, not the
+    // current row's load (the inbox keeps the durable record instead).
+    else if (state.status === 'failed' && state.finishedAt >= lastTurnStartAt) jobsFailed++
   }
   return {
     running,
@@ -247,6 +313,8 @@ function foldSession(events: readonly AnyEvent[], createdAt: number): FoldedSess
     pending,
     ...(title === undefined ? {} : { title }),
     ...(goal === undefined ? {} : { goal }),
+    ...(cwd === undefined ? {} : { cwd }),
+    ...(jobsRunning === 0 && jobsFailed === 0 ? {} : { jobs: { running: jobsRunning, failed: jobsFailed } }),
     lastActive,
     updatedAt: Math.max(createdAt, lastPromptAt ?? 0),
   }
@@ -322,10 +390,14 @@ async function probeColdSession(
         : false
     const title = lastTitle(events)
     let lastActive = meta.createdAt
+    let cwd: string | undefined
     for (const event of events) {
       if (typeof event.time === 'number' && event.time > lastActive) lastActive = event.time
+      if (event.type === 'working-directory/change'
+        && typeof event.data.cwd === 'string' && event.data.cwd.length > 0) cwd = event.data.cwd
     }
     const updatedAt = Math.max(meta.createdAt, cachedMetadata?.lastPromptAt ?? 0)
+    const effectiveCwd = cwd ?? meta.cwd
     return {
       sessionId: meta.id,
       ...(title === undefined ? {} : { title }),
@@ -335,6 +407,7 @@ async function probeColdSession(
       lastActive,
       ...(meta.origin === undefined ? {} : { origin: meta.origin }),
       ...(meta.parentSession === undefined ? {} : { parentSessionId: meta.parentSession }),
+      ...(effectiveCwd === undefined ? {} : { cwd: effectiveCwd }),
       subagents: 0,
       cold: true,
     }
@@ -473,6 +546,8 @@ export async function buildDesktopSnapshot(ctx: Context): Promise<DesktopSnapsho
       ...(header.parentSession === undefined ? {} : { parentSessionId: header.parentSession }),
       ...(info?.pending === true ? { pending: 'approval' as const } : {}),
       ...(info?.goal === undefined ? {} : { goal: info.goal }),
+      ...((info?.cwd ?? header.cwd) === undefined ? {} : { cwd: (info?.cwd ?? header.cwd) as string }),
+      ...(info?.jobs === undefined ? {} : { jobs: info.jobs }),
       subagents: runningSubagents.get(session.id) ?? 0,
     })
   }

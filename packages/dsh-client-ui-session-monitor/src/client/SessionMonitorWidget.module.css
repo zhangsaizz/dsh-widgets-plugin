@@ -307,6 +307,19 @@
   font-weight: 600;
 }
 
+/* Working-directory chip: the 0.2.1 `workingDirectory` projection, basename only
+   (the full path rides the native title tooltip). Neutral grey; capped so a deep
+   path cannot push the status/time out, ellipsised inside the row meta line. */
+.cwdBadge {
+  display: inline-block;
+  min-width: 0;
+  max-width: 40%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  background: color-mix(in srgb, #9aa0ab 12%, transparent);
+}
+
 .status {
   font-size: 11px;
   color: var(--dsw-alias-label-secondary, rgba(232, 234, 240, 0.76));

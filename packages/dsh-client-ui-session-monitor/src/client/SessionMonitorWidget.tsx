@@ -129,6 +129,19 @@ function goalProjectionOf(row: SessionSummary): GoalProjectionLoose | null | und
   return goal as GoalProjectionLoose
 }
 
+/** Read one row's 0.2.1 `workingDirectory` projection (a plain absolute path or
+ *  null). Same loose-shape convention as the goal projection. */
+function workingDirectoryOf(row: SessionSummary): string | undefined {
+  const value = (row.projectionValues as { workingDirectory?: unknown } | undefined)?.workingDirectory
+  return typeof value === 'string' && value.length > 0 ? value : undefined
+}
+
+/** Basename of a host filesystem path (both separators; trailing ones dropped). */
+function baseName(path: string): string {
+  const parts = path.split(/[\\/]+/).filter((part) => part.length > 0)
+  return parts.length > 0 ? parts[parts.length - 1] : ''
+}
+
 /** One kind of work a session row can have in flight; the row's progress bar
  *  shows one at a time and rotates through them when several are live. */
 type ProgressKind = 'turn' | 'sub' | 'jobs'
@@ -1671,6 +1684,9 @@ export function SessionMonitorWidget(props: SessionMonitorWidgetProps) {
               const running = isRunning(row.id)
               const subRunning = runningSubagentsByParent.get(row.id) ?? 0
               const jobsRunning = runningJobsBySession.get(row.id) ?? 0
+              // 0.2.1: the session's effective working directory (the `cd`
+              // tool), shown as a basename chip; the full path is the tooltip.
+              const cwd = workingDirectoryOf(row)
               // A session that is not in a turn but still has subagents (or
               // background jobs) executing is "busy", not idle: label it so
               // instead of showing 空闲 next to a 子×N / 后×N badge. The busy
@@ -1819,6 +1835,9 @@ export function SessionMonitorWidget(props: SessionMonitorWidgetProps) {
                         : null}
                       {jobsRunning > 0
                         ? <span className={[css.badge, css.jobsBadge].filter(Boolean).join(' ')}>{t('jobsRunning', { n: String(jobsRunning) })}</span>
+                        : null}
+                      {cwd !== undefined
+                        ? <span className={[css.badge, css.cwdBadge].filter(Boolean).join(' ')} title={cwd}>{baseName(cwd)}</span>
                         : null}
                       <span className={[css.status, statusCls ?? ''].filter(Boolean).join(' ')}>
                         {statusText}

@@ -40,13 +40,14 @@ export type NotifyKind =
   | 'done'
   | 'aborted'
   | 'interrupted'
+  | 'job-failed'
   | 'title'
   | 'new-session'
 
 /** All valid kinds, as a runtime set (persisted records are validated on load). */
 export const NOTIFY_KINDS: ReadonlySet<string> = new Set<NotifyKind>([
   'approval', 'question', 'plan-review', 'error', 'blocked', 'max-tokens',
-  'subagent', 'done', 'aborted', 'interrupted', 'title', 'new-session',
+  'subagent', 'done', 'aborted', 'interrupted', 'job-failed', 'title', 'new-session',
 ])
 
 /** One inbox record (immutable; updates produce a new record object). */
@@ -346,7 +347,7 @@ export const InboxStoreSchema: z<InboxStore> = z.object({
     sessionId: z.string(),
     kind: z.union([
       'approval', 'question', 'plan-review', 'error', 'blocked', 'max-tokens',
-      'subagent', 'done', 'aborted', 'interrupted', 'title', 'new-session',
+      'subagent', 'done', 'aborted', 'interrupted', 'job-failed', 'title', 'new-session',
     ] as const),
     title: z.string().default(''),
     at: z.number(),
