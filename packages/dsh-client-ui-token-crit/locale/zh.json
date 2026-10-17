@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Token 暴击挂件",
+    "description": "实时显示当前会话累计 token 用量，增长时触发暴击动效。"
+  }
+}

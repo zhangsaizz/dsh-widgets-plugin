@@ -38,6 +38,7 @@ import type { InboxStore, NotifyKind } from './desktop-notifications.ts'
 // desktop widget page (see ./widget-page.html for the full doc comment).
 import pageHtml from './widget-page.html'
 import { readJsonBody, requestHeader, responseHtml, responseJson, SETTINGS_REVISION_HEADER } from './http.ts'
+import { rejectRouteRequest } from './route-trust.ts'
 
 /** One remembered `turn/end` fact for a session. */
 export interface TurnEndRecord {
@@ -687,8 +688,26 @@ export function apply(ctx: Context, config: Config): void {
         }
       }
 
-      const disposers = [
+      /**
+       * Register one raw `webServer` route behind the connection-aware gate:
+       * loopback callers (the local shell, the standalone desktop widget page
+       * and dev probes) keep today's behaviour, while any remote authority —
+       * a LAN/`--trusted-host`/reverse-proxy deployment of the Web app — must
+       * present the browser session that the harness's own `/api` route
+       * requires. Without this, a public deployment exposes monitor telemetry
+       * and the notification inbox through the forwarded `/_dsh/*` paths.
+       */
+      const guardedRoute = (route: Parameters<typeof webCtx.webServer.register>[0]): (() => void) =>
         webCtx.webServer.register({
+          ...route,
+          handler: (req, res) => {
+            if (rejectRouteRequest(webCtx, req, res)) return
+            return route.handler(req, res)
+          },
+        })
+
+      const disposers = [
+        guardedRoute({
           kind: 'exact',
           path: STATUS_ROUTE,
           handler: (req, res) => {
@@ -704,7 +723,7 @@ export function apply(ctx: Context, config: Config): void {
         // see desktop-snapshot.ts) plus the turn-end reason table, so the
         // widget needs no separate /status poll: the round-reason is fresh at
         // the exact moment it observes a running→false edge.
-        webCtx.webServer.register({
+        guardedRoute({
           kind: 'exact',
           path: SESSIONS_ROUTE,
           handler: async (req, res) => {
@@ -723,7 +742,7 @@ export function apply(ctx: Context, config: Config): void {
           },
         }),
         // Desktop widget page: the standalone, self-contained monitor UI.
-        webCtx.webServer.register({
+        guardedRoute({
           kind: 'exact',
           path: WIDGET_ROUTE,
           handler: (req, res) => {
@@ -740,7 +759,7 @@ export function apply(ctx: Context, config: Config): void {
         // `settings-conflict` instead of silently clobbering the other writer.
         // A POST without the header keeps the historical last-write-wins
         // behavior, which is what the desktop app relies on.
-        webCtx.webServer.register({
+        guardedRoute({
           kind: 'exact',
           path: SETTINGS_ROUTE,
           handler: async (req, res) => {
@@ -779,7 +798,7 @@ export function apply(ctx: Context, config: Config): void {
         // consumed it in time. Also handles { consume: true } and the web
         // client's { ping: true } heartbeat (webAlive lets the desktop wait
         // long enough for consumption instead of falling back too early).
-        webCtx.webServer.register({
+        guardedRoute({
           kind: 'exact',
           path: JUMP_ROUTE,
           handler: async (req, res) => {
@@ -824,7 +843,7 @@ export function apply(ctx: Context, config: Config): void {
         // Long-poll: the web half holds this GET open until a jump arrives
         // (or a 25s timeout). Held fetches are immune to the background-tab
         // timer throttling that would stall a setInterval-based poll.
-        webCtx.webServer.register({
+        guardedRoute({
           kind: 'exact',
           path: JUMP_POLL_ROUTE,
           handler: (req, res) => {
@@ -874,7 +893,7 @@ export function apply(ctx: Context, config: Config): void {
         // both surfaces, so neither the web badge nor the desktop 待处理 list
         // keeps nagging about a Session the user put away (or offers a jump the
         // Harness refuses). Withheld, not resolved: unarchiving restores them.
-        webCtx.webServer.register({
+        guardedRoute({
           kind: 'exact',
           path: NOTIFICATIONS_ROUTE,
           handler: (req, res) => {
@@ -885,7 +904,7 @@ export function apply(ctx: Context, config: Config): void {
           },
         }),
         // Acknowledge inbox records: { ids: [...] } | { sessionId } | { all: true }.
-        webCtx.webServer.register({
+        guardedRoute({
           kind: 'exact',
           path: NOTIFICATIONS_ACK_ROUTE,
           handler: async (req, res) => {
@@ -919,7 +938,7 @@ export function apply(ctx: Context, config: Config): void {
         // them here. { sessionId, kind, state: 'open'|'closed', title? } —
         // idempotent: 'open' is a no-op while an open record exists; 'closed'
         // resolves the latest open record of that kind.
-        webCtx.webServer.register({
+        guardedRoute({
           kind: 'exact',
           path: EVENTS_ROUTE,
           handler: async (req, res) => {

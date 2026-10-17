@@ -1,0 +1,10 @@
+<svg width="36" height="36" viewBox="0 0 36 36" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <path d="M21.5 5.5L10.5 20H17.2L14.5 30.5L25.5 16H18.8L21.5 5.5Z" fill="url(#token-crit-bolt)"/>
+  <defs>
+    <linearGradient id="token-crit-bolt" x1="12" y1="6" x2="24" y2="30" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#41E1AC" />
+      <stop offset="0.55" stop-color="#4D6BFE" />
+      <stop offset="1" stop-color="#A78BFA" />
+    </linearGradient>
+  </defs>
+</svg>

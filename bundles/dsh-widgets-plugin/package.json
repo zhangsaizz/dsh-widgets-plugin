@@ -1,7 +1,17 @@
 {
   "name": "@dsh-plugins/dsh-widgets-plugin",
   "description": "Installable dsh bundle: mounts all widgets in one layer — the balance plugin (seam + vendors + web dashboard), the token-crit widget, the session monitor widget, the card container widget, the rainbow-flow input widget, and the widgets manager",
+  "homepage": "https://github.com/zhangsaizz/dsh-widgets-plugin#readme",
+  "keywords": [
+    "deepseek-harness",
+    "dsh",
+    "widgets",
+    "dashboard",
+    "plugin",
+    "bundle"
+  ],
   "version": "0.1.0",
+  "icon": "./icon.svg",
   "license": "MIT",
   "engines": {
     "dsh": ">=0.2.1-rc.2 <0.3.0"
@@ -22,10 +32,14 @@
   },
   "exports": {
     "./cordis.patch.yml": "./cordis.patch.yml",
+    "./locale/en.json": "./locale/en.json",
+    "./locale/zh.json": "./locale/zh.json",
     "./package.json": "./package.json"
   },
   "files": [
-    "cordis.patch.yml"
+    "cordis.patch.yml",
+    "icon.svg",
+    "locale/*.json"
   ],
   "dependencies": {
     "@dsh-plugins/balance": "workspace:*",

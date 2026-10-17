@@ -101,9 +101,12 @@ export function ClockWidget({ t }: ClockWidgetProps) {
   "publishConfig": { "access": "public" },  // scoped 包必须 public，否则发布失败
   "type": "module",
   "main": "lib/index.js",
+  "icon": "./icon.svg",                          // Plugins 页/市场的卡片图标（0.2.1）
   "exports": {
     ".": { "default": "./lib/index.js" },
     "./client": { "default": "./lib/client.js" },  // 浏览器 bundle 入口
+    "./locale/en.json": "./locale/en.json",        // 展示元数据（meta.title/description）
+    "./locale/zh.json": "./locale/zh.json",
     "./package.json": "./package.json"
   },
   "dsh": {
@@ -116,7 +119,7 @@ export function ClockWidget({ t }: ClockWidgetProps) {
       "platform": "web"
     }
   },
-  "files": ["lib"],
+  "files": ["lib", "icon.svg", "locale/*.json"],
   "peerDependencies": {
     "@deepseek-ai/cordis": "^4.0.5",
     "@deepseek-ai/dsh-client-ui-renderer": "^0.2.1-rc.2",
@@ -127,6 +130,15 @@ export function ClockWidget({ t }: ClockWidgetProps) {
   }
 }
 ```
+
+**展示元数据（0.2.1 起必做）**：官方 Plugins 页、bundle 详情页与插件市场卡片优先读
+`locale/<lang>.json` 里的 `meta.title` / `meta.description`，图标读清单顶层 `icon`
+（或导出的 `./icon`）；缺失时回退包名、英文 `description` 和默认插画。每包补一份
+`icon.svg` + `locale/en.json` + `locale/zh.json`：
+```json
+{ "meta": { "title": "Clock widget", "description": "A floating clock." } }
+```
+`files` 必须包含 `icon.svg` 与 `locale/*.json`（`pnpm -r pack` 才能带上）。
 
 ### 1.4 构建与分发
 
@@ -475,6 +487,39 @@ const canChime = supportsAudioChime()
   Tauri 专属行照常显示，而 companion 只连网页版部署（3080）——这是既有行为（客户端无法
   区分该 host 形态），记录即可，别为此去猜 host。
 
+### 2.8 Host `/_dsh/*` 路由必须过认证门禁（公开部署）
+
+0.2.1 官方支持反向代理 / TLS / `--trusted-host` / `--public-url` 的公开部署，但**认证只覆盖
+`/api`、index 与 `/connect`**；插件用 `ctx.webServer.register` 注册的裸 `/_dsh/*` 路由不在
+栅栏内。反代把 `/ui/_dsh/...` 剥前缀转进来后，任何能访问代理的人都能读会话标题、通知
+inbox 或改写设置——所以**发 Host 路由的挂件必须自带门禁**。
+
+本仓库的写法（`packages/dsh-balance/src/route-trust.ts`，与 session-monitor 逐字节一致，
+`pnpm build` 断言两份拷贝同步）：
+
+```ts
+import { rejectRouteRequest } from './route-trust.ts'
+
+handler: (req, res) => {
+  if (rejectRouteRequest(ctx, req, res)) return  // 401 未认证 / 403 不可信 authority
+  // ...原来的路由逻辑
+}
+```
+
+规则：
+
+- **loopback 放行**（`127.0.0.1` / `localhost` / `::1`，任意端口）：本地桌面壳、独立
+  Tauri 挂件页（`tauri://localhost` → 127.0.0.1）与本地探针没有浏览器会话 cookie，必须
+  保持可用。
+- **其他 authority** 交给 `ctx.connection.requestRejection({ headers: req.headers })`：
+  先 Host/Origin 栅栏（403），再要求浏览器认证 cookie（401）；与官方 `/api` 同一套判定。
+- **没有 `connection` 的组合**（headless）自动跳过门禁，保持旧行为。
+- 既有的 Origin/CORS 检查（session-monitor 的 `http.ts`）继续保留，作为 CSRF 层。
+
+实测判据（隔离实例，带 `--trusted-host app.example`）：loopback 无 cookie → 200；
+`Host: app.example` 无 cookie → 401；同一 authority 带 index 换到的 session cookie → 200；
+不可信 `Host: example.com` → 403；`tauri://localhost`/`Origin: null` 的本地挂件页 → 200。
+
 ---
 
 ## 3. 完整示例：带配置面板与容器卡片的时钟挂件
@@ -562,6 +607,12 @@ export const en: Record<ClockKey, string> = { title: 'Clock', secondsLabel: 'Sho
 - [ ] `pnpm build` 通过，`lib/index.js`（Host stub）与 `lib/client.js`（ModuleLoader CJS + 内联 CSS）就位
 - [ ] `package.json`：`dsh.client`、`exports["./client"]`、`files: ["lib"]`、
       `publishConfig.access: "public"`、版本与其他包一致、配置槽依赖已加 peer
+- [ ] **展示元数据**：`icon.svg` + `locale/{en,zh}.json`（`meta.title/description`），
+      `exports` 与 `files` 已包含它们；Plugins 页能显示中文标题/描述/图标
+- [ ] **若发布 Host `/_dsh/*` 裸路由**：拷一份 `src/route-trust.ts`（与 balance /
+      session-monitor 逐字节一致，`pnpm build` 会断言），并在每个 handler 开头调
+      `rejectRouteRequest(ctx, req, res)`——loopback 放行、远程 authority 走
+      Connection 的浏览器认证，否则公开部署会暴露数据
 - [ ] 注册 `shell.overlay`（id 唯一稳定）+ 需要时注册 `widgets.config`
 - [ ] 若要在卡片容器里显示自己的紧凑卡片：按第 2.5 节注册 `widgets.card`
       （id = `shell.overlay` id、priority 默认 0），并在 peerDependencies 加

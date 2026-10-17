@@ -302,3 +302,24 @@ for (const entry of CLIENT_PACKAGES) {
   }
   console.log(`card-container availability: ${bodies.length} copies in sync`)
 }
+
+// Route-trust copies: the two packages that publish raw `/_dsh/*` routes each
+// carry the same connection-aware authentication gate (same publishing
+// rationale as above, Host halves cannot import each other). Keep the files
+// byte-identical — a copy edited alone would gate one plugin's routes on
+// different rules than the other.
+{
+  const copies = [
+    'packages/dsh-balance',
+    'packages/dsh-client-ui-session-monitor',
+  ].map((pkg) => ({ pkg, file: join(root, pkg, 'src/route-trust.ts') }))
+  const bodies = copies.map(({ pkg, file }) => ({ pkg, body: readFileSync(file, 'utf8').replaceAll('\r\n', '\n') }))
+  const drifted = bodies.slice(1).filter((entry) => entry.body !== bodies[0].body)
+  if (drifted.length > 0) {
+    console.error('ERROR: the route-trust.ts copies drifted apart — keep the implementation identical:')
+    console.error(`  reference: ${bodies[0].pkg}`)
+    for (const entry of drifted) console.error(`  differs:   ${entry.pkg}`)
+    process.exit(1)
+  }
+  console.log(`route authentication gate: ${bodies.length} copies in sync`)
+}

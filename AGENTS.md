@@ -151,6 +151,10 @@ pack → git diff 干净」。
   `useCardContainer` 取值；`scripts/build.mjs` 断言四份拷贝逐字节一致
   （见 `WIDGET-DEVELOPMENT.md` §2.5）。
 - 补双语 README + `README.i18n.yaml`。
+- 补插件展示元数据（0.2.1）：`icon.svg` + `locale/en.json` / `locale/zh.json`
+  （`{"meta":{"title","description"}}`），并在 `exports` / `files` 中带上。
+- 若发布 Host `/_dsh/*` 裸路由：拷一份 `src/route-trust.ts` 并让每个 handler 先过
+  `rejectRouteRequest`（公开部署下的认证门禁，见 WIDGET-DEVELOPMENT.md §2.8）。
 
 ### 5. 余额插件是单包结构
 
@@ -424,6 +428,23 @@ pack → git diff 干净」。
     `data-rf-group-cat` 6、`data-rf-turn-cat` 1，而 **`data-rf-latest` /
     `data-rf-latest-fold` 均为 0**（正文回复落地后扫字正确退休，即 chat-flow 锚点修复
     生效）；设置页「小组件管理」列出 5 个挂件与 4 个「配置」入口。
+- **0.2.1 新能力的采用（本仓库已做）**：
+  - **插件展示元数据**：7 个包都补了 `icon.svg` + `locale/{en,zh}.json`
+    （`meta.title` / `meta.description`），`exports` 增加 `./locale/en.json` 与
+    `./locale/zh.json`，`files` 带上图标与语言文件；bundle 另加 `homepage` / `keywords`
+    （插件市场卡片读 `homepage`）。0.2.1 的 Plugins 页、bundle 详情页与插件市场优先读这些
+    字段——实测 bundle 详情页显示中文标题/描述、6 个组件的本地化标题与描述、7 个图标。
+    新增包/挂件按 WIDGET-DEVELOPMENT.md §1.3 补，否则回退成裸包名 + 英文描述 + 默认插画。
+  - **裸 `/_dsh/*` 路由的认证门禁**：0.2.1 的公开部署（反向代理 / TLS / `--trusted-host` /
+    `--public-url`）只认证 `/api`、index 与 `/connect`；插件用 `webServer.register` 注册的
+    裸路由不在栅栏内，反代转发后匿名可读会话标题/inbox、可改设置。balance 的
+    `/_dsh/balance/settings` 与 session-monitor 的 9 条路由现在都先过
+    `rejectRouteRequest()`：两份逐字节相同的 `src/route-trust.ts`（build.mjs 断言同步），
+    loopback 放行（本地壳 / Tauri 挂件页 / 开发探针），其他 authority 交给
+    `ctx.connection.requestRejection`（不可信 Host/Origin 403、未认证 401、带浏览器
+    session cookie 200）。实测：`--trusted-host app.example` 下无 cookie 401、index 换到
+    的 cookie 200、不可信 `Host: example.com` 403、loopback 200、`Origin: null` 的 widget
+    页 200。新增 Host 路由必须照此门禁（WIDGET-DEVELOPMENT.md §2.8）。
 - **本机 dsh 必须 ≥ 0.2.1-rc.2**：浏览器端 bundle 的 `require()` 只认两种来源——壳的**种子
   模块表**（staticModules，写在 `packages/client/web/src/seed.ts` 里）和引导图里的插件行。
   0.2.1 的种子表 = 0.1.7/0.2.0 那张 + `zod` + `@tanstack/react-virtual`：

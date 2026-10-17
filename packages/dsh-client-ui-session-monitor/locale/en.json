@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Session monitor",
+    "description": "List running and finished sessions, alert on completed rounds, and jump to a session in one click."
+  }
+}

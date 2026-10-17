@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Token crit meter",
+    "description": "Live token-usage counter for the current session with crit-damage animations when usage grows."
+  }
+}

@@ -72,6 +72,13 @@
 每个包的 `package.json` 还带 `dsh.client` 声明（`inject` 依赖列表 + `platform: "web"`），
 浏览器产物由该声明被发现。
 
+**展示元数据（0.2.1 起）**：7 个包都带清单 `"icon": "./icon.svg"`、`icon.svg` 文件与
+`locale/{en,zh}.json`（`{"meta":{"title","description"}}`），并在 `exports` 导出
+`./locale/en.json` / `./locale/zh.json`、在 `files` 里带上 `icon.svg` 与 `locale/*.json`。
+0.2.1 的 Plugins 页、bundle 详情页与插件市场优先读这些字段（缺省回退包名 / 英文描述 /
+默认插画）；bundle 另带 `homepage` / `keywords`（市场卡片读 homepage）。新增包必须补齐，
+否则官方插件页显示裸包名。
+
 ---
 
 ## 3. 组件明细
@@ -149,7 +156,11 @@
   精确路由）——GET 返回脱敏快照，POST `save`（`expectedRevision` 乐观并发，留空
   凭据 = 保留原值）；写入按插件自己的原始 entry id 在 `settings.describe()` 里找条目，
   经 `settings.update(id, { bindings })`（merge；`replace` 会把其他 volatile 字段
-  重置回 base）。
+  重置回 base）。**0.2.1 起先过认证门禁**：`src/route-trust.ts` 的
+  `rejectRouteRequest()` 放行 loopback（本地壳 / Tauri 挂件页 / 探针），其他
+  authority 交给 `ctx.connection.requestRejection`（公开部署 / 反代下不可信 Host 403、
+  未认证 401、带浏览器 session cookie 200）。该文件与 session-monitor 的拷贝逐字节
+  一致，`pnpm build` 断言同步。
 - 不发布 invariant 伴侣：0.2.1 起上游删除了 `@deepseek-ai/dsh-invariants` 与所有
   `<package>/invariant` 子路径（本仓库原空 installer 已删除，详见 AGENTS.md
   「0.2.0 → 0.2.1 的 API 迁移」）。
@@ -253,6 +264,9 @@
 - `engines.dsh = ">=0.2.1-rc.2 <0.3.0"`：0.2.1 起安装与 profile 启动先读 `engines.dsh`
   （存在时只由它决定兼容性、`peerDependencies` 被忽略），范围必须覆盖该 bundle 支持的
   全部 DSH 版本；`workspace:` 值在这里非法。
+- 展示/分发元数据：`icon.svg` + `locale/{en,zh}.json`（`meta.title` = 「DSH 小组件集」/
+  「DSH widgets」）、`homepage`、`keywords`——0.2.1 的 Plugins 页卡片与插件市场据此显示
+  标题/描述/图标，市场索引也读 `homepage` 与 `engines.dsh`。
 - `cordis.patch.yml` 插入顺序：`balance`（requestTimeoutMs / newApiBaseURL / bindings）→
   `ui-token-crit` → `ui-session-monitor` → `ui-card-container` → `ui-rainbow-flow` →
   `ui-widget-manager`。
@@ -337,7 +351,11 @@
   注册用 `ctx.inject(['sessionProjections'], …)` 可选挂载，注册随 fiber 卸载撤销。
 - Host 半的路由挂载：经 `ctx.inject(['webServer', 'sessions', 'settings'])`
   可选挂载九条路由（webServer 缺席时跳过；`sessions`/`settings` 不注入会抛
-  "cannot get property without inject"——踩过）：
+  "cannot get property without inject"——踩过）。九条路由全部经 `guardedRoute` 注册、
+  先过 `rejectRouteRequest()`（`src/route-trust.ts`，与 balance 的拷贝逐字节一致、
+  `pnpm build` 断言同步）：loopback 放行（本地壳 / Tauri 挂件页 / 探针），其他
+  authority 走 `ctx.connection.requestRejection`——0.2.1 公开部署/反代下匿名请求
+  因此读不到会话标题与 inbox（不可信 Host 403、未认证 401、带浏览器 cookie 200）：
   - `/_dsh/session-monitor/status`（GET → `{ ok, value: { sessions: { id: {
     reason, at, round } }, tools: { id: { name, at } }, rounds: { id: count } } }`）：
     `sessions` = turn/end 原因表；`tools` = 每会话**当前正在执行的模型工具**（Host 从

@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Balance dashboard",
+    "description": "Show every model provider's balance, plus the signed-in DeepSeek account, in a dockable floating dashboard."
+  }
+}

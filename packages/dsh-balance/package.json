@@ -2,6 +2,7 @@
   "name": "@dsh-plugins/balance",
   "description": "The balance plugin in one package: ctx.balance capability seam (balance/query + balance/list Remotes), shipped vendor providers, provider-bindings settings + Web route, and the floating Web balance dashboard",
   "version": "0.1.0",
+  "icon": "./icon.svg",
   "license": "MIT",
   "repository": {
     "type": "git",
@@ -35,6 +36,8 @@
       "types": "./lib/types/client/index.d.ts",
       "default": "./lib/client.js"
     },
+    "./locale/en.json": "./locale/en.json",
+    "./locale/zh.json": "./locale/zh.json",
     "./package.json": "./package.json"
   },
   "dsh": {
@@ -51,7 +54,9 @@
     }
   },
   "files": [
-    "lib"
+    "lib",
+    "icon.svg",
+    "locale/*.json"
   ],
   "dependencies": {
     "@deepseek-ai/cosmokit": "^1.8.6",

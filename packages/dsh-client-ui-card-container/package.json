@@ -2,6 +2,7 @@
   "name": "@dsh-plugins/client-ui-card-container",
   "description": "Card container widget (web): a floating container that docks other shell.overlay widgets into a tidy, evenly-gapped grid (shadow-hiding the floating panels) with compact card views",
   "version": "0.1.0",
+  "icon": "./icon.svg",
   "license": "MIT",
   "repository": {
     "type": "git",
@@ -16,6 +17,8 @@
   "exports": {
     ".": { "default": "./lib/index.js" },
     "./client": { "default": "./lib/client.js" },
+    "./locale/en.json": "./locale/en.json",
+    "./locale/zh.json": "./locale/zh.json",
     "./package.json": "./package.json"
   },
   "dsh": {
@@ -29,7 +32,9 @@
     }
   },
   "files": [
-    "lib"
+    "lib",
+    "icon.svg",
+    "locale/*.json"
   ],
   "peerDependencies": {
     "@dsh-plugins/client-ui-widget-manager": "workspace:*",

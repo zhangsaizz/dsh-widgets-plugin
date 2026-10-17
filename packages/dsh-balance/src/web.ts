@@ -11,6 +11,7 @@ import type { Context } from '@deepseek-ai/cordis'
 // Type-only: pulls the `webServer` service merge onto Context (dsh-host-webserver).
 import type {} from '@deepseek-ai/dsh-host-webserver'
 import { BALANCE_SETTINGS_NS } from './settings.ts'
+import { rejectRouteRequest } from './route-trust.ts'
 
 /** Exact route used by the browser Balance providers page. */
 export const SETTINGS_ROUTE = '/_dsh/balance/settings'
@@ -251,6 +252,10 @@ export function installBalanceWeb(ctx: Context, backend: BalanceWebBackend): voi
         // rejection is fatal on modern Node. `handle` already answers every
         // path it can, so this only records the residual failure.
         handler: (req, res) => {
+          // The bindings document is host configuration, not public data:
+          // outside loopback it goes through the same browser authentication
+          // as the harness's own `/api` routes (public deployments / LAN).
+          if (rejectRouteRequest(webCtx, req, res)) return
           void backend.handle(req, res).catch((error: unknown) => {
             webCtx.logger.warn(`balance: settings route failed after responding: ${publicMessage(error)}`)
           })
