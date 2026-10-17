@@ -522,6 +522,13 @@
     color: #ff8f8f;
     font-weight: 600;
   }
+  /* Stored log predating the current format (0.2.1 persistence classification):
+     amber = pending maintenance, not an error. */
+  .formatBadge {
+    background: rgba(245, 181, 68, 0.14);
+    color: #f5b544;
+    font-weight: 600;
+  }
   .status { font-size: 11px; color: rgba(232, 234, 240, 0.76); }
   .statusSub { color: #b388ff; }
   .time {
@@ -1626,7 +1633,7 @@
     return [
       row.sessionId, row.running ? 1 : 0, row.title || '', row.subagents,
       row.pending ? 1 : 0, Math.floor(last / 60000), tool ? tool.name : '', goalSig,
-      row.cwd || '', jobsSig,
+      row.cwd || '', jobsSig, row.formatStatus || '',
     ].join('|')
   }
 
@@ -1766,6 +1773,11 @@
     var jobsFailed = row.jobs ? row.jobs.failed || 0 : 0
     if (jobsRunning > 0) meta += '<span class="badgeSm jobsBadge">后×' + jobsRunning + '</span>'
     if (jobsFailed > 0) meta += '<span class="badgeSm jobsFailBadge">失败 ' + jobsFailed + '</span>'
+    // 0.2.1 persistence format classification: a stored log that predates the
+    // current format migrates on first open; the chip explains that extra step.
+    if (row.formatStatus === 'migration-required') {
+      meta += '<span class="badgeSm formatBadge" title="该会话的日志格式需要迁移；打开一次后自动完成">格式待迁移</span>'
+    }
 
     // Task-execution progress: a thin animated bar + a label naming what is
     // executing. Running rows name the current model tool call (Host-tracked)

@@ -76,6 +76,12 @@ export interface DesktopSessionRow {
    *  overridden by the newest `working-directory/change` (the 0.2.1 `cd` tool).
    *  Absent when no directory is recorded. */
   readonly cwd?: string
+  /** Durable log-format classification of the stored artifact (0.2.1
+   *  `SessionPersistenceSnapshot.formatStatus`): `migration-required` means the
+   *  session opens by migrating its log on first access. Present only for cold
+   *  rows whose backend reports it; absent for attached sessions (already
+   *  current) and for backends without versioned artifact metadata. */
+  readonly formatStatus?: 'current' | 'migration-required'
   /** Background-job load for this session, folded from the 0.2.1 durable
    *  `job/registered` / `job/settled` events: `running` = registered but not
    *  settled; `failed` = settled with status `failed` in the current turn.
@@ -154,13 +160,53 @@ interface LooseHeader {
   readonly cwd?: string
   readonly parentSession?: string
   readonly origin?: 'subagent'
+  /** Attached by {@link looseMeta} from a 0.2.1 snapshot entry. */
+  readonly formatStatus?: 'current' | 'migration-required'
+  /** Physical artifact bytes, attached by {@link looseMeta} (0.2.1 jsonl listing). */
+  readonly sizeBytes?: number
+}
+
+/** Loose view of one 0.2.1 persistence listing entry (`SessionPersistenceSnapshot`). */
+interface LooseSnapshot {
+  readonly header: LooseHeader
+  readonly formatStatus?: 'current' | 'migration-required'
+  readonly sizeBytes?: number
+}
+
+/**
+ * Normalize one `list()` entry to a header plus its 0.2.1 artifact facts.
+ *
+ * 0.2.1 changed `sessionPersistence.list()` from headers to snapshots
+ * (`{ header, formatStatus, sizeBytes, ... }`). Older backends still answer
+ * bare headers; both shapes are accepted here so a cold listing works across
+ * harness versions, and the 0.2.1 classification/size ride along for the
+ * blank probe and the format chip.
+ * @param entry - one listing entry in either shape.
+ * @returns the header fields plus the snapshot extras when present.
+ */
+function looseMeta(entry: LooseHeader | LooseSnapshot): LooseHeader {
+  if (!('header' in entry)) return entry
+  return {
+    ...entry.header,
+    ...(entry.formatStatus === undefined ? {} : { formatStatus: entry.formatStatus }),
+    ...(entry.sizeBytes === undefined ? {} : { sizeBytes: entry.sizeBytes }),
+  }
+}
+
+/** Loose view of one 0.2.1 read handle (`SessionHandle`). */
+interface LooseSessionHandle {
+  read(offset?: number, length?: number): Promise<{ events: readonly AnyEvent[] }>
+  close(): Promise<void>
 }
 
 /** Loose view of `ctx.sessionPersistence` (dsh-session-persistence). */
 interface LoosePersistence {
-  list(): Promise<LooseHeader[]>
-  readFrom(id: string, fromSeq: number): Promise<{ meta: LooseHeader; events: AnyEvent[] }>
-  /** Physical per-session artifact (JSONL backends); SQLite etc. return undefined. */
+  list(): Promise<readonly (LooseHeader | LooseSnapshot)[]>
+  /** Pre-0.2.1 body read; still answered by older backends. */
+  readFrom?(id: string, fromSeq: number): Promise<{ meta: LooseHeader; events: AnyEvent[] }>
+  /** 0.2.1 body read: open a read handle, read the prefix, close it. */
+  open?(id: string, access: 'read'): Promise<LooseSessionHandle>
+  /** Physical per-session artifact (pre-0.2.1 JSONL backends); absent in 0.2.1. */
   locate?(meta: LooseHeader): { kind?: string; path?: string } | undefined
 }
 
@@ -358,10 +404,40 @@ const foldCache = new Map<string, { events: readonly AnyEvent[]; len: number; fo
  *  and web lists agree on which never-ran sessions count as blank. */
 const COLD_BLANK_PROBE_MAX_BYTES = 1024
 
+/**
+ * Read one cold session's event log through whichever persistence body-read API
+ * the harness answers: 0.2.1 replaced the service-level `readFrom` with
+ * `open(id, 'read').read(0)` handles, while older backends still expose
+ * `readFrom`. The handle is always closed (a read handle never holds write
+ * ownership, but leaking one pins backend resources).
+ * @param persistence - the persistence service (loose shape).
+ * @param id - stored session id.
+ * @returns the stored events from seq 0.
+ */
+async function readColdEvents(persistence: LoosePersistence, id: string): Promise<readonly AnyEvent[]> {
+  if (typeof persistence.readFrom === 'function') {
+    const read = await persistence.readFrom(id, 0)
+    return read.events
+  }
+  if (typeof persistence.open === 'function') {
+    const handle = await persistence.open(id, 'read')
+    try {
+      const read = await handle.read(0)
+      return read.events
+    } finally {
+      await handle.close().catch(() => undefined)
+    }
+  }
+  throw new Error('sessionPersistence offers no cold body read')
+}
+
 /** Whether the gateway would probe this cold session's log for blankness
  *  (a physical artifact at most the eligibility threshold). */
 async function coldBlankEligible(persistence: LoosePersistence, meta: LooseHeader): Promise<boolean> {
   try {
+    // 0.2.1 listings carry the artifact size directly; prefer it and fall back
+    // to locating the physical file on backends that still expose `locate`.
+    if (typeof meta.sizeBytes === 'number') return meta.sizeBytes <= COLD_BLANK_PROBE_MAX_BYTES
     const located = persistence.locate?.(meta)
     if (!located || typeof located.path !== 'string' || located.path.length === 0) return false
     const info = await stat(located.path)
@@ -378,7 +454,7 @@ async function probeColdSession(
   cachedMetadata: { blank?: boolean; lastPromptAt?: number } | undefined,
 ): Promise<DesktopSessionRow | null> {
   try {
-    const { events } = await persistence.readFrom(meta.id, 0)
+    const events = await readColdEvents(persistence, meta.id)
     // Blank parity with the web: cached `blank: false` is trusted (a prefix
     // with a turn stays non-blank); otherwise the log decides ONLY when the
     // artifact is small enough for the web's bounded probe — larger artifacts
@@ -408,6 +484,7 @@ async function probeColdSession(
       ...(meta.origin === undefined ? {} : { origin: meta.origin }),
       ...(meta.parentSession === undefined ? {} : { parentSessionId: meta.parentSession }),
       ...(effectiveCwd === undefined ? {} : { cwd: effectiveCwd }),
+      ...(meta.formatStatus === undefined ? {} : { formatStatus: meta.formatStatus }),
       subagents: 0,
       cold: true,
     }
@@ -457,7 +534,7 @@ async function mergeColdSessions(
 
   let metas: LooseHeader[]
   try {
-    metas = await persistence.list()
+    metas = (await persistence.list()).map(looseMeta)
   } catch {
     return
   }

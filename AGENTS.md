@@ -504,12 +504,19 @@ pack → git diff 干净」。
     遮蔽本栏。实测：面板勾选后 `[data-shell-bottom]` 高度 0→**26px**、文案
     「词元 3.1M 输入 3.1M · 缓存 3M · 输出 44.5K」，取消勾选回到 0，控制台零 error
     （仅既有 `/favicon.ico` 404）。
-  - **会话格式诊断（0.2.1 `SessionSummary.formatStatus`）**：会话监控浏览器半的行尾
-    chip——`formatStatus === 'migration-required'` 时显示琥珀色「格式待迁移」（tooltip
-    说明「打开一次后自动完成」，与 inline `formatStatus` 的机器码互为兜底，不写死枚举）；
-    缺省（`current`/无字段）不渲染。桌面挂件页的 `/sessions` 快照不从冷列表 header 读
-    该字段，故桌面页无此 chip（保持现状，避免为诊断项扩 Host 折叠）。验收：typecheck/
-    build 通过；现有会话（无该状态）行渲染不变、控制台零 error。
+  - **会话格式诊断（0.2.1 `formatStatus`）**：浏览器挂件行读
+    `SessionSummary.formatStatus`，桌面挂件页读快照行的 `formatStatus`（cold 行来自
+    `SessionPersistenceSnapshot.formatStatus`）——`migration-required` 时行尾显示琥珀色
+    「格式待迁移」chip（tooltip「打开一次后自动完成」）；缺省（`current`/无字段/attached
+    行）不渲染。桌面页在 cold 行上显示该 chip，attached 行已加载即当前格式故不需要。
+  - **冷会话列表修复（0.2.1 持久化 API 形状变更）**：`sessionPersistence.list()` 从
+    header 数组改为 `{ header, formatStatus, sizeBytes, … }` 快照，body 读取从服务级
+    `readFrom(id, 0)` 改为 `open(id, 'read').read(0)` 句柄。旧的松散形状假设让桌面挂件页
+    的冷会话行**长期静默为空**（只显示已 attach 的会话）。现 `looseMeta()` 兼容两种 list
+    形状、`readColdEvents()` 兼容两种 body 读取（句柄必 `close`）、blank 探针优先用
+    `sizeBytes`；实测默认启动 `GET /_dsh/session-monitor/sessions` 立即返回 2 条 cold
+    行（title/cwd/`formatStatus:"current"`，修复前为 `[]`），桌面挂件页渲染出冷行与
+    `📁` chip、控制台零 error（仅既有 favicon 404）。
 - **本机 dsh 必须 ≥ 0.2.1-rc.2**：浏览器端 bundle 的 `require()` 只认两种来源——壳的**种子
   模块表**（staticModules，写在 `packages/client/web/src/seed.ts` 里）和引导图里的插件行。
   0.2.1 的种子表 = 0.1.7/0.2.0 那张 + `zod` + `@tanstack/react-virtual`：
