@@ -22,6 +22,7 @@ import type { InjectFace, PropsLocale, PropsRuntime, TranslateNS } from '@deepse
 // Type-only: pulls the `widgets.card` SlotMap merge the props below depend on.
 import type {} from '@dsh-plugins/client-ui-card-container/client'
 import type { BalanceAccount } from '../types.ts'
+import { ACCOUNT_VENDOR, officialAccountRows } from './account-balance.ts'
 import type { BalanceController, BalanceViewState } from './controller.ts'
 import { trendIcon } from './icons.tsx'
 import css from './BalanceCard.module.css'
@@ -50,11 +51,16 @@ function formatAmount(value: number): string {
   return trimmedFraction === '' ? `${sign}${grouped}` : `${sign}${grouped}.${trimmedFraction}`
 }
 
-/** Resolve the current account: the ok account, or null while unavailable. */
+/** The signed-in official account's first ok wallet row (CNY before USD), or null. */
+function officialAccountOf(view: BalanceViewState): BalanceAccount | null {
+  return officialAccountRows(view.accounts)[0] ?? null
+}
+
+/** Resolve the card's account: the provider's ok account, else the official account. */
 function okAccountOf(view: BalanceViewState): BalanceAccount | null {
   const account = view.result?.account
   if (view.result?.bound === true && account?.status === 'ok') return account
-  return null
+  return officialAccountOf(view)
 }
 
 /** Short state note when no ok balance is available, or null when there is one. */
@@ -84,7 +90,10 @@ export function BalanceCard({ useBalance, t }: BalanceCardProps) {
   if (typeof useBalance !== 'function') return null
   const view = useBalance((s: BalanceViewState) => s)
   const account = okAccountOf(view)
-  const note = stateNoteOf(view, t)
+  // With a resolved account (provider or official) the note is noise: the card
+  // exists to show the actual balance, and the official row makes it available
+  // even when the model provider has no key configured.
+  const note = account === null ? stateNoteOf(view, t) : null
 
   if (account === null || note !== null) {
     return (
@@ -95,6 +104,7 @@ export function BalanceCard({ useBalance, t }: BalanceCardProps) {
   }
 
   const glyph = trendIcon(account.trend, { size: 11 })
+  const name = account.vendor === ACCOUNT_VENDOR ? t('accountVendor') : account.displayName
   return (
     <div className={css.statCard}>
       <span className={css.amountRow}>
@@ -102,9 +112,9 @@ export function BalanceCard({ useBalance, t }: BalanceCardProps) {
         <span className={css.statCurrency}>{account.currency}</span>
         {glyph !== null ? <span className={css.statTrend} data-trend={account.trend} role="img" aria-label={account.trend}>{glyph}</span> : null}
       </span>
-      <span className={css.statName} title={account.displayName}>
-        {account.displayName}
-        {account.label !== '' && account.label !== account.displayName ? ` · ${account.label}` : ''}
+      <span className={css.statName} title={name}>
+        {name}
+        {account.label !== '' && account.label !== name ? ` · ${account.label}` : ''}
       </span>
     </div>
   )

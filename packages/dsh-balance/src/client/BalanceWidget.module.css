@@ -732,6 +732,43 @@
   color: var(--dsw-alias-label-secondary);
 }
 
+/* Currency suffix for the official-account pill value (the same pill value for
+   a provider account keeps its historical unit-less look). */
+.pillCurrency {
+  margin-left: 1px;
+  font-size: 10px;
+  color: var(--dsw-alias-label-tertiary);
+}
+
+/* Single-account view: the signed-in official account wallets as a quiet line
+   under the provider body — the model provider and the platform account are
+   different balances, so they are never merged into one number. */
+.official {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  padding: 0 16px 12px;
+}
+
+.officialTitle {
+  font-size: 11px;
+  color: var(--dsw-alias-label-tertiary);
+}
+
+.officialValue {
+  font-size: 13px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: var(--dsw-alias-label-secondary);
+}
+
+.officialCurrency {
+  margin-left: 2px;
+  font-size: 10px;
+  font-weight: 400;
+  color: var(--dsw-alias-label-tertiary);
+}
+
 .accountList {
   display: flex;
   flex-direction: column;

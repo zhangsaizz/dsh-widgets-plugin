@@ -481,9 +481,11 @@ pack → git diff 干净」。
     思考冷色调/命令上色/每类颜色可见）；控制台零 error。
   - **官方 DeepSeek 账号余额**（0.2.1 `account` Remote）：balance 看板每轮刷新经
     `ctx.get('remote.account').getBalance({ version, locale, timezoneOffsetSeconds })`
-    读取已登录 Platform 账号的充值 + 赠送钱包，按币种折算成合成行并入**多账户视图**
-    （`total = 充值 + 赠送`，`toppedUp` / `granted` 保留拆分；不依赖会话或模型选择，
-    「无会话」「未选择模型」两态也显示）。未登录（Host 返回 null）、读取抛错、或壳没有
+    读取已登录 Platform 账号的充值 + 赠送钱包，按币种折算成合成行（`total = 充值 + 赠送`，
+    `toppedUp` / `granted` 保留拆分，金额按官方展示规则取两位小数）。**可见面**：单账户
+    视图在 provider 余额下方显示「DeepSeek 账号」一行；多账户视图追加独立行；收起胶囊在
+    provider 无可用余额时回退显示官方钱包；卡片容器卡片同样回退。不依赖会话或模型选择，
+    「无会话」「未选择模型」两态也显示。未登录（Host 返回 null）、读取抛错、或壳没有
     account 插件时都是 0 行，绝不影响厂商列表。`account` 命名空间异步安装，故 `apply`
     里用 `ctx.inject(['remote.account'], …)` 唤醒一次立即刷新，之后随 30s 轮询；无
     type-only peer（结构类型自持），未登录时只读本地凭据、不发网络请求。widget 对

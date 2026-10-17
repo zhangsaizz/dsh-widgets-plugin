@@ -63,7 +63,10 @@ hover tooltip / loading states, light & dark themes](../../docs/previews/balance
   `BalanceController` follows the current session + model and refreshes on a
   fixed 30 s interval. When the shell has the official **DeepSeek account** signed in
   (the `account` Remote, harness 0.2.1), each refresh also reads its recharge +
-  bonus wallets and appends one row per currency to the multi-account view; signed
+  bonus wallets (rounded to the official two-decimal display) and shows one entry
+  per currency under the single-account balance as well as a row in the
+  multi-account view; when the model provider has no balance, the collapsed pill
+  and the compact card fall back to the official account. Signed
   out, on a read failure, or on a shell without the account plugin the wallet rows
   are simply absent and every provider row is unaffected. The dashboard panel /
   collapsed pill / multi-account

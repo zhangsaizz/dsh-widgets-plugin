@@ -139,6 +139,32 @@ export function mergeAccountRows(
 }
 
 /**
+ * Round a wallet sum to the two decimals the official account UI displays
+ * (the dashboard renders provider balances at that precision too; platform
+ * wallet strings carry 16 decimals of internal precision).
+ * @param value - summed wallet amount.
+ * @returns the value rounded to two decimals.
+ */
+function round2(value: number): number {
+  return Math.round(value * 100) / 100
+}
+
+/**
+ * The signed-in official account's resolved wallet rows, in listing order
+ * (the controller appends them CNY-then-USD).
+ * @param accounts - the published all-accounts listing, or null before the first read.
+ * @returns synthetic wallet accounts with `status: 'ok'`, empty when signed out.
+ */
+export function officialAccountRows(accounts: readonly BalanceListEntry[] | null): BalanceAccount[] {
+  const rows: BalanceAccount[] = []
+  for (const entry of accounts ?? []) {
+    const account = entry.account
+    if (account !== undefined && account.vendor === ACCOUNT_VENDOR && account.status === 'ok') rows.push(account)
+  }
+  return rows
+}
+
+/**
  * Map a Platform account balance onto dashboard rows, one per reported currency.
  * @param balance - the `getBalance` value; `null`/absent means signed out or no account.
  * @param now - epoch milliseconds stamped as the observation time.
@@ -157,14 +183,17 @@ export function accountBalanceEntries(
     // account page shows `¥0.00`); a ZERO bonus-only currency is noise (the
     // official UI filters `bonus <= 0` the same way).
     if (!recharge.present && (!bonus.present || bonus.sum === 0)) continue
+    const total = round2(recharge.sum + bonus.sum)
+    const granted = round2(bonus.sum)
+    const toppedUp = round2(recharge.sum)
     const account: BalanceAccount = {
       vendor: ACCOUNT_VENDOR,
       displayName: 'DeepSeek',
       label: '',
       currency,
-      total: recharge.sum + bonus.sum,
-      granted: bonus.sum,
-      toppedUp: recharge.sum,
+      total,
+      granted,
+      toppedUp,
       trend: 'unknown',
       delta: 0,
       updatedAt: now,

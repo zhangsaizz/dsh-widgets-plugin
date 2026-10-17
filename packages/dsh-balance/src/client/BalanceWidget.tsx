@@ -12,7 +12,7 @@ import type {
   InjectFace, PropsLocale, PropsRuntime, PropsStore, TranslateNS,
 } from '@deepseek-ai/dsh-client-ui-slots'
 import type { BalanceAccount, BalanceListEntry, BalanceQueryResult, BalanceTrend } from '../types.ts'
-import { ACCOUNT_VENDOR } from './account-balance.ts'
+import { ACCOUNT_VENDOR, officialAccountRows } from './account-balance.ts'
 import type { BalanceController, BalanceViewState } from './controller.ts'
 import type { CardContainerAvailability } from './container-dock.ts'
 import { MAX_SCALE, MIN_SCALE } from './store.ts'
@@ -80,6 +80,11 @@ function resolvedAccount(view: BalanceViewState): BalanceAccount | null {
   const account = view.result?.account
   if (view.result?.bound === true && account?.status === 'ok') return account
   return null
+}
+
+/** The signed-in official account wallets (0.2.1 synthetic rows), CNY before USD. */
+function officialAccounts(view: BalanceViewState): BalanceAccount[] {
+  return officialAccountRows(view.accounts)
 }
 
 /** Position style for one dock corner (or the free position). The top corners
@@ -275,6 +280,11 @@ export function BalanceWidget(props: BalanceWidgetProps) {
   // silent no-op otherwise (see ./container-dock.ts).
   const cardContainerReady = useCardContainer(available => available)
   const okAccount = resolvedAccount(view)
+  // The signed-in official DeepSeek account (0.2.1) is independent of the
+  // current model provider: surface it in BOTH views (section under the
+  // single-account body, and its own row in the all-accounts list) and use it
+  // as the collapsed pill's value when no provider account resolves.
+  const official = officialAccounts(view)
   // The collapsed pill shows the current account by default, but briefly flips
   // to a CHANGED other provider (multi-account view), then restores.
   const lastAccountsRef = useRef<readonly BalanceListEntry[] | null>(null)
@@ -315,7 +325,9 @@ export function BalanceWidget(props: BalanceWidgetProps) {
     return () => { clearTimeout(timer) }
   }, [highlightEpoch])
 
-  const pillAccount = highlightRef.current !== null ? highlightRef.current.account : okAccount
+  const pillAccount = highlightRef.current !== null
+    ? highlightRef.current.account
+    : (okAccount ?? official[0] ?? null)
   // Header status dot: green when the bound account resolved ok, red on
   // error, neutral while loading / unbound / unconfigured.
   const providerStatus = view.result?.bound && view.result.account !== undefined
@@ -325,11 +337,15 @@ export function BalanceWidget(props: BalanceWidgetProps) {
   // while a highlight is live, else the current session's provider).
   const pillProvider = highlightRef.current !== null ? highlightRef.current.provider : view.provider
   // Multi-account hover tip: every OTHER bound account with a resolved
-  // balance, complementing whatever the pill itself shows.
+  // balance, complementing whatever the pill itself shows. When the pill falls
+  // back to the official account, the wallet rows are already on screen, so
+  // they are not repeated in the tip.
+  const pillIsOfficial = pillAccount?.vendor === ACCOUNT_VENDOR
   const otherAccounts = settings.mode === 'all' && view.accounts !== null
     ? view.accounts.filter(entry =>
         entry.bound && entry.account !== undefined && entry.account.status === 'ok'
-        && entry.provider !== pillProvider)
+        && entry.provider !== pillProvider
+        && !(pillIsOfficial && entry.account.vendor === ACCOUNT_VENDOR))
     : null
   const animated = useAnimatedNumber(pillAccount?.total ?? 0, pillAccount !== null)
   // Model-provider display name once a bound account resolves; the raw route otherwise.
@@ -588,6 +604,17 @@ export function BalanceWidget(props: BalanceWidgetProps) {
               ? <AccountList accounts={view.accounts} currentResult={view.result} t={t} />
               : <BalanceBody view={view} animated={animated} t={t} />}
           </div>
+          {settings.mode === 'current' && official.length > 0 && (
+            <div className={css.official}>
+              <span className={css.officialTitle}>{t('accountVendor')}</span>
+              {official.map(account => (
+                <span key={account.currency} className={css.officialValue}>
+                  {formatAmount(account.total)}
+                  <span className={css.officialCurrency}>{account.currency}</span>
+                </span>
+              ))}
+            </div>
+          )}
           {settings.mode === 'current' && okAccount !== null && (
             <div className={css.footer}>
               <span className={css.delta} data-trend={okAccount.trend}>
@@ -620,8 +647,11 @@ export function BalanceWidget(props: BalanceWidgetProps) {
         >
           {pillAccount !== null ? (
             <>
-              <span className={css.pillLabel}>{pillAccount.displayName}</span>
+              <span className={css.pillLabel}>{accountDisplayName(pillAccount, t)}</span>
               <span className={css.pillAmount} data-trend={pillAccount.trend}>{formatAmount(animated)}</span>
+              {pillAccount.vendor === ACCOUNT_VENDOR
+                ? <span className={css.pillCurrency}>{pillAccount.currency}</span>
+                : null}
               <TrendArrow trend={pillAccount.trend} />
             </>
           ) : headerLabel !== null ? (

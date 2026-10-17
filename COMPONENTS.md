@@ -20,7 +20,7 @@
 | 3 | 余额厂商 Provider ×5 | Host 插件 | `@dsh-plugins/balance` | Host | deepseek / moonshot / openrouter / siliconflow / new-api 五个真实余额查询 |
 | 4 | 不支持厂商占位 ×5 | Host 插件 | `@dsh-plugins/balance` | Host | openai / anthropic / google / xai / mistral 的「无公开余额接口」占位 |
 | 5 | 余额设置 Web 后端 | Host Web 路由 | `@dsh-plugins/balance` | `/_dsh/balance/settings` | 设置页的 GET 快照（脱敏）与 POST 持久化 |
-| 6 | 余额看板挂件 `BalanceWidget` | Web 挂件 | `@dsh-plugins/balance` | `shell.overlay`（order 100） | 浮动余额看板：视口内拖动/角吸附/缩放/折叠过渡、滚动金额、趋势箭头、单/多账户视图（**多账户视图额外并入已登录官方 DeepSeek 账号的钱包行**）；面板/胶囊/悬停提示为**液态玻璃**材质（与彩虹流光输入框同一配方） |
+| 6 | 余额看板挂件 `BalanceWidget` | Web 挂件 | `@dsh-plugins/balance` | `shell.overlay`（order 100） | 浮动余额看板：视口内拖动/角吸附/缩放/折叠过渡、滚动金额、趋势箭头、单/多账户视图（**已登录官方 DeepSeek 账号的钱包行同时出现在单账户视图下方、多账户列表；无 provider 余额时胶囊与卡片也回退显示**）；面板/胶囊/悬停提示为**液态玻璃**材质（与彩虹流光输入框同一配方） |
 | 7 | 余额供应商配置面板 `BalanceSettings` | Web 配置弹窗 | `@dsh-plugins/balance` | `widgets.config`（管理器「配置」弹窗） | 管理插件自身 Config 条目（settings 命名空间 = profile 条目原始 id `balance`）的 `bindings` volatile 字段——用户绑定（provider/vendor/凭据/baseURL） |
 | 8 | `BalanceController` + `useBalance` | 客户端数据层 | `@dsh-plugins/balance` | 注入 hook | 跟随当前 session + model，固定 30s 轮询刷新，暴露 `refresh()`；每轮另经 `remote.account`（延迟绑定，0.2.1）读取官方账号充值 + 赠送钱包，按币种折算成合成行（`account-balance.ts`） |
 | 9 | balance 视图 store | 客户端状态 | `@dsh-plugins/balance` | 注入 store | 缩放 / 吸附 / 折叠视图状态（`createBalanceViewStore`） |
