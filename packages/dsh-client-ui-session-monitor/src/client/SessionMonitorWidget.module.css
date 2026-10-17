@@ -320,6 +320,14 @@
   background: color-mix(in srgb, #9aa0ab 12%, transparent);
 }
 
+/* Harness 0.2.1 `formatStatus === 'migration-required'` chip: amber (a pending
+   maintenance step, not an error), with the hint in the native tooltip. */
+.formatBadge {
+  background: color-mix(in srgb, #f5b544 16%, transparent);
+  color: #f5b544;
+  font-weight: 600;
+}
+
 .status {
   font-size: 11px;
   color: var(--dsw-alias-label-secondary, rgba(232, 234, 240, 0.76));

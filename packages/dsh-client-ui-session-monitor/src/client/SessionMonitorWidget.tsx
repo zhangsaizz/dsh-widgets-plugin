@@ -1839,6 +1839,13 @@ export function SessionMonitorWidget(props: SessionMonitorWidgetProps) {
                       {cwd !== undefined
                         ? <span className={[css.badge, css.cwdBadge].filter(Boolean).join(' ')} title={cwd}>{baseName(cwd)}</span>
                         : null}
+                      {/* Harness 0.2.1 list-row diagnostic: a session whose log
+                          format predates the current one opens by migrating on
+                          first access. The chip explains the extra open no other
+                          row needs; absent `formatStatus` means the row is fine. */}
+                      {row.formatStatus === 'migration-required'
+                        ? <span className={[css.badge, css.formatBadge].filter(Boolean).join(' ')} title={t('formatMigrationHint')}>{t('formatMigration')}</span>
+                        : null}
                       <span className={[css.status, statusCls ?? ''].filter(Boolean).join(' ')}>
                         {statusText}
                       </span>

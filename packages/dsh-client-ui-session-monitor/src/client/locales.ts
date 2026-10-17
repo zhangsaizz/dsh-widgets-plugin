@@ -44,6 +44,8 @@ export type SessionMonitorKey =
   | 'maxTokensTitle'
   | 'maxTokensBody'
   | 'interruptedTitle'
+  | 'formatMigration'
+  | 'formatMigrationHint'
   | 'interruptedBody'
   | 'jump'
   | 'dismiss'
@@ -145,6 +147,8 @@ export const zh: Record<SessionMonitorKey, string> = {
   maxTokensTitle: '超出 token 上限',
   maxTokensBody: '「{title}」达到输出 token 上限',
   interruptedTitle: '已中断',
+  formatMigration: '格式待迁移',
+  formatMigrationHint: '该会话的日志格式需要迁移；打开一次后自动完成',
   interruptedBody: '「{title}」被中断',
   jump: '跳转',
   dismiss: '知道了',
@@ -247,6 +251,8 @@ export const en: Record<SessionMonitorKey, string> = {
   maxTokensTitle: 'Token limit',
   maxTokensBody: '"{title}" hit the output token limit',
   interruptedTitle: 'Interrupted',
+  formatMigration: 'Format migration',
+  formatMigrationHint: 'This session needs a log-format migration; opening it once completes it',
   interruptedBody: '"{title}" was interrupted',
   jump: 'Jump',
   dismiss: 'Got it',
