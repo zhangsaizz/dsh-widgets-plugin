@@ -517,6 +517,15 @@ pack → git diff 干净」。
     `sizeBytes`；实测默认启动 `GET /_dsh/session-monitor/sessions` 立即返回 2 条 cold
     行（title/cwd/`formatStatus:"current"`，修复前为 `[]`），桌面挂件页渲染出冷行与
     `📁` chip、控制台零 error（仅既有 favicon 404）。
+  - **最终全量回归（2026-10-17，隔离实例重启后一次跑完）**：6 条 Host 路由全 200
+    （含 `/widget` 与 `/balance/settings`）；路由门禁 loopback 200 / forged `Host`
+    403 / forged `Origin` 403；主界面 3 个 `[data-widget-id]` + 卡片容器 + 彩虹流光
+    `data-rf-sweep="on"`；会话监控行渲染 cwd chip；token-crit 底栏面板开关
+    0→26→0px；Plugins 页「小组件」tab 列出 5 挂件、深链到 bundle 详情页、卡片容器行
+    配置页可见（列数/清空停靠）；桌面挂件页冷行 + cwd chip 正常；控制台仅既有
+    `/favicon.ico` 404。`pnpm -r pack` 后逐个核对 tarball：7 个包均含 package.json /
+    README 双语对 + i18n yaml / icon.svg / locale 双语 / lib 产物（balance 另含
+    `lib/types` 与 `lib/typert.*`，bundle 含 `cordis.patch.yml`），无缺件。
 - **本机 dsh 必须 ≥ 0.2.1-rc.2**：浏览器端 bundle 的 `require()` 只认两种来源——壳的**种子
   模块表**（staticModules，写在 `packages/client/web/src/seed.ts` 里）和引导图里的插件行。
   0.2.1 的种子表 = 0.1.7/0.2.0 那张 + `zod` + `@tanstack/react-virtual`：
