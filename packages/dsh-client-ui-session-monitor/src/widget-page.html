@@ -465,8 +465,9 @@
     50% { opacity: 0.55; box-shadow: 0 0 0 4px transparent; }
   }
   .rowMain { flex: 1; min-width: 0; }
-  /* Title line: title + project chip. The title keeps its natural width so the
-     chip sits directly after it; an over-long title ellipsises instead. */
+  /* Title line: the title grows to fill rowMain and ellipsises when over-long,
+     so the project chip is pinned to the line's RIGHT end (the row's time sits
+     just outside rowMain, at the far right). */
   .rowHead {
     display: flex;
     align-items: baseline;
@@ -474,7 +475,7 @@
     min-width: 0;
   }
   .rowTitle {
-    flex: 0 1 auto;
+    flex: 1 1 auto;
     min-width: 0;
     font-size: 12.5px;
     font-weight: 500;

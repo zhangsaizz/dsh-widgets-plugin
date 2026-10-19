@@ -288,11 +288,11 @@
   min-width: 0;
 }
 
-/* First line of a row: the title and the project (cwd) chip right after it —
-   nothing else. The activity time deliberately lives on the status line below
-   (as a sibling of the clipped badge strip): with the project chip on this
-   line, a clock here would leave a long title barely a handful of characters
-   before its ellipsis. */
+/* First line of a row: the title (grows, ellipsised when over-long) and the
+   project (cwd) chip pinned to the RIGHT end of the line — the project stays a
+   stable right-aligned column while titles vary in length. The activity time
+   deliberately lives on the status line below (as a sibling of the clipped
+   badge strip) instead of sharing this line. */
 .rowHead {
   display: flex;
   align-items: baseline;
@@ -300,12 +300,11 @@
   min-width: 0;
 }
 
-/* The title does NOT grow: it keeps its natural width so the project chip sits
-   directly after it. An over-long title shrinks against the chip only (the
-   remaining space of the line is left empty, which keeps the chip glued to the
-   end of the title instead of floating to the right edge). */
+/* The title GROWS to fill the line, so the project chip always sits at the
+   right edge (a short title does not pull the chip next to itself); an
+   over-long title shrinks against the chip and ellipsises. */
 .rowTitle {
-  flex: 0 1 auto;
+  flex: 1 1 auto;
   min-width: 0;
   font-size: 12.5px;
   font-weight: 500;
@@ -412,14 +411,15 @@
 }
 
 /* Working-directory (project) chip: the 0.2.1 `workingDirectory` projection,
-   basename only (the full path rides the native title tooltip). It sits on the
-   TITLE line directly after the title (see .rowHead) — the project a session
-   works in reads as part of its name. Neutral grey; capped so one deep basename
-   cannot crowd the title out, and ellipsised inside the chip. The cap scales
-   with the (user-resizable) panel width: 104px at the default 268px width, up
-   to 180px when the panel is widened, so a wide panel also shows more of a deep
-   project name. (The desktop widget page caps the same chip with
-   `min(46%, 180px)` because its row width is fluid.) */
+   basename only (the full path rides the native title tooltip). It sits at the
+   RIGHT end of the title line (after the title in DOM order; the title grows so
+   the chip is always flush right) — a stable project column, visually separate
+   from the title. Neutral grey; capped so one deep basename cannot crowd the
+   title out, and ellipsised inside the chip. The cap scales with the
+   (user-resizable) panel width: 104px at the default 268px width, up to 180px
+   when the panel is widened, so a wide panel also shows more of a deep project
+   name. (The desktop widget page caps the same chip with `min(46%, 180px)`
+   because its row width is fluid.) */
 .cwdBadge {
   display: inline-block;
   box-sizing: border-box;

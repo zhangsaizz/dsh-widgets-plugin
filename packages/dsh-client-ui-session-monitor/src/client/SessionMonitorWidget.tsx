@@ -1920,15 +1920,16 @@ export function SessionMonitorWidget(props: SessionMonitorWidgetProps) {
                   />
                   <div className={css.rowMain}>
                     {/* Title + project chip share the FIRST line, and nothing
-                        else: the chip sits directly after the title and the
-                        title keeps its natural width while it fits (an over-long
-                        title ellipsises against the chip, not against a clock —
-                        the activity time moved down to the status line, where it
-                        is a sibling of the clipped badge strip and stays put). */}
+                        else: the title grows to fill the line and ellipsises
+                        when over-long, so the chip is pinned to the line's RIGHT
+                        end (a stable project column, not glued to the title's
+                        own end). The activity time moved down to the status
+                        line, where it is a sibling of the clipped badge strip and
+                        stays put. */}
                     <div className={css.rowHead}>
                       <div className={css.rowTitle}>{row.displayTitle || row.id}</div>
-                      {/* Project chip (0.2.1 `workingDirectory` projection):
-                          directly AFTER the title — same line. */}
+                      {/* Project chip (0.2.1 `workingDirectory` projection): the
+                          right end of the title line, after the title. */}
                       {cwdBase !== ''
                         ? <span className={[css.badge, css.cwdBadge].filter(Boolean).join(' ')} title={cwd}>{cwdBase}</span>
                         : null}

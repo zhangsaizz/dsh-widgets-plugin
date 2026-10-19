@@ -458,11 +458,11 @@ pack → git diff 干净」。
     `/sessions` 行新增 `cwd`（header 原始项目为底、最新 `cd` 覆盖）；桌面挂件页显示
     `📁 <basename>` chip（tooltip 全路径）；浏览器挂件行从 `row.projectionValues.
     workingDirectory`（wire 投影，与 `goal` 同路径）读同一个 chip，不新增 Host 轮询。
-    **位置：排在会话标题后面**（标题行 = 标题 + chip；桌面挂件页与 Web 浮窗同一位置）。
-    Web 浮窗的标题行因此只留「标题 `flex: 0 1 auto` + chip `flex: none`」，**活动时间
-    移到第二行**、作为徽标条（`.metaStrip`）的兄弟节点排在状态之前：`.metaStrip` 溢出时
-    会跑马灯平移，时间若在条内会被推走；移到条外既保住时间，也让标题不再与时间抢宽度
-    （只与 chip 抢——标题过长时先省略标题）。chip 不再进徽标条（同理会被推走）。
+    **位置：会话标题行最右端**（标题行 = 标题 + chip；桌面挂件页与 Web 浮窗同一位置）。
+    Web 浮窗的标题行因此只留「标题 `flex: 1 1 auto`（撑满、过长省略）+ chip `flex: none`
+    （始终靠右）」，**活动时间移到第二行**、作为徽标条（`.metaStrip`）的兄弟节点排在
+    状态之前：`.metaStrip` 溢出时会跑马灯平移，时间若在条内会被推走；移到条外既保住
+    时间，也让标题不必与时间抢宽度。chip 不再进徽标条（同理会被推走）。
   - **这一批的验收**：`desktop-snapshot` 的折叠用 Node 24 类型擦除直接 import 真模块、
     喂 fake session 事件流断言（`cd` 覆盖 / header 回退 / 当前轮失败计数 / 旧轮失败
     排除 / running 计数）→ PASS；`NotificationStore` 单测 `job-failed` push → schema
