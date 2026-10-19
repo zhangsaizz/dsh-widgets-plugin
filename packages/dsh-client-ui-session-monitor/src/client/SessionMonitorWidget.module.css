@@ -293,7 +293,10 @@
 
 /* Second line of a row: a single, never-wrapping line. The badges sit in
    .metaStrip (clipped, with a marquee when they overflow); the time and status
-   are fixed items AFTER it, so neither can scroll away. */
+   are fixed items AFTER it, so neither can scroll away. `overflow: hidden` is a
+   last-resort guard: the strip (flex-shrink, min-width 0) absorbs all the
+   compression first, and only an unusually long status/time pair could ever
+   overflow this line — clipping it beats a horizontal scrollbar on the list. */
 .rowMeta {
   display: flex;
   align-items: center;
@@ -301,6 +304,7 @@
   margin-top: 3px;
   min-width: 0;
   flex-wrap: nowrap;
+  overflow: hidden;
 }
 
 /* Badge strip: one clipped line. The badges sit on .metaTrack at their natural
@@ -386,10 +390,10 @@
 /* Working-directory (project) chip: the 0.2.1 `workingDirectory` projection,
    basename only (the full path rides the native title tooltip). It sits on the
    TITLE line directly after the title (see .rowHead) — the project a session
-   works in reads as part of its name. Neutral grey; capped in pixels (the panel
-   is a fixed 268px, and a percentage would resolve against the strip, not the
-   row), so one deep basename cannot crowd out the title, and ellipsised inside
-   the chip. */
+   works in reads as part of its name. Neutral grey; capped in PIXELS because
+   the panel is a fixed 268px wide, so one deep basename cannot crowd the title
+   out; ellipsised inside the chip. (The desktop widget page caps the same chip
+   with `min(46%, 180px)` instead, because its row width is fluid.) */
 .cwdBadge {
   display: inline-block;
   box-sizing: border-box;

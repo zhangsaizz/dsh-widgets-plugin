@@ -1318,10 +1318,13 @@ export function SessionMonitorWidget(props: SessionMonitorWidgetProps) {
    * Arm the row badge-strip marquee (see .metaTrack). A strip only slides when
    * its badges are wider than the line — the common row fits — and the shift is
    * a layout fact CSS cannot derive (it depends on the chip widths AND on the
-   * status text beside them), so it is measured from the DOM after render and
-   * published as `--marquee-shift` / `--marquee-duration` on the strip. Only
+   * time + status text beside them), so it is measured from the DOM after render
+   * and published as `--marquee-shift` / `--marquee-duration` on the strip. Only
    * changed values are written, so the 1s `now` re-render costs no style work;
-   * while collapsed there are no rows and this is a no-op.
+   * the measurement itself re-runs every tick because `rows` is rebuilt from
+   * `now` (see the visible-rows memo) — so a wider/narrower time label cannot
+   * leave a stale shift behind. While collapsed there are no rows and this is a
+   * no-op.
    */
   useEffect(() => {
     const root = anchorRef.current
