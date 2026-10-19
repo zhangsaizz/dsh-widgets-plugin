@@ -20,7 +20,7 @@ import { useEffect, useState } from 'react'
 import type { ReactNode } from 'react'
 import type { TranslateNS } from '@deepseek-ai/dsh-client-ui-slots'
 import {
-  DEFAULT_SETTINGS, POS_KEY, SCALE_KEY, SETTINGS_CHANGED_EVENT, loadSettings, saveSettings,
+  DEFAULT_SETTINGS, POS_KEY, SCALE_KEY, SETTINGS_CHANGED_EVENT, WIDTH_KEY, loadSettings, saveSettings,
 } from './settings.ts'
 import type { MonitorSettings } from './settings.ts'
 import { detectEnvironment, supportsAudioChime, supportsSystemNotifications } from './environment.ts'
@@ -285,6 +285,7 @@ export function SessionSettings({ t }: SessionSettingsInjected) {
             try {
               window.localStorage.removeItem(POS_KEY)
               window.localStorage.removeItem(SCALE_KEY)
+              window.localStorage.removeItem(WIDTH_KEY)
               window.dispatchEvent(new CustomEvent(SETTINGS_CHANGED_EVENT))
             } catch { /* storage */ }
             flashReset('pos')

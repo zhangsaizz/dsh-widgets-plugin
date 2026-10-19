@@ -312,15 +312,18 @@ No configuration is needed after mounting:
    executing), and each row carries a **后×N** badge with its background-task
    count.
 2. **Jump** — click any row to switch the app to that session.
-3. **Shrink / zoom** — click the **—** button in the header to collapse the
-   panel into a compact pill (tap the pill to expand it again); drag the
-   bottom-right corner handle to zoom the panel from 0.6× to 1.6×. Both the
-   position and the zoom persist. Position is clamped through
-   `client/overlay-inset.ts`: inside the official Electron desktop (a 40 px
-   caption strip on Windows, the 48 px traffic-light band on macOS) the panel's
-   top edge stops below the shell's window chrome instead of slipping under the
-   caption or the native window buttons; plain web publishes no such band and
-   keeps its previous placement.
+3. **Shrink / zoom / resize** — click the **—** button in the header to collapse
+   the panel into a compact pill (tap the pill to expand it again); drag the
+   bottom-right corner handle to zoom the panel from 0.6× to 1.6×; drag the
+   **bottom-left** width handle to change the panel width (220–720 px; drag left
+   to widen, right to narrow — the right edge stays put, and the project-name
+   chip opens up as the panel widens). Position, zoom and width all persist
+   (`dsh.smon.pos` / `dsh.smon.scale` / `dsh.smon.width`). Position is clamped
+   through `client/overlay-inset.ts`: inside the official Electron desktop (a
+   40 px caption strip on Windows, the 48 px traffic-light band on macOS) the
+   panel's top edge stops below the shell's window chrome instead of slipping
+   under the caption or the native window buttons; plain web publishes no such
+   band and keeps its previous placement.
 4. **Notifications** — when a session finishes a round, a toast appears
    (auto-dismiss or confirm-required per the settings). Click **跳转** to jump,
    **知道了** to dismiss.

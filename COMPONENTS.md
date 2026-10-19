@@ -26,7 +26,7 @@
 | 9 | balance 视图 store | 客户端状态 | `@dsh-plugins/balance` | 注入 store | 缩放 / 吸附 / 折叠视图状态（`createBalanceViewStore`） |
 | 10 | 字典 NS `balance` | 客户端 i18n | `@dsh-plugins/balance` | client locale | zh / en 双语文案 |
 | 11 | Token 暴击挂件 `TokenCritWidget` | Web 挂件 | `@dsh-plugins/client-ui-token-crit` | `shell.overlay`（order 50） | 透明可拖动/缩放的 token 用量计数器 + 暴击动效 + 设置面板；**0.2.1 另注册 `shell.bottom`**（priority 1）底部通栏 `BottomMeter`——当前会话词元总量 + 输入/缓存/输出拆分，默认关、设置面板可开，官方 inspector 占位时自动让位 |
-| 12 | 会话监控看板 `SessionMonitorWidget` | Web 挂件 | `@dsh-plugins/client-ui-session-monitor` | `shell.overlay`（order 90） | 列出运行中/空闲/本轮完成的会话（子代理默认过滤、可配置时间范围默认 1h），完成一轮主动弹提醒（按状态配色：完成/待处理/出错/中止/阻塞/token 上限等，可自动消失或需确认），点击行一键跳转；**任务进度显示**（有任务在执行的会话带动画进度条 + 「第 N 轮 · 正在执行 <工具>」/子代理/后台任务标签，**多种活动并存时颜色与标签轮换**，工具与轮次由 Host 半折叠；**目标模式会话升级为确定进度条**「目标 第 X/Y 轮」，读 `projectionValues.goal` 实时百分比）；**行内 `cwd` chip**（0.2.1 `workingDirectory` 投影，basename + 全路径 tooltip，排在**会话标题后面**）；**行内 `formatStatus` 诊断 chip**（0.2.1：`migration-required` 显示琥珀色「格式待迁移」，tooltip 说明打开即迁移）；**未读 inbox 徽标**（头部 + 收起胶囊，5s 轮询 `/notifications`，点击跳最新未读会话并标记已读）；可收起为胶囊、拖角缩放；面板/胶囊/提醒条为**液态玻璃**材质（与彩虹流光输入框同一配方） |
+| 12 | 会话监控看板 `SessionMonitorWidget` | Web 挂件 | `@dsh-plugins/client-ui-session-monitor` | `shell.overlay`（order 90） | 列出运行中/空闲/本轮完成的会话（子代理默认过滤、可配置时间范围默认 1h），完成一轮主动弹提醒（按状态配色：完成/待处理/出错/中止/阻塞/token 上限等，可自动消失或需确认），点击行一键跳转；**任务进度显示**（有任务在执行的会话带动画进度条 + 「第 N 轮 · 正在执行 <工具>」/子代理/后台任务标签，**多种活动并存时颜色与标签轮换**，工具与轮次由 Host 半折叠；**目标模式会话升级为确定进度条**「目标 第 X/Y 轮」，读 `projectionValues.goal` 实时百分比）；**行内 `cwd` chip**（0.2.1 `workingDirectory` 投影，basename + 全路径 tooltip，排在**会话标题后面**）；**行内 `formatStatus` 诊断 chip**（0.2.1：`migration-required` 显示琥珀色「格式待迁移」，tooltip 说明打开即迁移）；**未读 inbox 徽标**（头部 + 收起胶囊，5s 轮询 `/notifications`，点击跳最新未读会话并标记已读）；可收起为胶囊、拖右下角缩放、**拖左下角调整面板宽度**（`dsh.smon.width`，220–720px，右边缘固定）；面板/胶囊/提醒条为**液态玻璃**材质（与彩虹流光输入框同一配方） |
 | 13 | 会话监控 Host 半 + 状态路由 + 通知 inbox | Host 插件 + Web 路由 | `@dsh-plugins/client-ui-session-monitor` | `/_dsh/session-monitor/status` 等 9 条路由 | 监听 `turn/end` 记录结束原因（completed/aborted/blocked/error/max-tokens/interrupted）+ **`tool/call`→`tool/result` 折叠每会话执行中的工具**（`tools` 表）+ 累计轮次（`rounds` 表）+ **0.2.1 持久 job 事件折叠**（`job/registered` / `job/settled` → 快照行 `jobs { running, failed }`），浏览器半 3s 轮询取回；另把会话事件折叠为**持久化通知 inbox**（审批/回答/计划/出错/阻塞/token 上限/完成一轮/子代理完成/**后台任务失败 `job-failed`** 等，已读状态存 Host，桌面与网页共享） |
 | 14 | 会话监控配置面板 `SessionSettings` | Web 配置弹窗 | `@dsh-plugins/client-ui-session-monitor` | `widgets.config`（管理器「配置」弹窗） | 提醒开关/关闭方式/秒数/音效/提醒范围与列表显示选项 + **「桌面端会话监控」开关**（默认关，打开时经 `dsh-smon://` 拉起桌面应用并开始监控，关闭后桌面挂件暂停），localStorage 持久化；**按环境过滤（组件 31）**：Tauri 挂件专属的三项（该开关 + 桌面 inbox 的「处理后自动已读」「打开时自动全部已读」）只在 **web** 环境渲染（该挂件只与网页版部署 127.0.0.1:3080 通信），官方 Electron 桌面端**整段「桌面」区只留说明文案**（窗口即看板，后台提醒用「浏览器通知」）；`Notification` / WebAudio 缺席时对应的「浏览器通知」「提示音」行整行省略，不留永远打不开的开关 |
 | 15 | 卡片容器 `CardContainerWidget` | Web 挂件 | `@dsh-plugins/client-ui-card-container` | `shell.overlay`（order 20） | 浮动容器面板：**多分组**（顶部分组标签 + ⋯ 管理菜单），托盘列出可停靠挂件，拖入网格即停靠（影子条目隐藏浮窗）、渲染紧凑卡片视图；卡片**实时换位**（ghost 跟随 + 其余让位，拖出网格=移出）、键盘可达（Enter/空格移出、方向键排序）、触屏常显、列数可配、状态持久化；面板/卡片/胶囊/分组菜单为**液态玻璃**材质（与彩虹流光输入框同一配方） |
@@ -601,7 +601,7 @@
   **浏览器通知（含权限状态：已授权 / 被拒 / 待授权）**、提醒当前会话开关、
   显示子代理开关（默认关）、只显示运行中、**时间范围**（全部 / 15m / 30m / 1h /
   3h / 6h / 24h，默认 1h）、显示完成标记、**桌面 inbox 的「处理后自动已读」与
-  「打开时自动全部已读」**；另有重置位置/重置设置。**每一行都先过环境判定（组件 31）**：
+  「打开时自动全部已读」**；另有「重置位置、缩放与宽度」/「重置设置」。**每一行都先过环境判定（组件 31）**：
   桌面三项（「桌面端会话监控」+ 上述两个 inbox 开关）只在 **web** 渲染——Tauri 挂件只连
   网页版部署（127.0.0.1:3080）；**官方 Electron 桌面端**（`official-desktop`）里整段
   「桌面」区只剩一句说明文案（该壳没有第二个进程可拉起，而这三项配置的桌面挂件只连网页版
@@ -612,7 +612,9 @@
   面板此时对时间范围做视觉淡化并提示"关掉后立即生效"，值仍可预配置；列表的
   「已隐藏 N 个更早的会话」提示只统计时间窗口隐藏数，运行中模式下不显示。
 - 面板位置持久化（`dsh.smon.pos`），默认右下角（right 16 / bottom 150），拖拽夹紧
-  视口；缩放持久化（`dsh.smon.scale`，0.6×–1.6×，拖右下角手柄）；头部「—」收起为
+  视口；缩放持久化（`dsh.smon.scale`，0.6×–1.6×，拖右下角手柄）；**宽度持久化
+  （`dsh.smon.width`，220–720px，拖左下角手柄，右边缘固定、向左拖变宽）**——
+  位置/缩放/宽度都由「重置位置、缩放与宽度」一并清除；头部「—」收起为
   胶囊（显示运行中数量），点胶囊展开（tap 检测，拖动不误触）。
 - **视觉**：面板 / 收起胶囊 / 完成提醒条用**液态玻璃**材质——与彩虹流光输入框
   同一配方（165° 半透明白渐变 + `blur(5px) saturate(1.35)` 磨砂 + 1px 边缘反光 +

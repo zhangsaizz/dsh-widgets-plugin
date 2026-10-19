@@ -45,8 +45,9 @@ import type { CardContainerAvailability } from './container-dock.ts'
 import { jobWatchTargets, useWatchedJobRows } from './jobs-bridge.ts'
 import { useArchivedSessions } from './archive-bridge.ts'
 import {
-  MAX_SCALE, MIN_SCALE, POS_KEY, SETTINGS_CHANGED_EVENT, SETTINGS_KEY, clampToViewport, loadDone,
-  loadLastActive, loadPos, loadScale, loadSettings, playChime, saveDone, saveLastActive, savePos, saveScale,
+  MAX_SCALE, MIN_SCALE, POS_KEY, SETTINGS_CHANGED_EVENT,
+  SETTINGS_KEY, clampToViewport, loadDone, loadLastActive, loadPos, loadScale, loadSettings,
+  loadWidth, nextPanelWidth, playChime, saveDone, saveLastActive, savePos, saveScale, saveWidth,
 } from './settings.ts'
 import type { MonitorSettings } from './settings.ts'
 import { overlayTopInset } from './overlay-inset.ts'
@@ -301,14 +302,19 @@ type SyncMessage =
 
 /** Pointer-drag state for the panel. */
 interface DragState {
-  /** 'move' drags the panel; 'resize' drags the bottom-right zoom handle. */
-  mode: 'move' | 'resize'
+  /** 'move' drags the panel; 'resize' drags the bottom-right zoom handle;
+   *  'width' drags the bottom-left width handle. */
+  mode: 'move' | 'resize' | 'width'
   pointerId: number
   startX: number
   startY: number
   originLeft: number
   originTop: number
   startScale: number
+  /** Layout width at drag start (mode 'width'). */
+  startWidth: number
+  /** Panel position at drag start (null = default right/bottom anchor). */
+  startPos: { x: number; y: number } | null
 }
 
 /** Compact relative-time label for a session's updatedAt (uses the ticking `now`). */
@@ -461,6 +467,8 @@ export function SessionMonitorWidget(props: SessionMonitorWidgetProps) {
   const [collapsed, setCollapsed] = useState(false)
   const [pos, setPos] = useState<{ x: number; y: number } | null>(loadPos)
   const [scale, setScale] = useState(loadScale)
+  /** Layout width of the expanded panel (the bottom-left handle drags it). */
+  const [width, setWidth] = useState(loadWidth)
   const [dragging, setDragging] = useState(false)
   const [toasts, setToasts] = useState<Toast[]>([])
   /** Sessions that finished a round since last visited. Persisted (loadDone
@@ -531,10 +539,11 @@ export function SessionMonitorWidget(props: SessionMonitorWidgetProps) {
   const prevIdsRef = useRef<ReadonlySet<string>>(new Set())
   /** Last-observed archive set, so only newly archived sessions are retired. */
   const prevArchivedRef = useRef<ReadonlySet<string>>(archivedIds)
-  /** Latest dragged position / scale, so drag-end can persist them once
+  /** Latest dragged position / scale / width, so drag-end can persist them once
    *  instead of writing localStorage on every pointermove (sync writes jank). */
   const posRef = useRef<{ x: number; y: number } | null>(null)
   const scaleRef = useRef(scale)
+  const widthRef = useRef(width)
   /** Latest current-session id for the return-cleanup listener (below). */
   const currentIdRef = useRef<string | undefined>(currentId)
   /** Previous current-session id for the app-open acknowledgment effect. */
@@ -553,6 +562,7 @@ export function SessionMonitorWidget(props: SessionMonitorWidgetProps) {
   useEffect(() => { settingsRef.current = settings }, [settings])
   useEffect(() => { doneIdsRef.current = doneIds }, [doneIds])
   useEffect(() => { lastActiveRef.current = lastActive }, [lastActive])
+  useEffect(() => { widthRef.current = width }, [width])
   useEffect(() => { currentIdRef.current = currentId })
   // Re-point the flush ref every render: flushPending closes over the latest
   // `t`/settings, so the mount-time poll loop must not hold the first frame's.
@@ -561,7 +571,7 @@ export function SessionMonitorWidget(props: SessionMonitorWidgetProps) {
   // finished rounds (toasts and pending alerts stay in-memory by design).
   useEffect(() => { saveDone(doneIds) }, [doneIds])
 
-  // Re-read settings/position/scale whenever the config panel writes them.
+  // Re-read settings/position/scale/width whenever the config panel writes them.
   useEffect(() => {
     const handler = (): void => {
       const p = loadPos()
@@ -569,6 +579,7 @@ export function SessionMonitorWidget(props: SessionMonitorWidgetProps) {
       setPos(p)
       setSettings(loadSettings())
       setScale(loadScale())
+      setWidth(loadWidth())
     }
     window.addEventListener(SETTINGS_CHANGED_EVENT, handler)
     return () => window.removeEventListener(SETTINGS_CHANGED_EVENT, handler)
@@ -1351,7 +1362,7 @@ export function SessionMonitorWidget(props: SessionMonitorWidgetProps) {
       }
       if (!strip.hasAttribute('data-marquee')) strip.setAttribute('data-marquee', '')
     }
-  }, [rows, collapsed])
+  }, [rows, collapsed, width])
 
   /** Close the live system notification for one session (no-op when none is showing). */
   function closeBrowserNotify(sessionId: string): void {
@@ -1544,7 +1555,7 @@ export function SessionMonitorWidget(props: SessionMonitorWidgetProps) {
     broadcastSync({ type: 'done-cleared-all' })
   }
 
-  function startDrag(e: ReactPointerEvent<HTMLDivElement>, mode: 'move' | 'resize'): void {
+  function startDrag(e: ReactPointerEvent<HTMLDivElement>, mode: 'move' | 'resize' | 'width'): void {
     if (e.button !== 0) return
     const target = e.currentTarget
     try { target.setPointerCapture(e.pointerId) } catch { /* jsdom */ }
@@ -1557,6 +1568,8 @@ export function SessionMonitorWidget(props: SessionMonitorWidgetProps) {
       originLeft: rect.left,
       originTop: rect.top,
       startScale: scale,
+      startWidth: widthRef.current,
+      startPos: posRef.current ?? pos,
     }
     movedRef.current = false
     setDragging(true)
@@ -1573,6 +1586,32 @@ export function SessionMonitorWidget(props: SessionMonitorWidgetProps) {
       const nextScale = Math.min(MAX_SCALE, Math.max(MIN_SCALE, d.startScale + (dx + dy) / 180))
       scaleRef.current = nextScale
       setScale(nextScale)
+      return
+    }
+    if (d.mode === 'width') {
+      if (Math.abs(dx) > 2) movedRef.current = true
+      // Width drag from the BOTTOM-LEFT handle: the panel's right edge stays
+      // put and the left edge follows the pointer, so dragging left widens it.
+      // With the default right/bottom anchor the browser keeps that edge pinned
+      // on its own; an explicit position must be shifted by the width delta
+      // (visual px = layout px × scale). The width is capped so the left edge
+      // cannot leave the viewport.
+      const rightEdge = d.startPos === null
+        ? window.innerWidth - DEFAULT_RIGHT
+        : d.originLeft + d.startWidth * d.startScale
+      const nextWidth = nextPanelWidth({
+        startWidth: d.startWidth,
+        dx,
+        scale: d.startScale,
+        rightEdge,
+      })
+      widthRef.current = nextWidth
+      setWidth(nextWidth)
+      if (d.startPos !== null) {
+        const nextX = Math.max(6, Math.round(rightEdge - nextWidth * d.startScale))
+        posRef.current = { x: nextX, y: d.startPos.y }
+        setPos(posRef.current)
+      }
       return
     }
     if (Math.abs(dx) + Math.abs(dy) > 4) movedRef.current = true
@@ -1603,6 +1642,11 @@ export function SessionMonitorWidget(props: SessionMonitorWidgetProps) {
     // localStorage writes per event were part of the drag jank.
     if (d.mode === 'resize') {
       saveScale(scaleRef.current)
+    } else if (d.mode === 'width') {
+      saveWidth(widthRef.current)
+      // Only an explicit position moved with the width; the default anchor
+      // keeps itself pinned to the right/bottom edge.
+      if (posRef.current) savePos(posRef.current)
     } else if (posRef.current) {
       savePos(posRef.current)
     }
@@ -1661,7 +1705,10 @@ export function SessionMonitorWidget(props: SessionMonitorWidgetProps) {
     )
   } else {
     body = (
-      <div className={[css.panel, dragging ? css.dragging : ''].filter(Boolean).join(' ')}>
+      <div
+        className={[css.panel, dragging ? css.dragging : ''].filter(Boolean).join(' ')}
+        style={{ width }}
+      >
         <div className={css.header} onPointerDown={(e) => startDrag(e, 'move')}>
           <span className={css.titleDot} />
           <span className={css.title}>{t('title')}</span>
@@ -1982,11 +2029,20 @@ export function SessionMonitorWidget(props: SessionMonitorWidgetProps) {
       >
         {body}
         {collapsed ? null : (
-          <div
-            className={css.resize}
-            title={t('resizeHint')}
-            onPointerDown={(e) => startDrag(e, 'resize')}
-          />
+          <>
+            {/* Bottom-left width handle: drag horizontally to resize the panel.
+                The zoom handle stays the bottom-right corner. */}
+            <div
+              className={css.widthHandle}
+              title={t('widthHint')}
+              onPointerDown={(e) => startDrag(e, 'width')}
+            />
+            <div
+              className={css.resize}
+              title={t('resizeHint')}
+              onPointerDown={(e) => startDrag(e, 'resize')}
+            />
+          </>
         )}
       </div>
       {toasts.length > 0

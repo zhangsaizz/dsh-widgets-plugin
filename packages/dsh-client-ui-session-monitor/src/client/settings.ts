@@ -76,6 +76,8 @@ export const SETTINGS_KEY = 'dsh.smon.settings'
 export const POS_KEY = 'dsh.smon.pos'
 /** localStorage key holding the panel zoom scale. */
 export const SCALE_KEY = 'dsh.smon.scale'
+/** localStorage key holding the panel layout width (layout px). */
+export const WIDTH_KEY = 'dsh.smon.width'
 /** Window event dispatched by saveSettings so mounted widgets re-read live. */
 export const SETTINGS_CHANGED_EVENT = 'dsh.smon.settings-changed'
 
@@ -164,6 +166,60 @@ export function saveScale(scale: number): void {
     if (scale === 1) window.localStorage.removeItem(SCALE_KEY)
     else window.localStorage.setItem(SCALE_KEY, String(scale))
   } catch { /* storage unavailable */ }
+}
+
+/** Default / minimum / maximum panel layout width (drag the bottom-left handle). */
+export const DEFAULT_WIDTH = 268
+export const MIN_WIDTH = 220
+export const MAX_WIDTH = 720
+
+/** Read the persisted panel width (layout px, before the zoom scale), clamped. */
+export function loadWidth(): number {
+  try {
+    const v = parseFloat(window.localStorage.getItem(WIDTH_KEY) ?? '')
+    if (Number.isFinite(v)) return Math.min(MAX_WIDTH, Math.max(MIN_WIDTH, Math.round(v)))
+    return DEFAULT_WIDTH
+  } catch {
+    return DEFAULT_WIDTH
+  }
+}
+
+/** Persist the panel width; the default width clears the key. */
+export function saveWidth(width: number): void {
+  try {
+    const value = Math.min(MAX_WIDTH, Math.max(MIN_WIDTH, Math.round(width)))
+    if (value === DEFAULT_WIDTH) window.localStorage.removeItem(WIDTH_KEY)
+    else window.localStorage.setItem(WIDTH_KEY, String(value))
+  } catch { /* storage unavailable */ }
+}
+
+/** One width-handle drag step (pure, so the arithmetic is unit-testable). */
+export interface WidthDragStep {
+  /** Panel width when the drag started (layout px). */
+  startWidth: number
+  /** Horizontal pointer delta in visual px (negative = dragged left). */
+  dx: number
+  /** Zoom scale in effect during the drag (visual px per layout px). */
+  scale: number
+  /** Visual x of the panel's right edge — the edge held fixed while resizing. */
+  rightEdge: number
+  /** Left margin the panel keeps from the viewport edge (default 6). */
+  margin?: number
+}
+
+/**
+ * Next panel width for a width-handle drag: the panel's RIGHT edge stays fixed
+ * and the left edge follows the pointer (drag left = widen), so the width grows
+ * by `-dx / scale`. The result is clamped to MIN_WIDTH..MAX_WIDTH and to the
+ * space left of the right edge, so the left edge can never leave the viewport.
+ * Pure (no DOM) so the drag arithmetic is unit-testable.
+ */
+export function nextPanelWidth(step: WidthDragStep): number {
+  const scale = step.scale > 0 ? step.scale : 1
+  const margin = step.margin ?? 6
+  const available = Math.min(MAX_WIDTH, (step.rightEdge - margin) / scale)
+  const lower = Math.min(MIN_WIDTH, available)
+  return Math.round(Math.min(available, Math.max(lower, step.startWidth - step.dx / scale)))
 }
 
 /**

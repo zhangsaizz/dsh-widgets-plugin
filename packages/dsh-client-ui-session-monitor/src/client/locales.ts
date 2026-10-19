@@ -25,6 +25,7 @@ export type SessionMonitorKey =
   | 'expand'
   | 'dockToContainer'
   | 'resizeHint'
+  | 'widthHint'
   | 'clearDone'
   | 'toastTitle'
   | 'toastBody'
@@ -128,6 +129,7 @@ export const zh: Record<SessionMonitorKey, string> = {
   expand: '点击展开',
   dockToContainer: '放入卡片容器',
   resizeHint: '拖动右下角缩放',
+  widthHint: '拖动调整宽度',
   clearDone: '清除完成标记',
   toastTitle: '会话完成',
   toastBody: '「{title}」已完成第 {round} 轮',
@@ -194,7 +196,7 @@ export const zh: Record<SessionMonitorKey, string> = {
   autoAckOnOpenDesc: '桌面端启动时自动清空待处理通知（默认关：打开即提示是核心价值）',
   inboxBadgeTitle: '{count} 条待处理通知，点击跳转到最新一条并标记已读',
   ackAll: '全部已读',
-  resetPosScale: '重置位置与缩放',
+  resetPosScale: '重置位置、缩放与宽度',
   resetAll: '重置设置',
   sectionNotify: '通知',
   sectionList: '列表显示',
@@ -232,6 +234,7 @@ export const en: Record<SessionMonitorKey, string> = {
   expand: 'Click to expand',
   dockToContainer: 'Dock into card container',
   resizeHint: 'Drag the corner to zoom',
+  widthHint: 'Drag to resize width',
   clearDone: 'Clear done marks',
   toastTitle: 'Session finished',
   toastBody: '"{title}" finished round {round}',
@@ -298,7 +301,7 @@ export const en: Record<SessionMonitorKey, string> = {
   autoAckOnOpenDesc: 'Desktop: clear all pending notifications at startup (off by default — opening the widget should surface them)',
   inboxBadgeTitle: '{count} pending notification(s), click to jump to the newest and mark it read',
   ackAll: 'Mark all read',
-  resetPosScale: 'Reset position & zoom',
+  resetPosScale: 'Reset position, zoom & width',
   resetAll: 'Reset settings',
   sectionNotify: 'Notify',
   sectionList: 'List',
