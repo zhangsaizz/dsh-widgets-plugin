@@ -3,5 +3,5 @@
 # editing either side, bring the other along and re-record with:
 #   git hash-object packages/dsh-client-ui-session-monitor/README.md
 #   git hash-object packages/dsh-client-ui-session-monitor/README.zh.md
-README.md: dff174657280feaab2200969d2623719a5467016
-README.zh.md: 6d85d160333f620b54f68bba8858ded12310c323
+README.md: b68e3e58755196829026256da310b4edf37039db
+README.zh.md: 0a83440c5bf8624405f405a9bd06f37dd790aeae

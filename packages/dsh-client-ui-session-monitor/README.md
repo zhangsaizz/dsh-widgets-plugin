@@ -130,13 +130,17 @@ rounds. Without the host half the widget still works (base notification kinds).
 - **Jump to session**: clicking any row — or a toast's 跳转 button — switches
   the app to that session immediately (`ctx.uiWorkspace.openSession`, the
   Workspace UI service, which must be in the client `inject` list).
-- **Unread inbox badge**: the header and the collapsed pill show how many
-  notifications still need attention (polled every 5 s from `/notifications`;
-  the red badge hides at 0). Clicking it jumps to the newest unread session
-  **and marks that session's records read** (`POST /notifications/ack
-  { sessionId }` — the web equivalent of the desktop inbox's 处理 + auto-read;
-  `done` / `title` / `new-session` records never auto-resolve, so this is how
-  the red dot clears from the web widget). A **✓ button** in the expanded
+- **Red inbox badge (main-session completions only)**: the header and the
+  collapsed pill show the number of **unread `done` records** (a main session
+  finished a round; polled every 5 s from `/notifications`; the badge hides at
+  0). Approvals, questions, errors, subagent completions, title changes … do not
+  count toward the red dot (they still appear in the desktop inbox list).
+  Clicking it jumps to the newest unread completion's session **and marks that
+  session's records read** (`POST /notifications/ack { sessionId }` — the web
+  equivalent of the desktop inbox's 处理 + auto-read; `done` / `title` /
+  `new-session` records never auto-resolve, so this is how the red dot clears
+  from the web widget). A **✓ button** (visible whenever any unread record
+  exists) in the expanded
   panel's header marks **everything** read without navigating (`POST
   /notifications/ack { all: true }`). A failed ack (Host briefly down) is
   retried on the next poll, so the red dot can't get stranded.
@@ -206,8 +210,9 @@ than a session list:
   hides and restarts.
 - **Prioritized**: P0 needs your action (approval / question / plan review /
   error / blocked / token limit) → P1 worth a glance (round done / subagent /
-  aborted / interrupted) → P2 info feed (off by default). An **unread badge**
-  sits in the header and on the tab.
+  aborted / interrupted) → P2 info feed (off by default). The **red dots in the
+  header and on the tab count only main-session completions (`done`)**; other
+  unread records still list below.
 - **Ackable**: 处理 jumps to the session and (by default) acks the WHOLE
   session — every still-unread record under it — while 忽略 acks one; clicking
   a group's red count acks that session's whole group too, and 全部已读 clears
@@ -230,8 +235,9 @@ than a session list:
 - **Desktop shell ergonomics** (the `desktop/dsh-session-desktop` Tauri app):
   the widget boots **to the tray** (the window starts hidden — the tray icon
   is the entry point), a **tray left-click toggles** the window (menu: show /
-  unread count / quit), and the tray tooltip mirrors the inbox unread count.
-  While the window is hidden the page pauses its heavy polls and keeps only a
+  main-session completion count / quit), and the tray tooltip mirrors that
+  completion count (the red dot only counts main-session completions). While
+  the window is hidden the page pauses its heavy polls and keeps only a
   slow `/notifications` poll so the tray badge stays fresh. The window
   position/size are remembered across runs, and launching the exe again just
   brings the existing window back (single instance).

@@ -484,8 +484,11 @@ export function SessionMonitorWidget(props: SessionMonitorWidgetProps) {
    * never age out.
    */
   const [now, setNow] = useState(() => Date.now())
-  /** Unread Host-inbox count (0 = nothing needs attention). */
+  /** Red-dot count: unread MAIN-session completions (`done` records). */
   const [inboxUnread, setInboxUnread] = useState(0)
+  /** Any unread inbox record (all kinds) — keeps the "全部已读" action available
+   *  even when the red dot itself counts only main-session completions. */
+  const [inboxAnyUnread, setInboxAnyUnread] = useState(0)
   /** Currently-executing tool per session (Host-tracked; state so the row
    *  progress labels update when the status poll lands a change). */
   const [tools, setTools] = useState<Readonly<Record<string, CurrentTool>>>({})
@@ -1420,21 +1423,30 @@ export function SessionMonitorWidget(props: SessionMonitorWidgetProps) {
     })
   }
 
-  /** Re-read the inbox snapshot and update the badge count + newest-unread
-   *  target (shared by the poll and the post-ack refresh). */
+  /** Re-read the inbox snapshot and update the red-dot count + newest completion
+   *  target (shared by the poll and the post-ack refresh). The red dot counts
+   *  only unread MAIN-session completions: `done` records are only pushed for
+   *  non-subagent sessions (a subagent's finished turn is a `subagent` record on
+   *  its parent). Other unread kinds stay in the desktop inbox list without
+   *  raising the dot. Counted from the snapshot's `notes`, so no Host change is
+   *  needed; the jump target is the newest unread `done` record's session. */
   function applyInboxSnapshot(body: any): void {
     const value = body && body.ok ? body.value : undefined
     if (!value || typeof value.unread !== 'number' || !Array.isArray(value.notes)) return
-    setInboxUnread((prev) => (prev === value.unread ? prev : value.unread))
+    let redCount = 0
     let newest: string | null = null
-    for (let index = value.notes.length - 1; index >= 0; index--) {
+    for (let index = 0; index < value.notes.length; index++) {
       const note = value.notes[index]
-      if (note && typeof note.sessionId === 'string'
-        && note.ackedAt === undefined && note.resolved !== true) {
-        newest = note.sessionId
-        break
-      }
+      if (!note || typeof note.sessionId !== 'string') continue
+      if (note.ackedAt !== undefined || note.resolved === true) continue
+      if (note.kind !== 'done') continue
+      redCount++
+      // Notes are in insertion order (oldest first): the last unread `done`
+      // record's session is the newest completion.
+      newest = note.sessionId
     }
+    setInboxUnread((prev) => (prev === redCount ? prev : redCount))
+    setInboxAnyUnread((prev) => (prev === value.unread ? prev : value.unread))
     newestUnreadRef.current = newest
   }
 
@@ -1472,13 +1484,14 @@ export function SessionMonitorWidget(props: SessionMonitorWidgetProps) {
   }
 
   /**
-   * Unread-badge click = 处理 (handle): jump to the newest unread session and
-   * mark that session's records read — the web-side equivalent of the desktop
-   * inbox's 处理 + ackOnJump, and the ONLY way the red dot can clear from the
-   * web widget (done/title/new-session records never auto-resolve). The badge
-   * refreshes right AFTER the ack commits server-side, so the red dot drops
-   * without waiting for the next 5s poll. If the ack does not commit (Host
-   * unreachable), the session stays in pendingAckRef and the poll retries it.
+   * Unread-badge click = 处理 (handle): jump to the session of the newest unread
+   * main-session completion and mark that session's records read — the web-side
+   * equivalent of the desktop inbox's 处理 + ackOnJump, and the ONLY way the red
+   * dot can clear from the web widget (done/title/new-session records never
+   * auto-resolve). The badge refreshes right AFTER the ack commits server-side,
+   * so the red dot drops without waiting for the next 5s poll. If the ack does
+   * not commit (Host unreachable), the session stays in pendingAckRef and the
+   * poll retries it.
    */
   function handleInboxBadge(): void {
     const target = newestUnreadRef.current
@@ -1723,7 +1736,7 @@ export function SessionMonitorWidget(props: SessionMonitorWidgetProps) {
               {inboxUnread}
             </button>
           )}
-          {inboxUnread > 0 && (
+          {inboxAnyUnread > 0 && (
             <button
               className={css.ackAllBtn}
               title={t('ackAll')}

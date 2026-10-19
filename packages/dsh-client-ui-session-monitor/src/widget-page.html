@@ -1320,21 +1320,31 @@
     // Newest first.
     visible.reverse()
 
-    var unread = 0
+    var unread = 0        // every unread record (drives 全部已读 + the list groups)
+    var unreadDone = 0    // unread MAIN-session completions — the red-dot count
     var readCount = 0
     for (var j = 0; j < visible.length; j++) {
-      if (isUnread(visible[j])) unread++
-      else readCount++
+      if (isUnread(visible[j])) {
+        unread++
+        if (visible[j].kind === 'done') unreadDone++
+      } else {
+        readCount++
+      }
     }
 
-    // Unread badge (header + tab) + tray mirror (Tauri shell).
-    document.getElementById('unreadBadge').hidden = unread === 0
-    document.getElementById('unreadBadge').textContent = String(unread)
-    document.getElementById('tabInboxBadge').hidden = unread === 0
-    document.getElementById('tabInboxBadge').textContent = String(unread)
+    // The red dots (header, tab, tray mirror) count only MAIN-session
+    // completions: `done` records are only pushed for non-subagent sessions (a
+    // subagent's finished turn is a `subagent` record on its parent). Other
+    // unread kinds stay listed below but do not light the dot.
+    document.getElementById('unreadBadge').hidden = unreadDone === 0
+    document.getElementById('unreadBadge').textContent = String(unreadDone)
+    document.getElementById('unreadBadge').title = '未读的主会话完成数'
+    document.getElementById('tabInboxBadge').hidden = unreadDone === 0
+    document.getElementById('tabInboxBadge').textContent = String(unreadDone)
+    // "全部已读" clears every unread record, not only the counted completions.
     document.getElementById('ackAllBtn').disabled = unread === 0
     document.getElementById('groupBtn').textContent = inboxGrouped ? '平铺' : '分组'
-    updateTrayUnread(unread)
+    updateTrayUnread(unreadDone)
 
     var hides = []
     if (hiddenByLevel > 0) hides.push('已按级别隐藏 ' + hiddenByLevel + ' 条')
@@ -1383,12 +1393,18 @@
       for (var gh = 0; gh < groups.length; gh++) {
         var grp = groups[gh]
         var open = groupOpen[grp.sessionId] !== false
+        // The group's red count follows the red-dot rule: MAIN-session
+        // completions only (the group still lists its other unread records).
+        var doneCount = 0
+        for (var di = 0; di < grp.items.length; di++) {
+          if (grp.items[di].kind === 'done') doneCount++
+        }
         var head = document.createElement('button')
         head.className = 'ngroupHead' + (open ? ' open' : '')
         head.innerHTML =
           '<span class="ngroupChevron">▸</span>' +
           '<span class="gtitle">' + esc(grp.title) + '</span>' +
-          '<span class="ngroupCount">' + grp.items.length + '</span>'
+          (doneCount > 0 ? '<span class="ngroupCount">' + doneCount + '</span>' : '')
         head.addEventListener('click', (function (sid) {
           return function () {
             groupOpen[sid] = !(groupOpen[sid] !== false)
