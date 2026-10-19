@@ -191,7 +191,8 @@ interface InboxNotification {
 ### 7.1 头部
 
 - 标题「待处理」+ **红色未读徽标**（如 `[3]`，0 时隐藏）——**只计主会话回合结束**
-  （`done` + `error`/`blocked`/`max-tokens`/`aborted`/`interrupted`）：
+  （`done` + `error`/`blocked`/`max-tokens`/`aborted`/`interrupted`，且取整个 store、
+  不受级别开关/搜索过滤影响）：
   审批/提问/后台任务失败/子代理完成/标题变更等仍列在列表里但不进红点（分组头的红色计数同口径）；
 - Tab 分段控件：「待处理」|「会话」（会话 Tab = 现有列表原样迁入，含筛选/排序/跳转）；
 - 保留 📌 置顶 / ⚙ 设置 / ✕ 隐藏。

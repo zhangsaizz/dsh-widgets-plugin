@@ -220,8 +220,9 @@ than a session list:
   unread records still list below.
 - **Ackable**: 处理 jumps to the session and (by default) acks the WHOLE
   session — every still-unread record under it — while 忽略 acks one; clicking
-  a group's red count acks that session's whole group too, and 全部已读 clears
-  everything. Acked / resolved records (e.g. an approval that was decided)
+  a group's red count acks that session's whole group too, **a session row in
+  the 会话 tab (or a toast's 跳转) acks that session as well**, and 全部已读
+  clears everything. Acked / resolved records (e.g. an approval that was decided)
   collapse into a "已读 (N)" group. `ackOnJump` (auto-read after handle) and
   `autoAckOnOpen` (auto-read all on open) are shared with the web side through
   the Host store.

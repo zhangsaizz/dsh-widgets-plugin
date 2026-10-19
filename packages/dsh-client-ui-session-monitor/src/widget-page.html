@@ -939,7 +939,8 @@
   // Inbox kinds that raise the red dot: MAIN-session TURN-END records (`done`
   // plus the terminal reasons). Everything else (approval / question /
   // plan-review / job-failed / subagent / title / new-session) stays listed
-  // without lighting the dot.
+  // without lighting the dot. Keep in sync with RED_DOT_KINDS in
+  // SessionMonitorWidget.tsx (this standalone page cannot import it).
   var RED_DOT_KINDS = {
     done: true, error: true, blocked: true, 'max-tokens': true, aborted: true, interrupted: true,
   }
@@ -1020,9 +1021,9 @@
     window.open(url, '_blank')
   }
 
-  /** Mirror the inbox unread count into the Tauri tray (tooltip + menu status
-   *  item); a no-op in a plain browser. Only sends on change — the 2s poll
-   *  would otherwise rewrite the tray every cycle. */
+  /** Mirror the red-dot count (unread MAIN-session turn ends) into the Tauri tray
+   *  (tooltip + menu status item); a no-op in a plain browser. Only sends on
+   *  change — the 2s poll would otherwise rewrite the tray every cycle. */
   function updateTrayUnread(count) {
     if (!tauri) return
     if (count === lastTrayUnread) return
@@ -1328,16 +1329,20 @@
     // Newest first.
     visible.reverse()
 
-    var unread = 0        // every unread record (drives 全部已读 + the list groups)
+    // The red dots / tray / "全部已读" availability count the WHOLE store, not
+    // just the filtered list: a search query or a level toggle must not change
+    // the notification signal (the web widget counts the same way). The list
+    // below (and the read group) still reflects the level/search filters.
+    var unread = 0        // every unread record (drives 全部已读)
     var unreadRed = 0     // unread MAIN-session turn ends — the red-dot count
+    for (var j = 0; j < notes.length; j++) {
+      if (!isUnread(notes[j])) continue
+      unread++
+      if (RED_DOT_KINDS[notes[j].kind]) unreadRed++
+    }
     var readCount = 0
-    for (var j = 0; j < visible.length; j++) {
-      if (isUnread(visible[j])) {
-        unread++
-        if (RED_DOT_KINDS[visible[j].kind]) unreadRed++
-      } else {
-        readCount++
-      }
+    for (var rj = 0; rj < visible.length; rj++) {
+      if (!isUnread(visible[rj])) readCount++
     }
 
     // The red dots (header, tab, tray mirror) count only MAIN-session TURN ENDS:
@@ -1510,6 +1515,9 @@
       if (!read) handleNote(note)
     })
     el.addEventListener('keydown', function (ev) {
+      // Inner 处理/忽略 buttons are focusable; their Enter/Space must not also
+      // trigger the row's handle (which would jump + ack twice).
+      if (ev.target !== el) return
       if (ev.key === 'Enter' || ev.key === ' ') {
         ev.preventDefault()
         if (!read) handleNote(note)
@@ -1539,9 +1547,13 @@
         changed = true
       }
     }
-    if (!changed) return
-    lastInboxSig = null
-    renderInbox()
+    if (changed) {
+      lastInboxSig = null
+      renderInbox()
+    }
+    // Always POST: the snapshot may not contain a record that arrived since the
+    // last poll, and the Host ack by session is idempotent (count 0 when there
+    // is nothing to ack).
     fetchJSON(NOTIFICATIONS_ACK_URL, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -1644,7 +1656,12 @@
         '<button class="jumpBtn">跳转</button>' +
         '<button class="dismissBtn">知道了</button>' +
       '</div>'
-    el.querySelector('.jumpBtn').addEventListener('click', function () { openSession(row.sessionId) })
+    // 跳转 also consumes the session's inbox records (same as the session list
+    // and the 处理 button): the red dot drops for that session immediately.
+    el.querySelector('.jumpBtn').addEventListener('click', function () {
+      ackSession(row.sessionId)
+      openSession(row.sessionId)
+    })
     el.querySelector('.dismissBtn').addEventListener('click', function () { removeToast(el) })
     document.getElementById('toasts').appendChild(el)
 

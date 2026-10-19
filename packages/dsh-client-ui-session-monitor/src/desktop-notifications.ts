@@ -179,8 +179,11 @@ export class NotificationStore {
   }
 
   /**
-   * Append (or refresh) one record. Idempotent by id: an existing record keeps
-   * its acked state and only its title / time / round / resolved flag refresh.
+   * Append (or refresh) one record. Idempotent by id: a REPEAT of the same event
+   * keeps the record's acked state and only refreshes its title / time / round.
+   * A refresh that carries a NEWER event (a later round under the same coalesced
+   * id, e.g. `<sid>:done`) clears the ack: one ack must not silence every future
+   * round of that session.
    * @returns the resulting record, or null when the kind is unknown.
    */
   push(
@@ -194,6 +197,8 @@ export class NotificationStore {
     const id = opts.id ?? `${sessionId}:${kind}:${opts.round ?? `e${at}`}`
     const existing = this.notes.find((note) => note.id === id)
     if (existing !== undefined) {
+      const advanced = (opts.at !== undefined && opts.at > existing.at)
+        || (opts.round !== undefined && (existing.round === undefined || opts.round > existing.round))
       const next: InboxNotification = {
         ...existing,
         title: title || existing.title,
@@ -201,8 +206,28 @@ export class NotificationStore {
         ...(opts.round !== undefined ? { round: opts.round } : {}),
         ...(opts.resolved === true ? { resolved: true } : {}),
       }
-      this.notes = this.notes.map((note) => (note.id === id ? next : note))
-      return next
+      let stored = next
+      if (advanced) {
+        if (existing.ackedAt !== undefined) {
+          // The coalesced record now stands for a NEW event: it must be unread
+          // again (the ack belonged to the previous round), and that state must
+          // be persisted — otherwise a restart would resurrect the old ack.
+          stored = {
+            id: next.id,
+            sessionId: next.sessionId,
+            kind: next.kind,
+            title: next.title,
+            at: next.at,
+            ...(next.round === undefined ? {} : { round: next.round }),
+            ...(next.resolved === true ? { resolved: true } : {}),
+          }
+        }
+        // Persist the refreshed event (round/at/title) either way: the inbox is
+        // host-authoritative and a restart must not show the previous round.
+        this.touch(true)
+      }
+      this.notes = this.notes.map((note) => (note.id === id ? stored : note))
+      return stored
     }
     const note: InboxNotification = {
       id,

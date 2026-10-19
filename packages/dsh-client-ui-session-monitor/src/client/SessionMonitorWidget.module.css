@@ -142,12 +142,20 @@
   box-shadow: 0 0 8px color-mix(in srgb, var(--dsw-alias-state-business-primary, #4f8cff) 45%, transparent);
 }
 
+/* Panel title: shrinks (and ellipsises) when the user narrows the panel, so the
+   header's badges and window buttons always keep their space instead of being
+   clipped by the panel's overflow (MIN_WIDTH 220 with the English title plus the
+   inbox badge + ✓/dock/collapse buttons would otherwise overflow). */
 .title {
-  flex: none;
+  flex: 0 1 auto;
+  min-width: 0;
   font-size: 13px;
   font-weight: 600;
   letter-spacing: 0.02em;
   color: var(--dsw-alias-label-primary, #e8eaf0);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .count {

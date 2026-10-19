@@ -22,9 +22,10 @@
 //!   refused: the command is callable from any page on 127.0.0.1, so a
 //!   compromised or malicious local page must not hand arbitrary URLs to the
 //!   default browser. The widget window itself never navigates away.
-//! - `set_tray_unread` — the widget page reports its inbox unread count; the
-//!   tray tooltip and a menu status item mirror it, so the user sees "3 items
-//!   need attention" without opening the widget window.
+//! - `set_tray_unread` — the widget page reports its red-dot count (unread
+//!   MAIN-session turn ends); the tray tooltip and a menu status item mirror
+//!   it, so the user sees "3 main sessions finished" without opening the
+//!   widget window.
 //!
 //! Remote launch: the shell registers a `dsh-smon://` URL protocol under
 //! HKCU on every start (no installer needed). The web widget's "desktop

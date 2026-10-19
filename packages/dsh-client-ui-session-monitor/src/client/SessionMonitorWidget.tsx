@@ -45,8 +45,8 @@ import type { CardContainerAvailability } from './container-dock.ts'
 import { jobWatchTargets, useWatchedJobRows } from './jobs-bridge.ts'
 import { useArchivedSessions } from './archive-bridge.ts'
 import {
-  MAX_SCALE, MIN_SCALE, POS_KEY, SETTINGS_CHANGED_EVENT,
-  SETTINGS_KEY, clampToViewport, loadDone, loadLastActive, loadPos, loadScale, loadSettings,
+  MAX_SCALE, MIN_SCALE, MIN_WIDTH, POS_KEY, SCALE_KEY, SETTINGS_CHANGED_EVENT,
+  SETTINGS_KEY, WIDTH_KEY, clampToViewport, loadDone, loadLastActive, loadPos, loadScale, loadSettings,
   loadWidth, nextPanelWidth, playChime, saveDone, saveLastActive, savePos, saveScale, saveWidth,
 } from './settings.ts'
 import type { MonitorSettings } from './settings.ts'
@@ -283,7 +283,9 @@ const INBOX_POLL_MS = 5000
  *  a normal completion; the other five are the terminal reasons the Host maps
  *  from `turn/end` (aborted / blocked / error / max-tokens / interrupted).
  *  Non-turn-end records (approval, question, plan-review, job-failed, subagent,
- *  title, new-session) stay in the desktop inbox list without lighting the dot. */
+ *  title, new-session) stay in the desktop inbox list without lighting the dot.
+ *  Keep in sync with `RED_DOT_KINDS` in widget-page.html (the standalone page
+ *  cannot import this module). */
 const RED_DOT_KINDS: ReadonlySet<string> = new Set([
   'done', 'error', 'blocked', 'max-tokens', 'aborted', 'interrupted',
 ])
@@ -318,6 +320,8 @@ interface DragState {
   startY: number
   originLeft: number
   originTop: number
+  /** Visual right edge of the anchor at drag start (width drags keep it fixed). */
+  originRight: number
   startScale: number
   /** Layout width at drag start (mode 'width'). */
   startWidth: number
@@ -477,6 +481,10 @@ export function SessionMonitorWidget(props: SessionMonitorWidgetProps) {
   const [scale, setScale] = useState(loadScale)
   /** Layout width of the expanded panel (the bottom-left handle drags it). */
   const [width, setWidth] = useState(loadWidth)
+  /** Current viewport width: a width persisted on a wide display must be capped
+   *  to the space actually available, or the panel (and its handles) would sit
+   *  off-screen on a narrower window. */
+  const [viewportW, setViewportW] = useState(() => window.innerWidth)
   const [dragging, setDragging] = useState(false)
   const [toasts, setToasts] = useState<Toast[]>([])
   /** Sessions that finished a round since last visited. Persisted (loadDone
@@ -495,7 +503,7 @@ export function SessionMonitorWidget(props: SessionMonitorWidgetProps) {
   /** Red-dot count: unread MAIN-session turn-end records (`RED_DOT_KINDS`). */
   const [inboxUnread, setInboxUnread] = useState(0)
   /** Any unread inbox record (all kinds) — keeps the "全部已读" action available
-   *  even when the red dot itself counts only main-session completions. */
+   *  even when the red dot itself counts only main-session turn ends. */
   const [inboxAnyUnread, setInboxAnyUnread] = useState(0)
   /** Currently-executing tool per session (Host-tracked; state so the row
    *  progress labels update when the status poll lands a change). */
@@ -535,12 +543,12 @@ export function SessionMonitorWidget(props: SessionMonitorWidgetProps) {
   const roundsRef = useRef<Map<string, number>>(new Map())
   /** Last-observed pending-interaction presence per session (appearance edges). */
   const prevInteractionRef = useRef<Map<string, PendingInteractionStatus | undefined>>(new Map())
-  /** Newest unread `done` record's session (the badge click jumps to it). */
+  /** Newest unread turn-end record's session (the badge click jumps to it). */
   const newestUnreadRef = useRef<string | null>(null)
   /** Sessions whose inbox ack we attempted but the Host did not commit; the
    *  poll retries them so a transient Host outage can't strand the red dot on
-   *  a session the user already opened (the ack is otherwise sent only on the
-   *  badge click, whose failure was previously swallowed). */
+   *  a session the user already opened (acks are sent on the badge click, on
+   *  opening a session, and on "全部已读"). */
   const pendingAckRef = useRef<Set<string>>(new Set())
   /** True when a "mark all read" ack did not commit; the poll retries it. */
   const pendingAckAllRef = useRef(false)
@@ -574,6 +582,14 @@ export function SessionMonitorWidget(props: SessionMonitorWidgetProps) {
   useEffect(() => { doneIdsRef.current = doneIds }, [doneIds])
   useEffect(() => { lastActiveRef.current = lastActive }, [lastActive])
   useEffect(() => { widthRef.current = width }, [width])
+  // Track the viewport width so the rendered panel width can be capped to it
+  // (the stored width is kept, so a later wider window restores the user's
+  // choice without another drag).
+  useEffect(() => {
+    const onResize = (): void => setViewportW(window.innerWidth)
+    window.addEventListener('resize', onResize)
+    return () => window.removeEventListener('resize', onResize)
+  }, [])
   useEffect(() => { currentIdRef.current = currentId })
   // Re-point the flush ref every render: flushPending closes over the latest
   // `t`/settings, so the mount-time poll loop must not hold the first frame's.
@@ -633,8 +649,10 @@ export function SessionMonitorWidget(props: SessionMonitorWidgetProps) {
     }
   }, [])
 
-  // Settings saved in another tab (the config panel writes localStorage): the
-  // `storage` event fires only in the other tabs, so re-read there.
+  // Settings / layout saved in another tab (the config panel writes
+  // localStorage): the `storage` event fires only in the other tabs, so re-read
+  // there — position, zoom and width included (a layout change in one tab must
+  // not leave the other one stale).
   useEffect(() => {
     const onStorage = (e: StorageEvent): void => {
       if (e.key === SETTINGS_KEY) setSettings(loadSettings())
@@ -642,7 +660,8 @@ export function SessionMonitorWidget(props: SessionMonitorWidgetProps) {
         const p = loadPos()
         posRef.current = p
         setPos(p)
-      }
+      } else if (e.key === SCALE_KEY) setScale(loadScale())
+      else if (e.key === WIDTH_KEY) setWidth(loadWidth())
     }
     window.addEventListener('storage', onStorage)
     return () => window.removeEventListener('storage', onStorage)
@@ -788,10 +807,12 @@ export function SessionMonitorWidget(props: SessionMonitorWidgetProps) {
   // completion notices are stale: the user is looking at it now. Mirror
   // handleOpen: clear its done mark, toasts, pending alert and any live system
   // notification, and broadcast the acknowledgment so other tabs stop nagging
-  // for it too. The FIRST run is skipped: the mount-time current is not an
-  // "opened" event, and a done mark restored for it after a reload must
-  // survive. While the user is away no app-side switch happens without them,
-  // so nothing fires then — the return-cleanup owns that window.
+  // for it too. The FIRST run is skipped, and so is the first DEFINED current:
+  // the session list may load a frame after the widget, so that transition is a
+  // mount-time restore, not an "opened" event — acking it would silence the
+  // restored session's notifications without a click. While the user is away no
+  // app-side switch happens without them, so nothing fires then — the
+  // return-cleanup owns that window.
   useEffect(() => {
     const prev = prevCurrentRef.current
     const next = currentId
@@ -800,7 +821,7 @@ export function SessionMonitorWidget(props: SessionMonitorWidgetProps) {
       currentFirstRunRef.current = false
       return
     }
-    if (next === undefined || prev === next || isUserAway()) return
+    if (next === undefined || prev === undefined || prev === next || isUserAway()) return
     pendingRef.current.delete(next)
     closeBrowserNotify(next)
     setToasts((ts) => {
@@ -1421,11 +1442,12 @@ export function SessionMonitorWidget(props: SessionMonitorWidgetProps) {
     // A round whose Host reason was still pending must not toast after the
     // session is already open — drop the queued alert.
     pendingRef.current.delete(sessionId)
-    open(sessionId)
     // A completion acknowledged here is acknowledged everywhere (other tabs).
     broadcastSync({ type: 'opened', sessionId })
-    // ...and the same goes for its inbox records (red-dot count).
+    // ...and the same goes for its inbox records (red-dot count). Acked BEFORE
+    // the jump so a throwing open() cannot skip the acknowledgment.
     ackOpenedSession(sessionId)
+    open(sessionId)
   }
 
   /** Mark one session's inbox records read (POST ack; resolves when the Host
@@ -1468,15 +1490,20 @@ export function SessionMonitorWidget(props: SessionMonitorWidgetProps) {
     if (!value || typeof value.unread !== 'number' || !Array.isArray(value.notes)) return
     let redCount = 0
     let newest: string | null = null
+    let newestAt = -Infinity
     for (let index = 0; index < value.notes.length; index++) {
       const note = value.notes[index]
       if (!note || typeof note.sessionId !== 'string') continue
       if (note.ackedAt !== undefined || note.resolved === true) continue
       if (!RED_DOT_KINDS.has(note.kind)) continue
       redCount++
-      // Notes are in insertion order (oldest first): the last unread turn-end
-      // record's session is the newest one.
-      newest = note.sessionId
+      // Newest by EVENT time, not array position: coalesced records (`<sid>:done`)
+      // refresh in place, so a later round can sit before an older record in the
+      // array.
+      if (typeof note.at === 'number' && note.at > newestAt) {
+        newestAt = note.at
+        newest = note.sessionId
+      }
     }
     setInboxUnread((prev) => (prev === redCount ? prev : redCount))
     setInboxAnyUnread((prev) => (prev === value.unread ? prev : value.unread))
@@ -1605,16 +1632,19 @@ export function SessionMonitorWidget(props: SessionMonitorWidgetProps) {
     if (e.button !== 0) return
     const target = e.currentTarget
     try { target.setPointerCapture(e.pointerId) } catch { /* jsdom */ }
-    const rect = anchorRef.current?.getBoundingClientRect() ?? { left: 0, top: 0 }
+    const rect = anchorRef.current?.getBoundingClientRect()
     dragRef.current = {
       mode,
       pointerId: e.pointerId,
       startX: e.clientX,
       startY: e.clientY,
-      originLeft: rect.left,
-      originTop: rect.top,
+      originLeft: rect?.left ?? 0,
+      originTop: rect?.top ?? 0,
+      originRight: rect?.right ?? 0,
       startScale: scale,
-      startWidth: widthRef.current,
+      // The rendered width, not the persisted one: the viewport may have capped
+      // it (see effectiveWidth), and a width drag must start from what is shown.
+      startWidth: rect !== undefined && rect.width > 0 ? rect.width / (scale > 0 ? scale : 1) : widthRef.current,
       startPos: posRef.current ?? pos,
     }
     movedRef.current = false
@@ -1638,13 +1668,10 @@ export function SessionMonitorWidget(props: SessionMonitorWidgetProps) {
       if (Math.abs(dx) > 2) movedRef.current = true
       // Width drag from the BOTTOM-LEFT handle: the panel's right edge stays
       // put and the left edge follows the pointer, so dragging left widens it.
-      // With the default right/bottom anchor the browser keeps that edge pinned
-      // on its own; an explicit position must be shifted by the width delta
-      // (visual px = layout px × scale). The width is capped so the left edge
-      // cannot leave the viewport.
-      const rightEdge = d.startPos === null
-        ? window.innerWidth - DEFAULT_RIGHT
-        : d.originLeft + d.startWidth * d.startScale
+      // The right edge is the anchor's VISUAL right at drag start (captures the
+      // zoom scale and any scrollbar; the default right-anchored panel does not
+      // need its position shifted, an explicit one does).
+      const rightEdge = d.originRight
       const nextWidth = nextPanelWidth({
         startWidth: d.startWidth,
         dx,
@@ -1718,6 +1745,18 @@ export function SessionMonitorWidget(props: SessionMonitorWidgetProps) {
     anchorStyle.bottom = DEFAULT_BOTTOM
   }
 
+  // Rendered width: the stored width capped to the space actually available
+  // (the fixed right edge is at DEFAULT_RIGHT for the default anchor, or at
+  // `pos.x` for an explicitly positioned panel). Derived, not persisted: a
+  // narrower window only compresses the view, and a wider one restores the
+  // user's chosen width without another drag.
+  const widthLimit = Math.max(
+    0,
+    ((pos === null ? viewportW - DEFAULT_RIGHT : viewportW - pos.x) - 6)
+      / (scale > 0 ? scale : 1),
+  )
+  const effectiveWidth = Math.min(Math.max(width, Math.min(MIN_WIDTH, widthLimit)), widthLimit)
+
   let body
   if (collapsed) {
     body = (
@@ -1753,7 +1792,7 @@ export function SessionMonitorWidget(props: SessionMonitorWidgetProps) {
     body = (
       <div
         className={[css.panel, dragging ? css.dragging : ''].filter(Boolean).join(' ')}
-        style={{ width }}
+        style={{ width: effectiveWidth }}
       >
         <div className={css.header} onPointerDown={(e) => startDrag(e, 'move')}>
           <span className={css.titleDot} />
