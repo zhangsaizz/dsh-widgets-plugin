@@ -1314,6 +1314,42 @@ export function SessionMonitorWidget(props: SessionMonitorWidgetProps) {
     return () => window.clearInterval(id)
   }, [rotatingProgressVisible])
 
+  /**
+   * Arm the row badge-strip marquee (see .metaTrack). A strip only slides when
+   * its badges are wider than the line — the common row fits — and the shift is
+   * a layout fact CSS cannot derive (it depends on the chip widths AND on the
+   * status text beside them), so it is measured from the DOM after render and
+   * published as `--marquee-shift` / `--marquee-duration` on the strip. Only
+   * changed values are written, so the 1s `now` re-render costs no style work;
+   * while collapsed there are no rows and this is a no-op.
+   */
+  useEffect(() => {
+    const root = anchorRef.current
+    if (collapsed || root === null) return
+    for (const strip of root.querySelectorAll<HTMLElement>('[data-meta-strip]')) {
+      const track = strip.firstElementChild
+      if (!(track instanceof HTMLElement)) continue
+      const shift = track.offsetWidth - strip.clientWidth
+      if (shift <= 0) {
+        if (strip.hasAttribute('data-marquee')) {
+          strip.removeAttribute('data-marquee')
+          strip.style.removeProperty('--marquee-shift')
+          strip.style.removeProperty('--marquee-duration')
+        }
+        continue
+      }
+      // The travel leg is 38% of the cycle (see @keyframes metaMarquee); ~18px/s
+      // keeps long and short shifts at a comparable reading speed.
+      const duration = Math.min(26, Math.max(8, shift / 6.8))
+      const shiftPx = `${shift}px`
+      if (strip.style.getPropertyValue('--marquee-shift') !== shiftPx) {
+        strip.style.setProperty('--marquee-shift', shiftPx)
+        strip.style.setProperty('--marquee-duration', `${duration.toFixed(1)}s`)
+      }
+      if (!strip.hasAttribute('data-marquee')) strip.setAttribute('data-marquee', '')
+    }
+  }, [rows, collapsed])
+
   /** Close the live system notification for one session (no-op when none is showing). */
   function closeBrowserNotify(sessionId: string): void {
     const inst = notifyInstRef.current.get(sessionId)
@@ -1829,33 +1865,49 @@ export function SessionMonitorWidget(props: SessionMonitorWidgetProps) {
                     ].filter(Boolean).join(' ')}
                   />
                   <div className={css.rowMain}>
-                    <div className={css.rowTitle}>{row.displayTitle || row.id}</div>
-                    <div className={css.rowMeta}>
-                      {row.origin === 'subagent' ? <span className={css.badge}>{t('subagent')}</span> : null}
-                      {isCurrent ? <span className={css.badge}>{t('current')}</span> : null}
-                      {subRunning > 0
-                        ? <span className={[css.badge, css.subBadge].filter(Boolean).join(' ')}>{t('subagentsRunning', { n: String(subRunning) })}</span>
-                        : null}
-                      {jobsRunning > 0
-                        ? <span className={[css.badge, css.jobsBadge].filter(Boolean).join(' ')}>{t('jobsRunning', { n: String(jobsRunning) })}</span>
-                        : null}
-                      {cwdBase !== ''
-                        ? <span className={[css.badge, css.cwdBadge].filter(Boolean).join(' ')} title={cwd}>{cwdBase}</span>
-                        : null}
-                      {/* Harness 0.2.1 list-row diagnostic: a session whose log
-                          format predates the current one opens by migrating on
-                          first access. The chip explains the extra open no other
-                          row needs; absent `formatStatus` means the row is fine. */}
-                      {row.formatStatus === 'migration-required'
-                        ? <span className={[css.badge, css.formatBadge].filter(Boolean).join(' ')} title={t('formatMigrationHint')}>{t('formatMigration')}</span>
-                        : null}
-                      <span className={[css.status, statusCls ?? ''].filter(Boolean).join(' ')}>
-                        {statusText}
-                      </span>
+                    {/* Title + activity time share the FIRST line: the time is
+                        pinned right while the title ellipsises. It deliberately
+                        does NOT live in the meta line below — that line is a
+                        single clipped badge strip (see .metaStrip), so a time
+                        inside it would simply be slid out of view. */}
+                    <div className={css.rowHead}>
+                      <div className={css.rowTitle}>{row.displayTitle || row.id}</div>
                       {/* Activity time: the newer of the host's updatedAt (prompt
                           time) and the widget's last-observed activity, so a busy
                           row whose updatedAt is stale still shows "recent". */}
                       <span className={css.time}>{formatAgo(Math.max(row.updatedAt, lastActive[row.id] ?? 0), now, t)}</span>
+                    </div>
+                    <div className={css.rowMeta}>
+                      {/* One line, never wrapped: the badges sit on a track inside
+                          a clipped strip (a marquee carries the overflow, see
+                          .metaTrack), while the status stays outside it and can
+                          never scroll away. A wrap would cost the row a whole
+                          extra line. */}
+                      <div className={css.metaStrip} data-meta-strip="">
+                        <div className={css.metaTrack}>
+                          {row.origin === 'subagent' ? <span className={css.badge}>{t('subagent')}</span> : null}
+                          {isCurrent ? <span className={css.badge}>{t('current')}</span> : null}
+                          {subRunning > 0
+                            ? <span className={[css.badge, css.subBadge].filter(Boolean).join(' ')}>{t('subagentsRunning', { n: String(subRunning) })}</span>
+                            : null}
+                          {jobsRunning > 0
+                            ? <span className={[css.badge, css.jobsBadge].filter(Boolean).join(' ')}>{t('jobsRunning', { n: String(jobsRunning) })}</span>
+                            : null}
+                          {cwdBase !== ''
+                            ? <span className={[css.badge, css.cwdBadge].filter(Boolean).join(' ')} title={cwd}>{cwdBase}</span>
+                            : null}
+                          {/* Harness 0.2.1 list-row diagnostic: a session whose log
+                              format predates the current one opens by migrating on
+                              first access. The chip explains the extra open no other
+                              row needs; absent `formatStatus` means the row is fine. */}
+                          {row.formatStatus === 'migration-required'
+                            ? <span className={[css.badge, css.formatBadge].filter(Boolean).join(' ')} title={t('formatMigrationHint')}>{t('formatMigration')}</span>
+                            : null}
+                        </div>
+                      </div>
+                      <span className={[css.status, statusCls ?? ''].filter(Boolean).join(' ')}>
+                        {statusText}
+                      </span>
                     </div>
                     {active && progressCls !== undefined
                       ? (

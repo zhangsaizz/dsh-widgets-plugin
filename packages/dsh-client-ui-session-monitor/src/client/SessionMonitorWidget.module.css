@@ -264,7 +264,20 @@
   min-width: 0;
 }
 
+/* First line of a row: the title ellipsises on the left, the activity time is
+   pinned right. The time lives HERE rather than in .rowMeta because that line is
+   a single clipped badge strip (see .metaStrip): a time inside it would either be
+   slid out of view or force the badges to shrink. */
+.rowHead {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  min-width: 0;
+}
+
 .rowTitle {
+  flex: 1 1 auto;
+  min-width: 0;
   font-size: 12.5px;
   font-weight: 500;
   color: var(--dsw-alias-label-primary, #e8eaf0);
@@ -273,12 +286,70 @@
   text-overflow: ellipsis;
 }
 
+/* Second line of a row: a single, never-wrapping line. The badges sit in
+   .metaStrip (clipped, with a marquee when they overflow), the status is a
+   fixed item after it. */
 .rowMeta {
   display: flex;
   align-items: center;
   gap: 6px;
   margin-top: 3px;
-  flex-wrap: wrap;
+  min-width: 0;
+  flex-wrap: nowrap;
+}
+
+/* Badge strip: one clipped line. The badges sit on .metaTrack at their natural
+   width; a strip whose track overflows gets a marquee (armed from the DOM — the
+   hidden width is a layout fact CSS cannot derive). The status is a sibling, so
+   it can never be slid out of view. */
+.metaStrip {
+  display: flex;
+  align-items: center;
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+}
+
+/* Badge track: natural width and never shrunk — the strip clips it instead. */
+.metaTrack {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: none;
+  width: max-content;
+}
+
+/* Marquee ("跑马灯"): ping-pong with a hold at each end. `--marquee-shift` is the
+   hidden width and `--marquee-duration` is scaled per row so every ticker moves
+   at a comparable speed. Only an overflowing strip carries `data-marquee`. */
+.metaStrip[data-marquee] .metaTrack {
+  animation: metaMarquee var(--marquee-duration, 14s) ease-in-out infinite;
+}
+
+/* Hover / keyboard focus pauses the ticker, so the row stays readable (and
+   clickable) instead of dragging the badges under the pointer. `:focus-visible`
+   (not `:focus`) keeps a mouse click from freezing the row for good. */
+.row:hover .metaStrip[data-marquee] .metaTrack,
+.row:focus-visible .metaStrip[data-marquee] .metaTrack {
+  animation-play-state: paused;
+}
+
+@keyframes metaMarquee {
+  0%, 8% { transform: translateX(0); }
+  46%, 54% { transform: translateX(calc(-1 * var(--marquee-shift, 0px))); }
+  92%, 100% { transform: translateX(0); }
+}
+
+/* Reduced motion: no ticker. The strip becomes manually scrollable instead, so
+   the clipped badges are still reachable. */
+@media (prefers-reduced-motion: reduce) {
+  .metaStrip[data-marquee] {
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+  .metaStrip[data-marquee] .metaTrack {
+    animation: none;
+  }
 }
 
 .badge {
@@ -308,12 +379,15 @@
 }
 
 /* Working-directory chip: the 0.2.1 `workingDirectory` projection, basename only
-   (the full path rides the native title tooltip). Neutral grey; capped so a deep
-   path cannot push the status/time out, ellipsised inside the row meta line. */
+   (the full path rides the native title tooltip). Neutral grey; capped in pixels
+   (the panel is a fixed 268px, and a percentage would resolve against the strip,
+   not the row), so one deep basename cannot fill the line, and ellipsised inside
+   the chip. Anything still clipped is reachable by the strip's hover slide. */
 .cwdBadge {
   display: inline-block;
+  box-sizing: border-box;
   min-width: 0;
-  max-width: 40%;
+  max-width: 100px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -328,7 +402,11 @@
   font-weight: 600;
 }
 
+/* Status item after the badge strip: never shrinks and never scrolls, so the
+   row's state (运行中 / 等待输入 / 空闲 …) is always readable even when the strip
+   clips its badges. */
 .status {
+  flex: none;
   font-size: 11px;
   color: var(--dsw-alias-label-secondary, rgba(232, 234, 240, 0.76));
 }
@@ -350,10 +428,12 @@
   color: #b388ff;
 }
 
+/* Activity stamp on the row's title line (see .rowHead): fixed width, never a
+   wrap candidate — long titles ellipsise instead. */
 .time {
+  flex: none;
   font-size: 11px;
   color: var(--dsw-alias-label-tertiary, rgba(232, 234, 240, 0.5));
-  margin-left: auto;
 }
 
 /* Task-execution progress: a thin animated bar under the row title for rows
