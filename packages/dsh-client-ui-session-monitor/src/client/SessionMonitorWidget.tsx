@@ -279,6 +279,14 @@ const INBOX_ROUTE = '/_dsh/session-monitor/notifications'
 const INBOX_ACK_ROUTE = '/_dsh/session-monitor/notifications/ack'
 /** Badge poll cadence — slower than the reasons table, the count is not urgent. */
 const INBOX_POLL_MS = 5000
+/** Inbox kinds that raise the red dot: MAIN-session turn-end records. `done` is
+ *  a normal completion; the other five are the terminal reasons the Host maps
+ *  from `turn/end` (aborted / blocked / error / max-tokens / interrupted).
+ *  Non-turn-end records (approval, question, plan-review, job-failed, subagent,
+ *  title, new-session) stay in the desktop inbox list without lighting the dot. */
+const RED_DOT_KINDS: ReadonlySet<string> = new Set([
+  'done', 'error', 'blocked', 'max-tokens', 'aborted', 'interrupted',
+])
 /** How long each activity kind keeps the progress bar while a row has several
  *  kinds in flight at once (see the rotating-progress logic in the row list). */
 const PROGRESS_ROTATE_MS = 1600
@@ -484,7 +492,7 @@ export function SessionMonitorWidget(props: SessionMonitorWidgetProps) {
    * never age out.
    */
   const [now, setNow] = useState(() => Date.now())
-  /** Red-dot count: unread MAIN-session completions (`done` records). */
+  /** Red-dot count: unread MAIN-session turn-end records (`RED_DOT_KINDS`). */
   const [inboxUnread, setInboxUnread] = useState(0)
   /** Any unread inbox record (all kinds) — keeps the "全部已读" action available
    *  even when the red dot itself counts only main-session completions. */
@@ -1446,13 +1454,15 @@ export function SessionMonitorWidget(props: SessionMonitorWidgetProps) {
     })
   }
 
-  /** Re-read the inbox snapshot and update the red-dot count + newest completion
+  /** Re-read the inbox snapshot and update the red-dot count + newest turn-end
    *  target (shared by the poll and the post-ack refresh). The red dot counts
-   *  only unread MAIN-session completions: `done` records are only pushed for
-   *  non-subagent sessions (a subagent's finished turn is a `subagent` record on
-   *  its parent). Other unread kinds stay in the desktop inbox list without
-   *  raising the dot. Counted from the snapshot's `notes`, so no Host change is
-   *  needed; the jump target is the newest unread `done` record's session. */
+   *  only MAIN-session TURN-END records (`RED_DOT_KINDS`: done + the terminal
+   *  reasons error/blocked/max-tokens/aborted/interrupted); these are only
+   *  pushed for non-subagent sessions (a subagent's finished turn is a
+   *  `subagent` record on its parent). Other unread kinds stay in the desktop
+   *  inbox list without raising the dot. Counted from the snapshot's `notes`, so
+   *  no Host change is needed; the jump target is the newest unread turn-end
+   *  record's session. */
   function applyInboxSnapshot(body: any): void {
     const value = body && body.ok ? body.value : undefined
     if (!value || typeof value.unread !== 'number' || !Array.isArray(value.notes)) return
@@ -1462,10 +1472,10 @@ export function SessionMonitorWidget(props: SessionMonitorWidgetProps) {
       const note = value.notes[index]
       if (!note || typeof note.sessionId !== 'string') continue
       if (note.ackedAt !== undefined || note.resolved === true) continue
-      if (note.kind !== 'done') continue
+      if (!RED_DOT_KINDS.has(note.kind)) continue
       redCount++
-      // Notes are in insertion order (oldest first): the last unread `done`
-      // record's session is the newest completion.
+      // Notes are in insertion order (oldest first): the last unread turn-end
+      // record's session is the newest one.
       newest = note.sessionId
     }
     setInboxUnread((prev) => (prev === redCount ? prev : redCount))
@@ -1508,7 +1518,7 @@ export function SessionMonitorWidget(props: SessionMonitorWidgetProps) {
 
   /**
    * Unread-badge click = 处理 (handle): jump to the session of the newest unread
-   * main-session completion and mark that session's records read — the web-side
+   * main-session turn end and mark that session's records read — the web-side
    * equivalent of the desktop inbox's 处理 + ackOnJump, and the ONLY way the red
    * dot can clear from the web widget (done/title/new-session records never
    * auto-resolve). The badge refreshes right AFTER the ack commits server-side,

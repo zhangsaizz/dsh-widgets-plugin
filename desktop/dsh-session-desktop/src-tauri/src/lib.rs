@@ -104,7 +104,7 @@ fn open_in_browser(url: String) -> Result<(), String> {
     opener::open(&url).map_err(|error| error.to_string())
 }
 
-/// Mirror the widget's red-dot count (unread MAIN-session completions) into the
+/// Mirror the widget's red-dot count (unread MAIN-session turn ends) into the
 /// tray (tooltip + a menu status item). Called by the widget page whenever that
 /// count changes; 0 clears the badge.
 #[tauri::command]
@@ -113,16 +113,16 @@ fn set_tray_unread(app: tauri::AppHandle, count: u32) -> Result<(), String> {
         .tray_by_id("session-monitor-tray")
         .ok_or("tray not found")?;
     let tooltip = if count > 0 {
-        format!("会话监控 · {count} 个主会话完成")
+        format!("会话监控 · {count} 个主会话回合结束")
     } else {
         "会话监控".to_string()
     };
     tray.set_tooltip(Some(tooltip)).map_err(|error| error.to_string())?;
     let state = app.state::<TrayState>();
     let label = if count > 0 {
-        format!("主会话完成：{count}")
+        format!("主会话回合结束：{count}")
     } else {
-        "主会话完成：无".to_string()
+        "主会话回合结束：无".to_string()
     };
     state
         .unread_item
@@ -174,14 +174,14 @@ pub fn run() {
             register_protocol();
             // Tray: left-click toggles the widget (mirrors the in-widget ✕);
             // the first menu item mirrors the red-dot count (unread main-session
-            // completions — the `set_tray_unread` command rewrites its label);
+            // turn ends — the `set_tray_unread` command rewrites its label);
             // the menu also
             // offers a quit action (the close button in the widget only hides
             // the window — no docked taskbar entry).
             use tauri::menu::{Menu, MenuItem};
             use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent};
 
-            let unread = MenuItem::with_id(app, "unread", "主会话完成：无", false, None::<&str>)?;
+            let unread = MenuItem::with_id(app, "unread", "主会话回合结束：无", false, None::<&str>)?;
             let show = MenuItem::with_id(app, "show", "显示挂件", true, None::<&str>)?;
             let quit = MenuItem::with_id(app, "quit", "退出", true, None::<&str>)?;
             let menu = Menu::with_items(app, &[&unread, &show, &quit])?;

@@ -176,7 +176,7 @@ interface InboxNotification {
 
 | 方法 | 路径 | 说明 |
 |---|---|---|
-| GET | `/_dsh/session-monitor/notifications` | 全量快照 `{ seq, unread, notes }`（v1 不做增量；客户端按记录签名 diff；`unread` = 全部未读记录，**红点数字 = 客户端数出的未读 `done`（主会话完成）记录**） |
+| GET | `/_dsh/session-monitor/notifications` | 全量快照 `{ seq, unread, notes }`（v1 不做增量；客户端按记录签名 diff；`unread` = 全部未读记录，**红点数字 = 客户端数出的未读主会话回合结束记录**：`done` + `error`/`blocked`/`max-tokens`/`aborted`/`interrupted`） |
 | POST | `/_dsh/session-monitor/notifications/ack` | body `{ ids?: string[] }` / `{ sessionId?: string }` / `{ all?: true }`，返回 `{ ok, count }` |
 | POST | `/_dsh/session-monitor/events` | 网页端 relay：body `{ sessionId, kind: 'question'\|'plan-review'\|'new-session', state: 'open'\|'closed', title? }`，host 幂等落库（open 时有未决记录则 no-op，closed 时 resolve） |
 | GET | `/_dsh/session-monitor/status` | 不变（原因表仍供 toast 用） |
@@ -190,8 +190,9 @@ interface InboxNotification {
 
 ### 7.1 头部
 
-- 标题「待处理」+ **红色未读徽标**（如 `[3]`，0 时隐藏）——**只计主会话完成（`done`）**：
-  审批/提问/出错/子代理完成/标题变更等仍列在列表里但不进红点（分组头的红色计数同口径）；
+- 标题「待处理」+ **红色未读徽标**（如 `[3]`，0 时隐藏）——**只计主会话回合结束**
+  （`done` + `error`/`blocked`/`max-tokens`/`aborted`/`interrupted`）：
+  审批/提问/后台任务失败/子代理完成/标题变更等仍列在列表里但不进红点（分组头的红色计数同口径）；
 - Tab 分段控件：「待处理」|「会话」（会话 Tab = 现有列表原样迁入，含筛选/排序/跳转）；
 - 保留 📌 置顶 / ⚙ 设置 / ✕ 隐藏。
 
@@ -289,8 +290,9 @@ interface InboxNotification {
    `tool/result` 边沿即等待的生命周期；初稿 §11.1 的纯桌面盲区由此关闭，relay 保留
    幂等备份（双路径经 `pushInteraction` 去重，不会重复入账）。
 8. **网页版落地为「未读徽标」而非完整 inbox**（§11.4）：挂件头部 + 收起胶囊显示
-   **主会话完成（`done`）的未读数**（5s 轮询 `/notifications`，从 `notes` 里数未读
-   `done` 记录），点击跳到最新一条未读完成会话；网页版不做完整
+   **主会话回合结束的未读数**（`done` + 出错/阻塞/Token 上限/中止/中断；5s 轮询
+   `/notifications`，从 `notes` 里数这些未读记录），点击跳到最新一条未读回合结束会话；
+   网页版不做完整
    通知列表（处理面在桌面挂件），已读状态仍 Host 同源共享。
 
 ---
@@ -303,7 +305,8 @@ interface InboxNotification {
 3. **P1 的 `done`（完成一轮）默认是否进 inbox**？高频会话可能刷屏（当前实现：P1 默认开，
    级别开关可关）;
 4. ~~**网页版是否同步加 inbox**~~ —— **已落最小形态**：网页挂件头部与收起胶囊显示
-   **主会话完成（`done`）的未读数**（5s 轮询 `/notifications`，从 `notes` 里数未读
-   `done` 记录，点击跳到最新一条未读完成会话；完整 inbox 不在网页版做——桌面挂件是
+   **主会话回合结束的未读数**（`done` + 出错/阻塞/Token 上限/中止/中断；5s 轮询
+   `/notifications`，从 `notes` 里数这些未读记录，点击跳到最新一条未读回合结束会话；
+   完整 inbox 不在网页版做——桌面挂件是
    处理面）；已读状态仍经 Host 同源共享。
 5. 已读通知保留时长默认 7 天是否合适。

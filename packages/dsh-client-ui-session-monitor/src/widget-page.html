@@ -936,6 +936,14 @@
     'new-session': { label: '新会话',       icon: '＋', color: '#7d93c4', level: 'p2' },
   }
 
+  // Inbox kinds that raise the red dot: MAIN-session TURN-END records (`done`
+  // plus the terminal reasons). Everything else (approval / question /
+  // plan-review / job-failed / subagent / title / new-session) stays listed
+  // without lighting the dot.
+  var RED_DOT_KINDS = {
+    done: true, error: true, blocked: true, 'max-tokens': true, aborted: true, interrupted: true,
+  }
+
   var shared = {}          // effective shared settings (13 fields, from server)
   var inboxLevels = {}     // { p0, p1, p2 } booleans (desktop-local)
   var pollMs = POLL_DEFAULT_MS
@@ -1321,30 +1329,31 @@
     visible.reverse()
 
     var unread = 0        // every unread record (drives 全部已读 + the list groups)
-    var unreadDone = 0    // unread MAIN-session completions — the red-dot count
+    var unreadRed = 0     // unread MAIN-session turn ends — the red-dot count
     var readCount = 0
     for (var j = 0; j < visible.length; j++) {
       if (isUnread(visible[j])) {
         unread++
-        if (visible[j].kind === 'done') unreadDone++
+        if (RED_DOT_KINDS[visible[j].kind]) unreadRed++
       } else {
         readCount++
       }
     }
 
-    // The red dots (header, tab, tray mirror) count only MAIN-session
-    // completions: `done` records are only pushed for non-subagent sessions (a
+    // The red dots (header, tab, tray mirror) count only MAIN-session TURN ENDS:
+    // `done` plus the terminal reasons (error / blocked / max-tokens / aborted /
+    // interrupted). These are only pushed for non-subagent sessions (a
     // subagent's finished turn is a `subagent` record on its parent). Other
     // unread kinds stay listed below but do not light the dot.
-    document.getElementById('unreadBadge').hidden = unreadDone === 0
-    document.getElementById('unreadBadge').textContent = String(unreadDone)
-    document.getElementById('unreadBadge').title = '未读的主会话完成数'
-    document.getElementById('tabInboxBadge').hidden = unreadDone === 0
-    document.getElementById('tabInboxBadge').textContent = String(unreadDone)
-    // "全部已读" clears every unread record, not only the counted completions.
+    document.getElementById('unreadBadge').hidden = unreadRed === 0
+    document.getElementById('unreadBadge').textContent = String(unreadRed)
+    document.getElementById('unreadBadge').title = '未读的主会话回合结束数'
+    document.getElementById('tabInboxBadge').hidden = unreadRed === 0
+    document.getElementById('tabInboxBadge').textContent = String(unreadRed)
+    // "全部已读" clears every unread record, not only the counted turn ends.
     document.getElementById('ackAllBtn').disabled = unread === 0
     document.getElementById('groupBtn').textContent = inboxGrouped ? '平铺' : '分组'
-    updateTrayUnread(unreadDone)
+    updateTrayUnread(unreadRed)
 
     var hides = []
     if (hiddenByLevel > 0) hides.push('已按级别隐藏 ' + hiddenByLevel + ' 条')
@@ -1393,18 +1402,18 @@
       for (var gh = 0; gh < groups.length; gh++) {
         var grp = groups[gh]
         var open = groupOpen[grp.sessionId] !== false
-        // The group's red count follows the red-dot rule: MAIN-session
-        // completions only (the group still lists its other unread records).
-        var doneCount = 0
+        // The group's red count follows the red-dot rule: MAIN-session turn
+        // ends only (the group still lists its other unread records).
+        var redCount = 0
         for (var di = 0; di < grp.items.length; di++) {
-          if (grp.items[di].kind === 'done') doneCount++
+          if (RED_DOT_KINDS[grp.items[di].kind]) redCount++
         }
         var head = document.createElement('button')
         head.className = 'ngroupHead' + (open ? ' open' : '')
         head.innerHTML =
           '<span class="ngroupChevron">▸</span>' +
           '<span class="gtitle">' + esc(grp.title) + '</span>' +
-          (doneCount > 0 ? '<span class="ngroupCount">' + doneCount + '</span>' : '')
+          (redCount > 0 ? '<span class="ngroupCount">' + redCount + '</span>' : '')
         head.addEventListener('click', (function (sid) {
           return function () {
             groupOpen[sid] = !(groupOpen[sid] !== false)
