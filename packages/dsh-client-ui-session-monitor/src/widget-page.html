@@ -431,7 +431,11 @@
     font-weight: 700;
     line-height: 16px;
     text-align: center;
+    /* The per-session unread count is also a one-click "read this session's
+       notifications" action (see the group-head handler). */
+    cursor: pointer;
   }
+  .ngroupCount:hover { filter: brightness(1.15); }
   .ngroupBody { display: flex; flex-direction: column; }
 
   /* ── session rows (original monitor) ────────────────── */
@@ -1392,6 +1396,19 @@
             renderInbox()
           }
         })(grp.sessionId))
+        // The red per-session count is a shortcut: click it to acknowledge the
+        // whole group (all unread records of that session) without collapsing
+        // the list. stopPropagation keeps the head's collapse toggle intact.
+        var countEl = head.querySelector('.ngroupCount')
+        if (countEl) {
+          countEl.title = '已读该会话的全部通知'
+          countEl.addEventListener('click', (function (sid) {
+            return function (ev) {
+              ev.stopPropagation()
+              ackSession(sid)
+            }
+          })(grp.sessionId))
+        }
         list.appendChild(head)
         if (open) {
           var body = document.createElement('div')
@@ -1477,10 +1494,34 @@
     return el
   }
 
-  /** 处理: jump to the session (existing jump queue), then ack per setting. */
+  /** 处理: jump to the session (existing jump queue), then ack per setting.
+   *  Handling ONE notification handles the SESSION: every still-unread record
+   *  under the same session is acknowledged too, so the per-session red count
+   *  and the header badge drop by the whole group at once (its other records are
+   *  the same pending work, not separate chores). */
   function handleNote(note) {
     openSession(note.sessionId)
-    if (shared.ackOnJump !== false) ackNote(note.id)
+    if (shared.ackOnJump !== false) ackSession(note.sessionId)
+  }
+
+  /** Ack every record of one session locally + persist to the Host store. */
+  function ackSession(sessionId) {
+    var now = Date.now()
+    var changed = false
+    for (var i = 0; i < notes.length; i++) {
+      if (notes[i].sessionId === sessionId && !notes[i].ackedAt) {
+        notes[i] = Object.assign({}, notes[i], { ackedAt: now })
+        changed = true
+      }
+    }
+    if (!changed) return
+    lastInboxSig = null
+    renderInbox()
+    fetchJSON(NOTIFICATIONS_ACK_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ sessionId: sessionId }),
+    }).catch(function () {})
   }
 
   /** Ack one record locally + persist to the Host store. */

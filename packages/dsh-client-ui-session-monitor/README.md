@@ -208,11 +208,13 @@ than a session list:
   error / blocked / token limit) → P1 worth a glance (round done / subagent /
   aborted / interrupted) → P2 info feed (off by default). An **unread badge**
   sits in the header and on the tab.
-- **Ackable**: 处理 jumps to the session (auto-acking by default) or 忽略
-  acks one; 全部已读 clears everything. Acked / resolved records (e.g. an
-  approval that was decided) collapse into a "已读 (N)" group. `ackOnJump`
-  (auto-read after handle) and `autoAckOnOpen` (auto-read all on open) are
-  shared with the web side through the Host store.
+- **Ackable**: 处理 jumps to the session and (by default) acks the WHOLE
+  session — every still-unread record under it — while 忽略 acks one; clicking
+  a group's red count acks that session's whole group too, and 全部已读 clears
+  everything. Acked / resolved records (e.g. an approval that was decided)
+  collapse into a "已读 (N)" group. `ackOnJump` (auto-read after handle) and
+  `autoAckOnOpen` (auto-read all on open) are shared with the web side through
+  the Host store.
 - **Blind spot closed (host-detected)**: `question` / `plan-review` never hit
   the session log, but they are always entered through a model tool call — the
   Host watches the `tool/call` → `tool/result` edges of `ask_user_question` and
