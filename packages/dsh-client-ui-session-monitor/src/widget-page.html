@@ -465,7 +465,17 @@
     50% { opacity: 0.55; box-shadow: 0 0 0 4px transparent; }
   }
   .rowMain { flex: 1; min-width: 0; }
+  /* Title line: title + project chip. The title keeps its natural width so the
+     chip sits directly after it; an over-long title ellipsises instead. */
+  .rowHead {
+    display: flex;
+    align-items: baseline;
+    gap: 6px;
+    min-width: 0;
+  }
   .rowTitle {
+    flex: 0 1 auto;
+    min-width: 0;
     font-size: 12.5px;
     font-weight: 500;
     white-space: nowrap;
@@ -498,13 +508,15 @@
     color: #ff9f43;
     font-weight: 600;
   }
-  /* Working directory chip: the newest `working-directory/change` (0.2.1 `cd`)
-     or the header's original project, basename only; the full path is the
-     native tooltip. Capped so a deep path cannot push the badges out. */
+  /* Working-directory (project) chip: the newest `working-directory/change`
+     (0.2.1 `cd`) or the header's original project, basename only; the full
+     path is the native tooltip. It sits on the TITLE line directly after the
+     title (see .rowHead). Capped so one deep basename cannot crowd the title
+     out, and ellipsised inside the chip. */
   .cwdBadge {
     display: inline-block;
     min-width: 0;
-    max-width: 46%;
+    max-width: min(46%, 180px);
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
@@ -1765,10 +1777,15 @@
     var meta = '<span class="status' + statusClass + '">' + esc(statusText) + '</span>'
     if (row.subagents > 0) meta += '<span class="badgeSm subBadge">子×' + row.subagents + '</span>'
     if (row.pending) meta += '<span class="badgeSm pendingBadge">⏳ 待审批</span>'
-    // 0.2.1: effective working directory (basename; full path in the tooltip)
-    // and background-job load from the durable job events.
+    // 0.2.1: the effective working directory (basename; full path in the
+    // tooltip) is the project the session works in. It rides the TITLE line
+    // directly after the title (see the markup below) rather than the badge
+    // strip: the project is the first context a row can name and must not be
+    // pushed out of view by a busy meta line. Background-job load stays here.
     var cwdBase = row.cwd ? baseName(row.cwd) : ''
-    if (cwdBase) meta += '<span class="badgeSm cwdBadge" title="' + esc(row.cwd) + '">📁 ' + esc(cwdBase) + '</span>'
+    var cwdChip = cwdBase
+      ? '<span class="badgeSm cwdBadge" title="' + esc(row.cwd) + '">📁 ' + esc(cwdBase) + '</span>'
+      : ''
     var jobsRunning = row.jobs ? row.jobs.running || 0 : 0
     var jobsFailed = row.jobs ? row.jobs.failed || 0 : 0
     if (jobsRunning > 0) meta += '<span class="badgeSm jobsBadge">后×' + jobsRunning + '</span>'
@@ -1849,7 +1866,10 @@
     el.innerHTML =
       '<span class="dot ' + dotClass + '"></span>' +
       '<div class="rowMain">' +
-        '<div class="rowTitle">' + esc(row.title || '未命名会话') + '</div>' +
+        '<div class="rowHead">' +
+          '<div class="rowTitle">' + esc(row.title || '未命名会话') + '</div>' +
+          cwdChip +
+        '</div>' +
         '<div class="rowMeta">' + meta + '</div>' +
         progress +
       '</div>' +

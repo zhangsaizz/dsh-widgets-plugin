@@ -264,10 +264,11 @@
   min-width: 0;
 }
 
-/* First line of a row: the title ellipsises on the left, the activity time is
-   pinned right. The time lives HERE rather than in .rowMeta because that line is
-   a single clipped badge strip (see .metaStrip): a time inside it would either be
-   slid out of view or force the badges to shrink. */
+/* First line of a row: the title and the project (cwd) chip right after it —
+   nothing else. The activity time deliberately lives on the status line below
+   (as a sibling of the clipped badge strip): with the project chip on this
+   line, a clock here would leave a long title barely a handful of characters
+   before its ellipsis. */
 .rowHead {
   display: flex;
   align-items: baseline;
@@ -275,8 +276,12 @@
   min-width: 0;
 }
 
+/* The title does NOT grow: it keeps its natural width so the project chip sits
+   directly after it. An over-long title shrinks against the chip only (the
+   remaining space of the line is left empty, which keeps the chip glued to the
+   end of the title instead of floating to the right edge). */
 .rowTitle {
-  flex: 1 1 auto;
+  flex: 0 1 auto;
   min-width: 0;
   font-size: 12.5px;
   font-weight: 500;
@@ -287,8 +292,8 @@
 }
 
 /* Second line of a row: a single, never-wrapping line. The badges sit in
-   .metaStrip (clipped, with a marquee when they overflow), the status is a
-   fixed item after it. */
+   .metaStrip (clipped, with a marquee when they overflow); the time and status
+   are fixed items AFTER it, so neither can scroll away. */
 .rowMeta {
   display: flex;
   align-items: center;
@@ -378,16 +383,18 @@
   font-weight: 600;
 }
 
-/* Working-directory chip: the 0.2.1 `workingDirectory` projection, basename only
-   (the full path rides the native title tooltip). Neutral grey; capped in pixels
-   (the panel is a fixed 268px, and a percentage would resolve against the strip,
-   not the row), so one deep basename cannot fill the line, and ellipsised inside
-   the chip. Anything still clipped is reachable by the strip's hover slide. */
+/* Working-directory (project) chip: the 0.2.1 `workingDirectory` projection,
+   basename only (the full path rides the native title tooltip). It sits on the
+   TITLE line directly after the title (see .rowHead) — the project a session
+   works in reads as part of its name. Neutral grey; capped in pixels (the panel
+   is a fixed 268px, and a percentage would resolve against the strip, not the
+   row), so one deep basename cannot crowd out the title, and ellipsised inside
+   the chip. */
 .cwdBadge {
   display: inline-block;
   box-sizing: border-box;
   min-width: 0;
-  max-width: 100px;
+  max-width: 104px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -428,8 +435,9 @@
   color: #b388ff;
 }
 
-/* Activity stamp on the row's title line (see .rowHead): fixed width, never a
-   wrap candidate — long titles ellipsise instead. */
+/* Activity stamp on the row's status line (see .rowMeta): a fixed item after
+   the clipped badge strip, never a wrap candidate. It sits before the status so
+   the state (运行中 / 等待输入 / 空闲 …) keeps the row's right edge. */
 .time {
   flex: none;
   font-size: 11px;

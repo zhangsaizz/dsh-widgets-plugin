@@ -1721,7 +1721,11 @@ export function SessionMonitorWidget(props: SessionMonitorWidgetProps) {
               const subRunning = runningSubagentsByParent.get(row.id) ?? 0
               const jobsRunning = runningJobsBySession.get(row.id) ?? 0
               // 0.2.1: the session's effective working directory (the `cd`
-              // tool), shown as a basename chip; the full path is the tooltip.
+              // tool) is the project the session works in. It rides the TITLE
+              // line as a basename chip right after the title (the full path is
+              // the tooltip), not the badge strip below: the project is the
+              // first context a row can name, and it must not get clipped by a
+              // busy meta line.
               const cwd = workingDirectoryOf(row)
               // A path that is only separators (filesystem root) has no basename;
               // rendering an empty chip would read as a layout glitch, so skip it.
@@ -1865,24 +1869,26 @@ export function SessionMonitorWidget(props: SessionMonitorWidgetProps) {
                     ].filter(Boolean).join(' ')}
                   />
                   <div className={css.rowMain}>
-                    {/* Title + activity time share the FIRST line: the time is
-                        pinned right while the title ellipsises. It deliberately
-                        does NOT live in the meta line below — that line is a
-                        single clipped badge strip (see .metaStrip), so a time
-                        inside it would simply be slid out of view. */}
+                    {/* Title + project chip share the FIRST line, and nothing
+                        else: the chip sits directly after the title and the
+                        title keeps its natural width while it fits (an over-long
+                        title ellipsises against the chip, not against a clock —
+                        the activity time moved down to the status line, where it
+                        is a sibling of the clipped badge strip and stays put). */}
                     <div className={css.rowHead}>
                       <div className={css.rowTitle}>{row.displayTitle || row.id}</div>
-                      {/* Activity time: the newer of the host's updatedAt (prompt
-                          time) and the widget's last-observed activity, so a busy
-                          row whose updatedAt is stale still shows "recent". */}
-                      <span className={css.time}>{formatAgo(Math.max(row.updatedAt, lastActive[row.id] ?? 0), now, t)}</span>
+                      {/* Project chip (0.2.1 `workingDirectory` projection):
+                          directly AFTER the title — same line. */}
+                      {cwdBase !== ''
+                        ? <span className={[css.badge, css.cwdBadge].filter(Boolean).join(' ')} title={cwd}>{cwdBase}</span>
+                        : null}
                     </div>
                     <div className={css.rowMeta}>
                       {/* One line, never wrapped: the badges sit on a track inside
                           a clipped strip (a marquee carries the overflow, see
-                          .metaTrack), while the status stays outside it and can
-                          never scroll away. A wrap would cost the row a whole
-                          extra line. */}
+                          .metaTrack), while the time and status stay outside it
+                          and can never scroll away. A wrap would cost the row a
+                          whole extra line. */}
                       <div className={css.metaStrip} data-meta-strip="">
                         <div className={css.metaTrack}>
                           {row.origin === 'subagent' ? <span className={css.badge}>{t('subagent')}</span> : null}
@@ -1893,9 +1899,6 @@ export function SessionMonitorWidget(props: SessionMonitorWidgetProps) {
                           {jobsRunning > 0
                             ? <span className={[css.badge, css.jobsBadge].filter(Boolean).join(' ')}>{t('jobsRunning', { n: String(jobsRunning) })}</span>
                             : null}
-                          {cwdBase !== ''
-                            ? <span className={[css.badge, css.cwdBadge].filter(Boolean).join(' ')} title={cwd}>{cwdBase}</span>
-                            : null}
                           {/* Harness 0.2.1 list-row diagnostic: a session whose log
                               format predates the current one opens by migrating on
                               first access. The chip explains the extra open no other
@@ -1905,6 +1908,11 @@ export function SessionMonitorWidget(props: SessionMonitorWidgetProps) {
                             : null}
                         </div>
                       </div>
+                      {/* Activity time: the newer of the host's updatedAt (prompt
+                          time) and the widget's last-observed activity, so a busy
+                          row whose updatedAt is stale still shows "recent". It is
+                          a sibling of the strip above (never clipped/scrolled). */}
+                      <span className={css.time}>{formatAgo(Math.max(row.updatedAt, lastActive[row.id] ?? 0), now, t)}</span>
                       <span className={[css.status, statusCls ?? ''].filter(Boolean).join(' ')}>
                         {statusText}
                       </span>
