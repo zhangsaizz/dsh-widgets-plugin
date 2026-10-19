@@ -1932,10 +1932,17 @@
         progress +
       '</div>' +
       '<span class="time">' + esc(relTime(Math.max(row.updatedAt, row.lastActive), now)) + '</span>'
-    el.addEventListener('click', function () { openSession(row.sessionId) })
+    // Actively clicking a session row opens it AND consumes its inbox records
+    // (the red dot drops for that session; idempotent when there is nothing
+    // unread).
+    el.addEventListener('click', function () {
+      ackSession(row.sessionId)
+      openSession(row.sessionId)
+    })
     el.addEventListener('keydown', function (ev) {
       if (ev.key === 'Enter' || ev.key === ' ') {
         ev.preventDefault()
+        ackSession(row.sessionId)
         openSession(row.sessionId)
       }
     })

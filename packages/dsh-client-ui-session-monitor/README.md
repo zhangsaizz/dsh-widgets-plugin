@@ -129,7 +129,9 @@ rounds. Without the host half the widget still works (base notification kinds).
   pending and already-shown reminders are dropped automatically.
 - **Jump to session**: clicking any row — or a toast's 跳转 button — switches
   the app to that session immediately (`ctx.uiWorkspace.openSession`, the
-  Workspace UI service, which must be in the client `inject` list).
+  Workspace UI service, which must be in the client `inject` list), and **acks
+  that session's inbox records** (the red dot drops by its unread `done`
+  records right away, without waiting for the next poll).
 - **Red inbox badge (main-session completions only)**: the header and the
   collapsed pill show the number of **unread `done` records** (a main session
   finished a round; polled every 5 s from `/notifications`; the badge hides at

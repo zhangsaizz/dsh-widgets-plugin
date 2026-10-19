@@ -26,7 +26,7 @@
 | 9 | balance 视图 store | 客户端状态 | `@dsh-plugins/balance` | 注入 store | 缩放 / 吸附 / 折叠视图状态（`createBalanceViewStore`） |
 | 10 | 字典 NS `balance` | 客户端 i18n | `@dsh-plugins/balance` | client locale | zh / en 双语文案 |
 | 11 | Token 暴击挂件 `TokenCritWidget` | Web 挂件 | `@dsh-plugins/client-ui-token-crit` | `shell.overlay`（order 50） | 透明可拖动/缩放的 token 用量计数器 + 暴击动效 + 设置面板；**0.2.1 另注册 `shell.bottom`**（priority 1）底部通栏 `BottomMeter`——当前会话词元总量 + 输入/缓存/输出拆分，默认关、设置面板可开，官方 inspector 占位时自动让位 |
-| 12 | 会话监控看板 `SessionMonitorWidget` | Web 挂件 | `@dsh-plugins/client-ui-session-monitor` | `shell.overlay`（order 90） | 列出运行中/空闲/本轮完成的会话（子代理默认过滤、可配置时间范围默认 1h），完成一轮主动弹提醒（按状态配色：完成/待处理/出错/中止/阻塞/token 上限等，可自动消失或需确认），点击行一键跳转；**任务进度显示**（有任务在执行的会话带动画进度条 + 「第 N 轮 · 正在执行 <工具>」/子代理/后台任务标签，**多种活动并存时颜色与标签轮换**，工具与轮次由 Host 半折叠；**目标模式会话升级为确定进度条**「目标 第 X/Y 轮」，读 `projectionValues.goal` 实时百分比）；**行内 `cwd` chip**（0.2.1 `workingDirectory` 投影，basename + 全路径 tooltip，排在**会话标题后面**）；**行内 `formatStatus` 诊断 chip**（0.2.1：`migration-required` 显示琥珀色「格式待迁移」，tooltip 说明打开即迁移）；**红色 inbox 徽标**（头部 + 收起胶囊，5s 轮询 `/notifications`，**只计主会话完成**——`done` 未读记录，子代理完成/审批/提问等不算红点但仍在待处理列表；点击跳最新完成会话并把**该会话的全部未读已读**）；可收起为胶囊、拖右下角缩放、**拖左下角调整面板宽度**（`dsh.smon.width`，220–720px，右边缘固定）；面板/胶囊/提醒条为**液态玻璃**材质（与彩虹流光输入框同一配方） |
+| 12 | 会话监控看板 `SessionMonitorWidget` | Web 挂件 | `@dsh-plugins/client-ui-session-monitor` | `shell.overlay`（order 90） | 列出运行中/空闲/本轮完成的会话（子代理默认过滤、可配置时间范围默认 1h），完成一轮主动弹提醒（按状态配色：完成/待处理/出错/中止/阻塞/token 上限等，可自动消失或需确认），点击行一键跳转；**任务进度显示**（有任务在执行的会话带动画进度条 + 「第 N 轮 · 正在执行 <工具>」/子代理/后台任务标签，**多种活动并存时颜色与标签轮换**，工具与轮次由 Host 半折叠；**目标模式会话升级为确定进度条**「目标 第 X/Y 轮」，读 `projectionValues.goal` 实时百分比）；**行内 `cwd` chip**（0.2.1 `workingDirectory` 投影，basename + 全路径 tooltip，排在**会话标题后面**）；**行内 `formatStatus` 诊断 chip**（0.2.1：`migration-required` 显示琥珀色「格式待迁移」，tooltip 说明打开即迁移）；**红色 inbox 徽标**（头部 + 收起胶囊，5s 轮询 `/notifications`，**只计主会话完成**——`done` 未读记录，子代理完成/审批/提问等不算红点但仍在待处理列表；点击跳最新完成会话并把**该会话的全部未读已读**；**点击任意会话行也会已读该会话**，红点同步扣减）；可收起为胶囊、拖右下角缩放、**拖左下角调整面板宽度**（`dsh.smon.width`，220–720px，右边缘固定）；面板/胶囊/提醒条为**液态玻璃**材质（与彩虹流光输入框同一配方） |
 | 13 | 会话监控 Host 半 + 状态路由 + 通知 inbox | Host 插件 + Web 路由 | `@dsh-plugins/client-ui-session-monitor` | `/_dsh/session-monitor/status` 等 9 条路由 | 监听 `turn/end` 记录结束原因（completed/aborted/blocked/error/max-tokens/interrupted）+ **`tool/call`→`tool/result` 折叠每会话执行中的工具**（`tools` 表）+ 累计轮次（`rounds` 表）+ **0.2.1 持久 job 事件折叠**（`job/registered` / `job/settled` → 快照行 `jobs { running, failed }`），浏览器半 3s 轮询取回；另把会话事件折叠为**持久化通知 inbox**（审批/回答/计划/出错/阻塞/token 上限/完成一轮/子代理完成/**后台任务失败 `job-failed`** 等，已读状态存 Host，桌面与网页共享） |
 | 14 | 会话监控配置面板 `SessionSettings` | Web 配置弹窗 | `@dsh-plugins/client-ui-session-monitor` | `widgets.config`（管理器「配置」弹窗） | 提醒开关/关闭方式/秒数/音效/提醒范围与列表显示选项 + **「桌面端会话监控」开关**（默认关，打开时经 `dsh-smon://` 拉起桌面应用并开始监控，关闭后桌面挂件暂停），localStorage 持久化；**按环境过滤（组件 31）**：Tauri 挂件专属的三项（该开关 + 桌面 inbox 的「处理后自动已读」「打开时自动全部已读」）只在 **web** 环境渲染（该挂件只与网页版部署 127.0.0.1:3080 通信），官方 Electron 桌面端**整段「桌面」区只留说明文案**（窗口即看板，后台提醒用「浏览器通知」）；`Notification` / WebAudio 缺席时对应的「浏览器通知」「提示音」行整行省略，不留永远打不开的开关 |
 | 15 | 卡片容器 `CardContainerWidget` | Web 挂件 | `@dsh-plugins/client-ui-card-container` | `shell.overlay`（order 20） | 浮动容器面板：**多分组**（顶部分组标签 + ⋯ 管理菜单），托盘列出可停靠挂件，拖入网格即停靠（影子条目隐藏浮窗）、渲染紧凑卡片视图；卡片**实时换位**（ghost 跟随 + 其余让位，拖出网格=移出）、键盘可达（Enter/空格移出、方向键排序）、触屏常显、列数可配、状态持久化；面板/卡片/胶囊/分组菜单为**液态玻璃**材质（与彩虹流光输入框同一配方） |
@@ -451,7 +451,8 @@
     轮次 + 会话标题 + 相对时间，头部与 Tab 的红点**只计主会话完成**（`done`；子代理完成/
     审批/提问/出错等仍列在待处理列表但不进红点，分组头的红色计数同样只计完成）；行点击/「处理」走
     **服务端 jump 队列**跳转并按 `ackOnJump` 自动已读——**按会话整组扣减**（该会话
-    其余未读记录一并已读；分组头的红色计数也可直接点击整组已读），「忽略」单条
+    其余未读记录一并已读；分组头的红色计数也可直接点击整组已读；**「会话」Tab
+    点击会话行同样已读该会话**，红点同步扣减），「忽略」单条
     已读，底部「全部已读」（`POST /notifications/ack`），已读/已解决（「已处理」标签）
     折叠
     进「已读 (N)」区；空态「✓ 没有需要处理的事项」；`autoAckOnOpen` 启动时自动

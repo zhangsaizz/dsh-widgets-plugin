@@ -527,7 +527,7 @@ export function SessionMonitorWidget(props: SessionMonitorWidgetProps) {
   const roundsRef = useRef<Map<string, number>>(new Map())
   /** Last-observed pending-interaction presence per session (appearance edges). */
   const prevInteractionRef = useRef<Map<string, PendingInteractionStatus | undefined>>(new Map())
-  /** Newest unread inbox record's session (badge click jumps to it). */
+  /** Newest unread `done` record's session (the badge click jumps to it). */
   const newestUnreadRef = useRef<string | null>(null)
   /** Sessions whose inbox ack we attempted but the Host did not commit; the
    *  poll retries them so a transient Host outage can't strand the red dot on
@@ -806,6 +806,10 @@ export function SessionMonitorWidget(props: SessionMonitorWidgetProps) {
       return n
     })
     broadcastSync({ type: 'opened', sessionId: next })
+    // Opening a session through the app consumes its inbox records too (the red
+    // dot drops for that session); ackOpenedSession is idempotent, so the
+    // widget's own row click (which also acks) cannot double-count.
+    ackOpenedSession(next)
   }, [currentId])
 
   // Round-completion detection: diff the running bits across snapshots. The
@@ -1382,6 +1386,23 @@ export function SessionMonitorWidget(props: SessionMonitorWidgetProps) {
     } catch { /* channel unavailable */ }
   }
 
+  /**
+   * Opening a session consumes its inbox records too: the user is looking at it
+   * now, so mark that session's unread records read (Host ack) and refresh the
+   * red dot — actively clicking a session therefore decrements its own red-dot
+   * count without waiting for the next poll. Idempotent (and free when the
+   * session has no records: the Host acks nothing).
+   */
+  function ackOpenedSession(sessionId: string): void {
+    // A per-session handle is the user's newest intent: drop any outstanding
+    // "mark all read" ack so it cannot silently clear the rest of the inbox.
+    pendingAckAllRef.current = false
+    pendingAckRef.current.add(sessionId)
+    void flushPendingAck()
+      .then(() => refreshInbox())
+      .catch(() => { /* host absent — the next poll retries */ })
+  }
+
   function handleOpen(sessionId: string): void {
     const next = new Set(doneIdsRef.current)
     next.delete(sessionId)
@@ -1395,6 +1416,8 @@ export function SessionMonitorWidget(props: SessionMonitorWidgetProps) {
     open(sessionId)
     // A completion acknowledged here is acknowledged everywhere (other tabs).
     broadcastSync({ type: 'opened', sessionId })
+    // ...and the same goes for its inbox records (red-dot count).
+    ackOpenedSession(sessionId)
   }
 
   /** Mark one session's inbox records read (POST ack; resolves when the Host
