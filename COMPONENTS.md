@@ -289,7 +289,7 @@
 
 - 包：`@dsh-plugins/dsh-widgets-plugin`（`bundles/dsh-widgets-plugin`）。
 - `dsh.bundle.patch = ./cordis.patch.yml`；依赖 6 个 `workspace:*` 包。
-- `engines.dsh = ">=0.2.1-rc.2 <0.3.0"`：0.2.1 起安装与 profile 启动先读 `engines.dsh`
+- `engines.dsh = ">=0.2.1-rc.3 <0.3.0"`：0.2.1 起安装与 profile 启动先读 `engines.dsh`
   （存在时只由它决定兼容性、`peerDependencies` 被忽略），范围必须覆盖该 bundle 支持的
   全部 DSH 版本；`workspace:` 值在这里非法。
 - 展示/分发元数据：`icon.svg` + `locale/{en,zh}.json`（`meta.title` = 「DSH 小组件集」/
@@ -1146,7 +1146,7 @@ Host 半用 esbuild，浏览器半用 **Vite library mode**（与官方 deepseek
 | 项 | 值 |
 |---|---|
 | 包版本 | 0.1.0（7 包一致） |
-| 官方 API 基线 | `@deepseek-ai/*` **0.2.1-rc.2**（npm `next` dist-tag；peer 范围 `^0.2.1-rc.2`，`@deepseek-ai/cordis` `^4.0.5`、`@deepseek-ai/schemastery` `^3.18.5`、`@deepseek-ai/cordis-plugin-loader` `^1.0.6`、`@deepseek-ai/cosmokit` `^1.8.6`，`zod` 精确 `4.4.3`）。0.2.0 → 0.2.1 的 Host/线协议面与本仓库消费的客户端 API 未变，迁移落在依赖 specifier、`dsh-invariants` 删除、chat-flow 槽锚点/折叠过渡态与 bundle `engines.dsh` 上，详见 AGENTS.md「关键现状与坑」的「0.2.0 → 0.2.1 的 API 迁移」。`dsh-client-runtime` 已退役：`ctx.slots` 改由 `dsh-client-ui-renderer` 提供、store API 在 `dsh-client-store` |
+| 官方 API 基线 | `@deepseek-ai/*` **0.2.1-rc.3**（npm `next` dist-tag；peer 范围 `^0.2.1-rc.3`，`@deepseek-ai/cordis` `^4.0.5`、`@deepseek-ai/schemastery` `^3.18.5`、`@deepseek-ai/cordis-plugin-loader` `^1.0.6`、`@deepseek-ai/cosmokit` `^1.8.6`，`zod` 精确 `4.4.3`）。0.2.0 → 0.2.1 的 Host/线协议面与本仓库消费的客户端 API 未变，迁移落在依赖 specifier、`dsh-invariants` 删除、chat-flow 槽锚点/折叠过渡态与 bundle `engines.dsh` 上；0.2.1-rc.2 → rc.3 为同一元组内的依赖基线升级（Host/线协议/客户端 API 零改动），详见 AGENTS.md「关键现状与坑」的对应小节。`dsh-client-runtime` 已退役：`ctx.slots` 改由 `dsh-client-ui-renderer` 提供、store API 在 `dsh-client-store` |
 | 语言约定 | 根文档中文；包 README 双语对 + `README.i18n.yaml` hash 凭据 |
-| 桌面端基线 | 官方 Electron 桌面端，随包运行时同为 **0.2.1-rc.2**（安装目录 `F:\DeepSeek-Harness-Desktop`，profile `desktop`，默认端口 19387，应用文档来源 `dsh-app://app/`）。bundle 与 `dsh.client` 行与 Web 端完全一致；差异只在安装位置与浮窗顶栏避让（组件 30/31），见 AGENTS.md「DSH 桌面端（Electron）」 |
+| 桌面端基线 | 官方 Electron 桌面端，随包运行时同为 **0.2.1-rc.3**（安装目录 `F:\DeepSeek-Harness-Desktop`，profile `desktop`，默认端口 19387，应用文档来源 `dsh-app://app/`）。bundle 与 `dsh.client` 行与 Web 端完全一致；差异只在安装位置与浮窗顶栏避让（组件 30/31），见 AGENTS.md「DSH 桌面端（Electron）」 |
 | CI | install → build → pack → git diff 干净（ci.yml）；`v*` tag 发布（publish.yml） |

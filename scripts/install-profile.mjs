@@ -39,10 +39,10 @@ const PLUGIN_DIRS = [
   'packages/dsh-client-ui-rainbow-flow',
   'packages/dsh-client-ui-widget-manager',
 ]
-// The browser bundles only load inside a shell that carries the 0.2.0 seed
-// module table; an older `dsh` (the npm global 0.1.5 is still around) fails
-// later with "Failed to load plugins".
-const MIN_DSH_VERSION = '0.2.0-rc.2'
+// The six plugin packages declare `^0.2.1-rc.3` peers and profile row admission
+// reads them, so an older shell is rejected anyway; going below the 0.2.1 seed
+// module table would additionally fail later with "Failed to load plugins".
+const MIN_DSH_VERSION = '0.2.1-rc.3'
 // Mirrors the harness' own profile-name rule (app.asar `resolveProfileDir`).
 const PROFILE_NAME = /^[A-Za-z0-9_.-]+$/
 

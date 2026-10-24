@@ -14,7 +14,7 @@
   "icon": "./icon.svg",
   "license": "MIT",
   "engines": {
-    "dsh": ">=0.2.1-rc.2 <0.3.0"
+    "dsh": ">=0.2.1-rc.3 <0.3.0"
   },
   "repository": {
     "type": "git",
