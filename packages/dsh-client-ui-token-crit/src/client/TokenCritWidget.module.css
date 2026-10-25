@@ -268,13 +268,19 @@
   }
 }
 
+/* Big-crit vignette. The widget owns its lifetime — mounted on a crit and
+   unmounted on animationend (or the JS fallback timer) — and the fade duration
+   comes from the inline `animation-duration` (TokenCritWidget EDGE_FLASH_MS).
+   Base opacity 0 keeps an animation-less mount invisible; the keyframes flare
+   it visible and back out. */
 .edge {
   position: fixed;
   inset: 0;
   z-index: 9998;
   pointer-events: none;
+  opacity: 0;
   background: radial-gradient(ellipse at 50% 50%, transparent 55%, rgba(255, 45, 160, 0.38) 100%);
-  animation: tokencrit-edgeflash 0.5s ease-out forwards;
+  animation: tokencrit-edgeflash ease-out forwards;
 }
 
 @keyframes tokencrit-edgeflash {
@@ -479,9 +485,9 @@
 }
 
 /* Reduce decorative motion for users who opt out (vestibular / battery-saver):
-   the number-pop, crit shake+flash and the full-screen edge flash are the
-   discrete CSS animations — they collapse to a static state. The JS engine's
-   neon flicker / glitch / ambient embers are gated separately via
+   the number-pop and crit shake+flash collapse to no animation, and the
+   full-screen edge flash is not shown at all. The JS engine's neon flicker /
+   glitch / ambient embers are gated separately via
    TokenCritFx.setReducedMotion(), so the core crit feedback (floats + burst)
    still plays. */
 @media (prefers-reduced-motion: reduce) {
@@ -491,7 +497,9 @@
   .burst {
     animation: none;
   }
+  /* Explicit hide on top of the widget's own reduced-motion gate (flashEdge):
+     no full-screen flash for users who opted out. */
   .edge {
-    animation: none;
+    display: none;
   }
 }

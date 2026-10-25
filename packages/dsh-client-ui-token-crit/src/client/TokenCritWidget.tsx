@@ -54,6 +54,16 @@ function clamp(v: number, lo: number, hi: number): number {
   return v < lo ? lo : v > hi ? hi : v
 }
 
+/** Lifetime of the big-crit edge flash (ms). Pushed into the overlay's inline
+ *  `animation-duration` so the CSS fade and the unmount fallback can never
+ *  drift apart. */
+const EDGE_FLASH_MS = 500
+/** Grace before the unconditional unmount. `animationend` is the fast path, but
+ *  while the document is hidden it is deferred, and an animation canceled
+ *  mid-flight (e.g. the reduced-motion `display: none` kicking in) never emits
+ *  it — the overlay must not depend on that event alone. */
+const EDGE_FLASH_FALLBACK_MS = EDGE_FLASH_MS + 150
+
 function selectUsage(s: SessionListState): TokenUsageProjection | undefined {
   const current = currentSessionId(s)
   if (current === undefined) return undefined
@@ -317,6 +327,12 @@ export function TokenCritWidget(props: TokenCritWidgetProps) {
   const batchTotalRef = useRef(0)
   const critTimerRef = useRef<number | null>(null)
   const runTestTimerRef = useRef<number | null>(null)
+  /** Unmount fallback for the transient edge flash (see flashEdge). */
+  const edgeTimerRef = useRef<number | null>(null)
+  /** Monotonic id source for edge flashes: resetting the id after an unmount
+   *  could make a following flash reuse the same key in one commit, letting
+   *  React reuse the node and skip the animation restart. */
+  const edgeSeqRef = useRef(0)
 
   const [pos, setPos] = useState<{ x: number; y: number } | null>(loadPos)
   const [scale, setScale] = useState(loadScale)
@@ -327,7 +343,10 @@ export function TokenCritWidget(props: TokenCritWidgetProps) {
   const [panelPos, setPanelPos] = useState<{ x: number; y: number } | null>(null)
   const [critKey, setCritKey] = useState(0)
   const [combo, setCombo] = useState(0)
-  const [edgeKey, setEdgeKey] = useState(0)
+  /** Id of the currently mounted edge flash (0 = none). Bumped by a big crit;
+   *  the element unmounts when its fade ends, so a finished flash never stays
+   *  in the DOM as a permanent full-screen overlay. */
+  const [edgeFlash, setEdgeFlash] = useState(0)
   /** Viewport size snapshot, bumped by a real resize listener: the two clamp
    *  effects below used to list window.innerWidth/Height in their deps, which
    *  is not reactive — without the listener they only re-ran on other changes. */
@@ -458,6 +477,12 @@ export function TokenCritWidget(props: TokenCritWidgetProps) {
     fxRef.current?.setNeonFx({ ...flickerLevelConfig(flickerLevel), ...glitchLevelConfig(glitchLevel) })
   }, [flickerLevel, glitchLevel])
 
+  // Turning the edge glow off also retires any in-flight flash, so re-enabling
+  // it later cannot replay the tail of the previous one.
+  useEffect(() => {
+    if (!edgeOn) endEdgeFlash()
+  }, [edgeOn])
+
   // The settings panel snaps to the widget: reposition it whenever the widget
   // moves/resizes while open, and clamp to the viewport using the panel's
   // real size (re-run after the panel mounts so its measured height applies).
@@ -540,6 +565,7 @@ export function TokenCritWidget(props: TokenCritWidgetProps) {
     if (comboTimerRef.current !== null) clearTimeout(comboTimerRef.current)
     if (critTimerRef.current !== null) clearTimeout(critTimerRef.current)
     if (runTestTimerRef.current !== null) clearTimeout(runTestTimerRef.current)
+    if (edgeTimerRef.current !== null) clearTimeout(edgeTimerRef.current)
     // Release the shared audio context (autoplay-policy suspended contexts
     // still hold resources until closed).
     if (audioRef.current) {
@@ -574,6 +600,41 @@ export function TokenCritWidget(props: TokenCritWidgetProps) {
     } catch { /* audio unavailable */ }
   }
 
+  /**
+   * Trigger the full-screen big-crit vignette. The overlay is deliberately
+   * short-lived: mounted for one fade and unmounted right after (see
+   * `endEdgeFlash`). Its visibility belongs entirely to that animation — the
+   * element is transparent at rest — so it must never outlive the fade: while
+   * the document is hidden the animation event and the fallback timer are
+   * deferred, and reduced motion disables the effect outright.
+   */
+  function flashEdge(): void {
+    // Decorative-only effect; the reduced-motion preference disables the flash
+    // outright (the CSS also hides it).
+    if (!edgeOn || reducedMotion) return
+    // While the document is hidden, animation events and timers are deferred
+    // and nobody can see the flash — skip it rather than leave the overlay to a
+    // delayed cleanup.
+    if (document.hidden) return
+    edgeSeqRef.current += 1
+    setEdgeFlash(edgeSeqRef.current)
+    if (edgeTimerRef.current !== null) clearTimeout(edgeTimerRef.current)
+    edgeTimerRef.current = window.setTimeout(() => {
+      edgeTimerRef.current = null
+      setEdgeFlash(0)
+    }, EDGE_FLASH_FALLBACK_MS)
+  }
+
+  /** Retire the edge overlay: `animationend` fast path (+ timer fallback). The
+   *  overlay is then unmounted, so no residual full-screen element remains. */
+  function endEdgeFlash(): void {
+    if (edgeTimerRef.current !== null) {
+      clearTimeout(edgeTimerRef.current)
+      edgeTimerRef.current = null
+    }
+    setEdgeFlash(0)
+  }
+
   function spawnPop(kind: 'in' | 'out', delta: number, forceBig = false, baseTotal?: number) {
     const fx = fxRef.current
     if (!fx) return
@@ -592,7 +653,7 @@ export function TokenCritWidget(props: TokenCritWidgetProps) {
     fx.spawnFloat({ kind, delta, hue, size, big, tag })
     fx.spawnBurst(hue, big)
     if (big) {
-      if (edgeOn) setEdgeKey((k) => k + 1)
+      flashEdge()
       if (soundOn) playCritSound()
     }
   }
@@ -1074,7 +1135,17 @@ export function TokenCritWidget(props: TokenCritWidgetProps) {
           </div>
           )
         : null}
-      {edgeKey > 0 && edgeOn ? <div key={'e' + edgeKey} className={css.edge} /> : null}
+      {edgeFlash > 0 && edgeOn
+        ? (
+          <div
+            key={'edge-' + edgeFlash}
+            className={css.edge}
+            aria-hidden="true"
+            style={{ animationDuration: EDGE_FLASH_MS + 'ms' }}
+            onAnimationEnd={endEdgeFlash}
+          />
+          )
+        : null}
     </>
   )
 }
