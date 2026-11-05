@@ -21,7 +21,9 @@ import type { Context, Volatile } from '@deepseek-ai/cordis'
 import type { IncomingMessage, ServerResponse } from 'node:http'
 import z from '@deepseek-ai/schemastery'
 // Type-only: pulls the `webServer` service merge onto Context (dsh-host-webserver).
-import type {} from '@deepseek-ai/dsh-host-webserver'
+// 0.2.2 widened `webServer.register()` to `WebRoute | WebResourceRoute`, so the
+// gate helper names the handler-bearing half instead of `Parameters<…>[0]`.
+import type { WebRoute } from '@deepseek-ai/dsh-host-webserver'
 // Type-only: pulls the host `ctx.settings` (SettingsForms) Context merge.
 import type {} from '@deepseek-ai/dsh-settings'
 // Type-only: pulls the Loader's `Fiber.entry` declaration (the 0.1.7 settings
@@ -717,7 +719,7 @@ export function apply(ctx: Context, config: Config): void {
        * requires. Without this, a public deployment exposes monitor telemetry
        * and the notification inbox through the forwarded `/_dsh/*` paths.
        */
-      const guardedRoute = (route: Parameters<typeof webCtx.webServer.register>[0]): (() => void) =>
+      const guardedRoute = (route: WebRoute): (() => void) =>
         webCtx.webServer.register({
           ...route,
           handler: (req, res) => {

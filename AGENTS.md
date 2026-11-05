@@ -207,14 +207,15 @@ pack → git diff 干净」。
 
 ## 关键现状与坑
 
-- **官方 API 基线**：`@deepseek-ai/*` 依赖为 `^0.2.1-rc.5`（npm **`next`** dist-tag 的当前
-  指向，2026-10-29 发布；root devDeps `dsh-host-webserver` / `dsh-settings` 为精确
-  `0.2.1-rc.5`，`@deepseek-ai/schemastery` 为 `^3.18.5`，`@deepseek-ai/cordis` 为 `^4.0.5`，
-  `@deepseek-ai/cordis-plugin-loader` 为 `^1.0.6`，`@deepseek-ai/cosmokit` 为 `^1.8.6`，
-  `zod` 精确钉 `4.4.3`——这些第三方版本在 rc.3 → rc.5 未变）。升基线一律按 **`next`** 取：
-  0.2.1 起主包的 `next` 已与 `latest` 同为最新 rc（rc.5 时两者都指向 0.2.1-rc.5），但库包的
-  `latest` 仍长期停在 `0.0.1-rc.1` 一类陈旧版本，所以仍**逐个 `npm view <pkg> dist-tags`
-  确认**，不要按 `latest` 拍板。
+- **官方 API 基线**：`@deepseek-ai/*` 依赖为 `^0.2.2-rc.1`（npm **`next`** dist-tag 的当前
+  指向，2026-11-04 发布；root devDeps `dsh-host-webserver` / `dsh-settings` 为精确
+  `0.2.2-rc.1`，`@deepseek-ai/schemastery` 为 `^3.19.0`，`@deepseek-ai/cordis` 为 `^4.1.0`，
+  `@deepseek-ai/cordis-plugin-loader` 为 `^1.1.0`，`@deepseek-ai/cosmokit` 为 `^1.9.0`，
+  `zod` 精确钉 `4.4.3`——0.2.2 只升了 cordis 家族 / schemastery / cosmokit 的 minor 线，
+  `zod` 未变）。升基线一律按 **`next`** 取：0.2.2 起主包与库包的 `next` 都指向最新 rc
+  （0.2.2-rc.1 时主包的 `latest` 也已同步过去），但历史上库包 `latest` 长期停在
+  `0.0.1-rc.1` 一类陈旧版本，所以仍**逐个 `npm view <pkg> dist-tags` 确认**，不要按
+  `latest` 拍板。
   **预发布 semver 陷阱**：跨 `major.minor.patch` 元组的升级（如 `^0.2.0-rc.2` **不满足**
   `0.2.1-rc.2`，prerelease 只匹配元组相同的 comparator）必须把所有 specifier 一起改；
   同一元组内（`^0.2.1-rc.3` 满足 `0.2.1-rc.5`）旧 range 技术上仍能解析，但本仓库仍整体升
@@ -230,11 +231,15 @@ pack → git diff 干净」。
   `cordis-plugin-group@1.0.5` / `cordis-plugin-include@1.0.10` / `cosmokit@1.8.6` /
   `schemastery@3.18.5` / `dsh-api-workspace-controller` / `dsh-working-directory`；
   0.2.1-rc.2 → rc.3 与 rc.3 → rc.5 都是同一元组内的升级，依赖图包集合不变，87 条列表
-  整体改成 `0.2.1-rc.5`，`pnpm install` 没有再追加/删除条目）。
+  整体改成 `0.2.1-rc.5`，`pnpm install` 没有再追加/删除条目；**0.2.1-rc.5 → 0.2.2-rc.1 是
+  跨元组升级（0.2.1 → 0.2.2，prerelease comparator 不跨元组匹配）**，7 个包的 specifier
+  必须一起改，依赖图包集合仍不变，87 条整体改 `0.2.2-rc.1`，6 条第三方白名单改
+  `cordis@4.1.0` / `cosmokit@1.9.0` / `schemastery@3.19.0` / `cordis-plugin-loader@1.1.0` /
+  `cordis-plugin-include@1.1.0` / `cordis-plugin-group@1.1.0`）。
   **升版只改 specifier 会留下「半新」依赖图**：`pnpm install` 会复用 lockfile 里仍满足
   新范围的旧解析，于是直接依赖跳到新 rc、而 `autoInstallPeers` 补进来的传递依赖
-  （`dsh-agent` / `dsh-tools` / `dsh-fs` / `dsh-scope` …）留在旧 rc，新 rc 那批 peer 要求
-  `^0.2.1-rc.5` 就全部落空（`pnpm peers check` 会列一长串 unmet peer）。修法是删掉
+  （`dsh-agent` / `dsh-tools` / `dsh-fs` / `dsh-scope` …）留在旧 rc，新 rc 那批 peer 的要求
+  就全部落空（`pnpm peers check` 会列一长串 unmet peer）。修法是删掉
   `pnpm-lock.yaml` 与 `node_modules/` 重新解析一次（store 已预热时只要十几秒），之后
   `pnpm peers check` 应是 `No peer dependency issues found`。
   **zod 要被钉住**：harness 的 `dsh-session-projection` 精确依赖 `zod@4.4.3`，而
@@ -475,7 +480,7 @@ pack → git diff 干净」。
   - **实测验收（0.2.1-rc.3）**：见「DSH 桌面端（Electron）」§实测验收第 6 条（隔离
     `DSH_HOME` + `--from-default-profile web` 自建 profile，桌面端随包 CLI
     `dsh --version` = 0.2.1-rc.3，Playwright 真实 Chromium）。
-- **0.2.1-rc.3 → 0.2.1-rc.5 的 API 迁移**（本仓库已完成的改造，**当前基线**）：
+- **0.2.1-rc.3 → 0.2.1-rc.5 的 API 迁移**（本仓库已完成的改造，历史基线）：
   逐包下载 npm tarball 比对（81 个 `@deepseek-ai/*` × rc.3/rc.5 = 162 个 tarball：76 个依赖
   图包 + `dsh-client-web` + `dsh` 主包 + 3 个点名补比的包 `dsh-jobs` / `dsh-typert-generator` /
   `dsh-api-remote-access`；1596 个文件逐字节相同、93 个有变化，其中 81 个是各包
@@ -527,6 +532,87 @@ pack → git diff 干净」。
   - **实测验收（0.2.1-rc.5）**：见「DSH 桌面端（Electron）」§实测验收第 7 条（隔离
     `DSH_HOME` + `--from-default-profile web` 自建 profile，桌面端随包 CLI
     `dsh --version` = 0.2.1-rc.5，Playwright / 无头 Chromium）。
+- **0.2.1-rc.5 → 0.2.2-rc.1 的 API 迁移**（本仓库已完成的改造，**当前基线**）：
+  逐包下载 npm tarball 比对（**91 个 in-scope `@deepseek-ai/*` 包** = 76 个依赖图包 +
+  `dsh-client-web` + `dsh` 主包 + `dsh-typert-generator` / `dsh-api-remote-access` /
+  `dsh-jobs` + 白名单可达包，另有 35 个对照包含 `dsh-base` / `dsh-web-app` / 0.2.2 新增包 /
+  6+1 个框架三方包；原始证据在 `.agents/upgrade-022-rc1/`，gitignored，方法可复现）。
+  **0.2.2 是跨元组的 minor 版本，变化比 rc 内升级大得多**：in-scope 91 个包中
+  **31 个 `lib/` 逐字节相同、60 个有字节差异**（多数包新增 de/es/fr/ja/pt/ru 六种
+  locale，另有大量未消费的新功能）；**本仓库消费面全部保持兼容，唯一必须的源码改动是
+  session-monitor 的 `guardedRoute` 参数类型**（见下）。tarball 里仍然没有 CHANGELOG /
+  upgrade-guide。`pnpm typecheck` / `pnpm build` 在 rc.1 下直接通过。
+  - **依赖整体升 rc.1（跨元组）**：7 个包的 peer/deps 改 `^0.2.2-rc.1`（root devDeps 与
+    balance 的 `dsh-settings` 精确 `0.2.2-rc.1`），bundle `engines.dsh` 改
+    `>=0.2.2-rc.1 <0.3.0`；`pnpm-workspace.yaml` 的 87 条 `minimumReleaseAgeExclude`
+    整体改 rc.1（依赖图包集合不变，`pnpm install` 未增删条目）。删 `pnpm-lock.yaml` +
+    `node_modules/` 重解析后 `pnpm peers check` = `No peer dependency issues found`，
+    `zod` 仍 dedupe 到 `4.4.3`，lockfile 无旧版本残留。
+  - **框架三方包整体升 minor（本仓库 specifier 已跟）**：`cordis` 4.0.5 → **4.1.0**
+    （`^4.1.0`；tarball 含 22 个文件变化，用到 `Volatile` / `Context` / `ctx.inject` /
+    `ctx.get` / `loader/volatile-update` 的面逐项验证通过）、`schemastery` 3.18.5 →
+    **3.19.0**（`lib/types` 逐字节相同，`Schema` 面未变）、`cosmokit` 1.8.6 →
+    **1.9.0**（仅版本号变，`Volatile` 面未变）、`cordis-plugin-loader` 1.0.6 →
+    **1.1.0**（新增 `resolve.*`，本仓库只用 `loader/volatile-update` 与 `Fiber.entry`）；
+    白名单里的 `cordis-plugin-include` / `-group` / `-timer` 同步到 1.1.0 / 1.1.0 / 1.2.0；
+    `zod` 仍精确 `4.4.3`。
+  - **`dsh-host-webserver` 新增 resource 路由（本仓库唯一源码适配点）**：
+    `webServer.register()` 的类型从 `WebRoute` 放宽为 **`WebRoute | WebResourceRoute`**
+    （resource route 用 Fetch `Request`→`Response`，另有 `readResource()`；
+    `registerFallback()` 也接受 `{ resource }`）。handler 路由的运行时行为不变，但
+    **用 `Parameters<typeof webServer.register>[0]` 取参数类型再取 `.handler` 的代码会
+    TS2339 编译失败**——session-monitor 的 `guardedRoute` 因此改用具名
+    `import type { WebRoute }`。另：`webserver/index-inject` 事件新增第二个 `peer` 参数、
+    `renderIndex(html, peer)` / `collectIndexInjections(peer)`（本仓库未使用）。
+  - **Host 其余面**：`dsh-settings` 只有内部适配（`owner.ctx.fiber` /
+    `entry.fiber.effectiveConfig`），公开 `SettingsForms` API 与 volatile 语义未变——
+    隔离实例实测 GET revision 0 → POST `bindings` 200、revision 0→1、凭据脱敏、陈旧
+    revision 400 拒绝、值落盘 profile；`dsh-session` 重构 store-owned Session 的
+    enter/announce 发布路径、`TurnEndReasonMap.error.code` 新增 `TOOL_ACTIVATION_FAILED`
+    （本仓库 turn-end schema 用 `reason: z.string()` 容错）；`dsh-session-projection`
+    新增 `SessionProjectionSummaryExcluded` 标记与 `summaryKeys()`（注册/重放语义重构，
+    `ProjectionDefinition` + `stateVersion` 写法不变）；`dsh-session-persistence` 仅新增
+    可选 `location?`；`dsh-app-boot` 大重构（profile 模板与官方 bundle 清单拆到新包
+    `@deepseek-ai/dsh-official-bundles`，`RETIRED_BUNDLES` 目前只含
+    `@deepseek-ai/dsh-experimental-schedule-bundle`），但 **`engines.dsh` 评估逻辑逐行
+    未变**（存在则只由它决定、`includePrerelease`、`workspace:` 非法），本 bundle 的
+    `>=0.2.2-rc.1 <0.3.0` 被接受；`dsh-package-manifest` 类型面新增可选
+    `optionalDependencies` / `dsh.bundle.platforms` / `dsh.bundle.listedByDefault`；
+    `dsh-api-remotes` 大量 remote 常量重编号但 `ctx.remote.$mount` 语义未变；
+    `dsh-jobs` / `dsh-home-paths` / `dsh-credentials` / `dsh-api-job-controller` 的
+    `lib/` 逐字节相同。
+  - **线协议：strict codec 形状未变**（仍 `{ mode:'strict', typeSymbol, create: () =>
+    ZodType }` 惰性工厂，registry 仍拒绝无 `create()` 的 codec）；`dsh-typert-protocol`
+    新增的是 resource `resolve` 声明（`field` xor `resolve`），与本仓库的 Remote 定义
+    无关 → **`packages/dsh-balance/lib/typert.*` 无需重生成**。
+  - **客户端消费面兼容，但有两条新语义要记**：
+    - **种子模块表仍是同一张 11 项表**（`getStaticModules()` 与 rc.5 逐项相同；
+      `dsh-client-web/lib/index.js` 的文件 SHA 因 `AppWebEntry` 新增 `resolveAsset`
+      透传而变，不再是 0.2.1 的 `6C7C849F…`）。6 个 bundle 的外部 `require()` 仍只有
+      react / react-jsx / client-store / ui-slots / ui-primitives，**无需**
+      `dsh.client.external`；隔离实例实测从 0.2.2 页面 assets 提取到同样 11 项。
+    - **`SessionProjectionMap` 新增 summary 排除标记**：`contextPressure` /
+      `contextBreakdown` 在 0.2.2 被标成 `SessionProjectionSummaryExcluded`，不再出现在
+      `SessionSummary.projectionValues`；`tokenUsage` / `workingDirectory` / `goal` 仍在
+      summary 里（token-crit 的 token 投影与会话监控的 cwd / goal 读法继续有效）。
+  - **客户端其余消费面逐项未变**：`ui-layout` 的 `shell.overlay` / `shell.bottom` 槽声明
+    与 props（新增的是内部 `foldedLandscape` 注入与 sidebar `drawer`）；`ui-session` 的
+    `useSessions` / `useSessionStatus`（新增 `whenAccess()`）；`ui-plugin-manager` 的
+    `plugins.tab` / `plugins.row.config` / `PluginConfigViewProps`；`ui-conversation` 的
+    `conversation.input.left|right`（新增 `insertQuote` / `sending` phase 等输入面增量）；
+    `ui-primitives` 的 **`TextShimmer` 实现与 props 逐行未变**、本仓库用的 13 个图标全在
+    （新增 20 个模块是纯增量）；`ui-chat` 的彩虹流光 DOM 契约全部保留
+    （`data-chat-flow` / `data-chat-flow-kind` / `data-chat-group-key` / `data-chat-turn` /
+    `data-chat-motion` / `data-turn-process` / `data-shimmer` 与 `_title` / `_summary`
+    类名后缀）；`client-store` 只把开发期 `devFreeze` 改成 no-op；`client-locale` 新增
+    6 种语言；`dsh-base` / `dsh-web-app` 的 `cordis.patch.yml` 新增官方行
+    （tool-executor-native/ptc、ui-file-actions、ui-context-menu、ui-file-drag、
+    message-quotes、deliverable-file-references），删除 `ui-deepseek-model-label-1017` /
+    `tool-subagent-list-agents`，不碰本仓库使用的槽。
+  - **实测验收（0.2.2-rc.1）**：见「DSH 桌面端（Electron）」§实测验收第 8 条（隔离
+    `DSH_HOME` + `--from-default-profile web` 自建 profile，桌面端随包 CLI
+    `dsh --version` = 0.2.2-rc.1，Playwright / 无头 Edge；证据与可复跑探针在
+    `.agents/upgrade-022-rc1/verify/`）。
 - **0.2.1 新能力的采用（本仓库已做）**：
   - **插件展示元数据**：7 个包都补了 `icon.svg` + `locale/{en,zh}.json`
     （`meta.title` / `meta.description`），`exports` 增加 `./locale/en.json` 与
@@ -646,10 +732,12 @@ pack → git diff 干净」。
     `/favicon.ico` 404。`pnpm -r pack` 后逐个核对 tarball：7 个包均含 package.json /
     README 双语对 + i18n yaml / icon.svg / locale 双语 / lib 产物（balance 另含
     `lib/types` 与 `lib/typert.*`，bundle 含 `cordis.patch.yml`），无缺件。
-- **本机 dsh 必须 ≥ 0.2.1-rc.5**：浏览器端 bundle 的 `require()` 只认两种来源——壳的**种子
+- **本机 dsh 必须 ≥ 0.2.2-rc.1**：浏览器端 bundle 的 `require()` 只认两种来源——壳的**种子
   模块表**（staticModules，写在 `packages/client/web/src/seed.ts` 里）和引导图里的插件行。
-  0.2.1-rc.5 的种子表与 rc.3/rc.2 逐字节相同（`dsh-client-web/lib/index.js` 三版 SHA256
-  一致）
+  0.2.2-rc.1 的种子表与 0.2.1 那张逐项相同（`dsh-client-web/lib/index.js` 的文件 SHA
+  因 0.2.2 在 `AppWebEntry` 新增 `resolveAsset` 透传而变，不再是 0.2.1 的
+  `6C7C849F…`；`getStaticModules()` 的 11 项未变——隔离实例实测从 0.2.2 页面 assets
+  直接提取到同样 11 项）
   = 0.2.1 那张（0.1.7/0.2.0 那张 + `zod` + `@tanstack/react-virtual`）：
   `react` / `react/jsx-runtime` / `react-dom` /
   `react-dom/client` / `@deepseek-ai/cordis` / `@deepseek-ai/dsh-client-store`
@@ -663,13 +751,13 @@ pack → git diff 干净」。
   `dsh-client-store` / `dsh-client-ui-slots` / `dsh-client-ui-primitives`，全部在上述种子表
   内，所以**无需** `dsh.client.external` 声明。升级方式：本机 PATH 上的 `dsh` 是桌面端
   随包 CLI（`F:\DeepSeek-Harness-Desktop\resources\runtime\cli\bin\dsh.cmd`，随应用
-  自更新，实测 0.2.1-rc.5）；独立安装用
-  `npm install -g @deepseek-ai/dsh@0.2.1-rc.5`（该前缀通常在
+  自更新，实测 0.2.2-rc.1）；独立安装用
+  `npm install -g @deepseek-ai/dsh@0.2.2-rc.1`（该前缀通常在
   `C:\Program Files\nodejs\node_global`，需管理员 shell），或免管理员用
-  `npx -y @deepseek-ai/dsh@0.2.1-rc.5 <profile> --port 9021`
+  `npx -y @deepseek-ai/dsh@0.2.2-rc.1 <profile> --port 9021`
   （**别用 7993–8606 一段的端口**：Windows 的 Hyper-V 预留段会让 `webServer` 以
   `EACCES` 启动失败，实测 8099 必失败）。
-  自检：`dsh --version` ≥ 0.2.1-rc.5；`dsh <profile> --dump-config` 里应能看到 6 条
+  自检：`dsh --version` ≥ 0.2.2-rc.1；`dsh <profile> --dump-config` 里应能看到 6 条
   `@dsh-plugins/*` 行；`GET /` 会先返回 401 `dsh web authentication required`，控制台会
   打印带 `?token=…` 的完整 URL（**用它再取一次**才是应用页）；取到后
   `plugins/??<pkg>/client.js&rev=…`（聚合形式 0.1.7 起未变）应返回 200 而不是 404，
@@ -837,7 +925,7 @@ $env:DSH_HOME="$env:TEMP\dsh-preflight"; "…/dsh.cmd" widgettest --from-default
 
 ### 实测验收
 
-**已做（离线可复现；第 1–4 项 2026-09-30 / 桌面端 0.2.0-rc.2，第 5 项 2026-10-17 / 桌面端 0.2.1-rc.2，第 6 项 2026-10-24 / 桌面端 0.2.1-rc.3，第 7 项 2026-10-30 / 桌面端 0.2.1-rc.5）**
+**已做（离线可复现；第 1–4 项 2026-09-30 / 桌面端 0.2.0-rc.2，第 5 项 2026-10-17 / 桌面端 0.2.1-rc.2，第 6 项 2026-10-24 / 桌面端 0.2.1-rc.3，第 7 项 2026-10-30 / 桌面端 0.2.1-rc.5，第 8 项 2026-11-06 / 桌面端 0.2.2-rc.1）**
 
 1. **真实 bundle 栈预检**：把 `profiles/desktop` 原样复制成隔离 home 里的
    `profiles/desktoptest`（保留 `dsh-base` / `dsh-web-app` /
@@ -935,6 +1023,36 @@ $env:DSH_HOME="$env:TEMP\dsh-preflight"; "…/dsh.cmd" widgettest --from-default
    全程未触碰。证据与可复跑探针见 `.agents/upgrade-rc5/verify/`（gitignored；
    `browser-probe` 需在临时装 `playwright-core` 的目录运行，用系统 Edge 的
    `channel: 'msedge'`）。
+8. **桌面端运行时 0.2.2-rc.1 预检（2026-11-06，隔离 home + 自建 web profile，Playwright /
+   无头 Edge）**：同一份桌面端随包 CLI（`…\resources\runtime\cli\bin\dsh.cmd`，
+   `dsh --version` = 0.2.2-rc.1）在 `$env:TEMP\dsh-022rc1-verify\home` 的隔离 `DSH_HOME` 里
+   `widgettest --from-default-profile web` → `pnpm install:profile widgettest --cli …`
+   （7 个 `link:` 包）→ `dsh widgettest --port 19541 --no-open`；另把用户真实
+   `~/.dsh/sessions` 的 3 个会话**只读复制**进隔离 home，用于聊天流着色与会话监控断言。
+   断言：`--dump-config` 里 6 条 `@dsh-plugins/*` 行；六个
+   `plugins/??@dsh-plugins/*/client.js&rev=…` 全 200
+   （260KB/145KB/91KB/89KB/85KB/36KB），外部 `require()` 仍只有 `react` /
+   `react/jsx-runtime` / `dsh-client-store` / `dsh-client-ui-slots` /
+   `dsh-client-ui-primitives`（种子表实测只有同样 11 项）；
+   `/_dsh/session-monitor/{status,sessions,settings,notifications,widget}` 与
+   `/_dsh/balance/settings` 全 200；HTTP 探针 **33/33**（认证栅栏 401/303/200、门禁矩阵
+   12/12、settings volatile revision 0→1、凭据脱敏、陈旧 revision 400 拒绝）；
+   `[data-widget-id]` 三个浮窗可见（token-crit 66×26、session-monitor 270×157、
+   balance 380×121）+ 卡片容器托盘列出 **16 个**可停靠组件（0.2.2 新增官方浮层；
+   上一轮是 12 个，属预期变化）；`style[data-plugin]` 含 6 个 `@dsh-plugins/*`；
+   `<html>` 上 `data-rf-sweep="on"`；打开复制会话后 `data-rf-tool-cat=148` /
+   `data-rf-group-cat=3` / `data-rf-turn-cat=2`，而 **`data-rf-latest` /
+   `data-rf-latest-fold` 均为 0**（0.2.2 的 chat-flow DOM 契约仍被选择器命中）；会话监控
+   行渲染 cwd chip（title 全路径）；token-crit 底栏开关 `[data-shell-bottom]`
+   0→**26px**→0（齿轮是 `div[role=button][aria-label=设置]`，不是 `<button>`）；
+   「插件」页出现「已安装 / 小组件」两个 tab，5 个挂件、4 个「配置」入口、卡片容器与
+   彩虹流光配置页可见；**零 pageerror、零 failed request**。控制台仅 2 条官方
+   `/api/changes.summary` 404（`Change summary unavailable.`——复制会话没有 change
+   summary 数据，官方路由行为，与本仓库插件无关；直接对任意复制会话复测同样 404）。
+   端口 19541 避开 7993–8606 与 19387；用户正在运行的桌面实例与当前 GUI 全程未触碰。
+   证据与可复跑探针见 `.agents/upgrade-022-rc1/verify/`（gitignored；`browser-probe`
+   需在临时装 `playwright-core` 的目录运行，用系统 Edge 的 `channel: 'msedge'`；
+   `?token=` 一次性，重启实例后需重新取 token）。
 
 **仍需人眼确认（真实 Electron 窗口，浏览器探针不能替代）**：窗口 chrome 与浮窗的实际叠放
 （是否被原生窗口按钮遮挡；可在 DevTools 里跑
