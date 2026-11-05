@@ -233,7 +233,9 @@ pack → git diff 干净」。
   0.2.1-rc.2 → rc.3 与 rc.3 → rc.5 都是同一元组内的升级，依赖图包集合不变，87 条列表
   整体改成 `0.2.1-rc.5`，`pnpm install` 没有再追加/删除条目；**0.2.1-rc.5 → 0.2.2-rc.1 是
   跨元组升级（0.2.1 → 0.2.2，prerelease comparator 不跨元组匹配）**，7 个包的 specifier
-  必须一起改，依赖图包集合仍不变，87 条整体改 `0.2.2-rc.1`，6 条第三方白名单改
+  必须一起改；依赖图有 **2 换 2**（新增 `dsh-fs-patch` / `dsh-official-bundles`，移出
+  `dsh-ptc-runtime` / `dsh-sandbox-policy`），87 条白名单按新图换掉 2 条、补 2 条后仍为
+  87 条并整体改 `0.2.2-rc.1`，6 条第三方白名单改
   `cordis@4.1.0` / `cosmokit@1.9.0` / `schemastery@3.19.0` / `cordis-plugin-loader@1.1.0` /
   `cordis-plugin-include@1.1.0` / `cordis-plugin-group@1.1.0`）。
   **升版只改 specifier 会留下「半新」依赖图**：`pnpm install` 会复用 lockfile 里仍满足
@@ -545,7 +547,10 @@ pack → git diff 干净」。
   - **依赖整体升 rc.1（跨元组）**：7 个包的 peer/deps 改 `^0.2.2-rc.1`（root devDeps 与
     balance 的 `dsh-settings` 精确 `0.2.2-rc.1`），bundle `engines.dsh` 改
     `>=0.2.2-rc.1 <0.3.0`；`pnpm-workspace.yaml` 的 87 条 `minimumReleaseAgeExclude`
-    整体改 rc.1（依赖图包集合不变，`pnpm install` 未增删条目）。删 `pnpm-lock.yaml` +
+    整体改 rc.1，并按新版依赖图换掉 2 条、补 2 条（**依赖图 2 换 2**：新增
+    `dsh-fs-patch` / `dsh-official-bundles`——`dsh-fs` / `dsh-app-boot` 的新依赖；
+    移出 `dsh-ptc-runtime` / `dsh-sandbox-policy`——0.2.2 把 PTC 与沙箱策略并入其它包；
+    保持 76 个图内包 + 11 条历史遗留 = 87 条）。删 `pnpm-lock.yaml` +
     `node_modules/` 重解析后 `pnpm peers check` = `No peer dependency issues found`，
     `zod` 仍 dedupe 到 `4.4.3`，lockfile 无旧版本残留。
   - **框架三方包整体升 minor（本仓库 specifier 已跟）**：`cordis` 4.0.5 → **4.1.0**
@@ -554,8 +559,8 @@ pack → git diff 干净」。
     **3.19.0**（`lib/types` 逐字节相同，`Schema` 面未变）、`cosmokit` 1.8.6 →
     **1.9.0**（仅版本号变，`Volatile` 面未变）、`cordis-plugin-loader` 1.0.6 →
     **1.1.0**（新增 `resolve.*`，本仓库只用 `loader/volatile-update` 与 `Fiber.entry`）；
-    白名单里的 `cordis-plugin-include` / `-group` / `-timer` 同步到 1.1.0 / 1.1.0 / 1.2.0；
-    `zod` 仍精确 `4.4.3`。
+    白名单里的 `cordis-plugin-include` / `-group` 同步到 1.1.0（`cordis-plugin-timer`
+    升到 1.2.0，但它只是主包的依赖、不进本仓库依赖图）；`zod` 仍精确 `4.4.3`。
   - **`dsh-host-webserver` 新增 resource 路由（本仓库唯一源码适配点）**：
     `webServer.register()` 的类型从 `WebRoute` 放宽为 **`WebRoute | WebResourceRoute`**
     （resource route 用 Fetch `Request`→`Response`，另有 `readResource()`；
@@ -750,8 +755,9 @@ pack → git diff 干净」。
   6 个 bundle 运行时的外部 require 只有 `react` / `react/jsx-runtime` /
   `dsh-client-store` / `dsh-client-ui-slots` / `dsh-client-ui-primitives`，全部在上述种子表
   内，所以**无需** `dsh.client.external` 声明。升级方式：本机 PATH 上的 `dsh` 是桌面端
-  随包 CLI（`F:\DeepSeek-Harness-Desktop\resources\runtime\cli\bin\dsh.cmd`，随应用
-  自更新，实测 0.2.2-rc.1）；独立安装用
+  随包 CLI（本机安装目录是 `D:\DeepSeek Harness`，CLI 在
+  `resources/runtime/cli/bin/dsh.cmd`；历史文档里的示例是
+  `F:\DeepSeek-Harness-Desktop`。随应用自更新，实测 0.2.2-rc.1）；独立安装用
   `npm install -g @deepseek-ai/dsh@0.2.2-rc.1`（该前缀通常在
   `C:\Program Files\nodejs\node_global`，需管理员 shell），或免管理员用
   `npx -y @deepseek-ai/dsh@0.2.2-rc.1 <profile> --port 9021`
