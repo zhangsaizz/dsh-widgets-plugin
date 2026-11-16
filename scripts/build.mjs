@@ -29,7 +29,7 @@ const EXTERNAL = ['@deepseek-ai/*', '@dsh-plugins/*', 'zod', 'react', 'react/*']
 // externals from the shell's module table. That table has no `zod` factory on
 // every supported shell: harness 0.2.1 added one, earlier shells do not, and
 // the generated typert wire code imports zod. Client bundles therefore inline
-// zod (pinned to 4.4.3, the version the harness's session-projection and
+// zod (pinned to 4.6.6, the version the harness's session-projection and
 // typert-registry use) instead of externalising it; host bundles keep it
 // external and resolve it from node_modules at runtime.
 const EXTERNAL_CLIENT = EXTERNAL.filter((entry) => entry !== 'zod')
